@@ -29,7 +29,7 @@ import { logout } from "../../api/auth/logout";
 import { useSidebar } from "../../context/SidebarContext";
 
 const menuItems = [
-  { text: "Anasayfa", icon: <Home size={22} />, path: "/admin" },
+  { text: "Dashboard", icon: <Home size={22} />, path: "/admin" },
   {
     text: "Kullanıcılar",
     icon: <GroupOutlinedIcon size={22} />,

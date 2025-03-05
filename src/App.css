@@ -149,15 +149,15 @@ body {
 .navbar {
   background-color: #ffffff;
   padding: 1vh;
-  width: 90vh;
+  width: 95vh;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
   align-items: center;
   gap: 1vh;
   margin-top: 2vh;
-  margin-right: 3vh;
-  margin-left: 10vh;
+  margin-right: 2vh;
+  margin-left: 6vh;
 
 
   box-shadow: rgba(0, 0, 0, 0.24) 0px 3px 8px;

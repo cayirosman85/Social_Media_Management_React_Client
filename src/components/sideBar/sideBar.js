@@ -32,9 +32,9 @@ import {
 import { useSidebar } from "../../context/SidebarContext";
 
 const menuItems = [
-  { text: "Anasayfa", icon: <Home size={22} />, path: "/homepage" },
+  { text: "Dashboard", icon: <Home size={22} />, path: "/homepage" },
   { text: "Clients", icon: <Files size={22} />, path: "/user/gridPage" },
-  { text: "Alt Programlar", header: true },
+  { text: "Social Medias", header: true },
   {
     text: "Instagram",
     icon: <Instagram size={22} />,
@@ -52,7 +52,7 @@ const menuItems = [
     ],
   },
   {
-    text: "Çıkış",
+    text: "Logout",
     icon: <LogoutOutlinedIcon size={22} />,
     action: logout,
     path: "/login",

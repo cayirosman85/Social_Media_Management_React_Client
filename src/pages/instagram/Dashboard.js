@@ -5,9 +5,9 @@ import InstagramPost from "../../components/instagram/InstagramPost.js";
 import NewPostModal from "../../components/instagram/NewPostModal.js";
 import InstagramStory from "../../components/instagram/InstagramStory.js";
 import CarouselSlider from "../../components/instagram/CarouselSlider.js";
+import NewStoryModal from "../../components/instagram/NewStoryModal.js";
 import { 
   fetchInstagramData, 
-  publishPost, 
   toggleCommentVisibility, 
   deleteComment, 
   createComment, 
@@ -20,6 +20,7 @@ const Dashboard = () => {
   const [selectedPost, setSelectedPost] = useState(null);
   const [selectedStoryIndex, setSelectedStoryIndex] = useState(null);
   const [showNewPostModal, setShowNewPostModal] = useState(false);
+  const [showNewStoryModal, setShowNewStoryModal] = useState(false); // Add state for story modal
   const [isLoading, setIsLoading] = useState(true);
   const [instagramData, setInstagramData] = useState(null);
   const [error, setError] = useState(null);
@@ -29,77 +30,39 @@ const Dashboard = () => {
   const [showInsights, setShowInsights] = useState(false);
 
   useEffect(() => {
-    const loadInstagramData = async () => {
-      setIsLoading(true);
-      try {
-        const data = await fetchInstagramData(
-          "17841473036355290",
-          "osmancayir73",
-          "EAAZAde8LZA8zIBO4O8QsOQmyMMMShi79cCZBMRJZCjbSbXG7Y3ZAQ4OGvJN1vi8LYLeNx6K9pbxpFuU2saC3lWWt43za1ggpCu9YONtmCuwucaWVgtYYqRcG2oMtuHPhxq6x4n3ImiE3TzXf4IzMHxMtuDbwNfT52ZA6yjkwWabhrLZCrb7zqWzdkjZBApQJmNntUgZDZD"
-        );
-        setInstagramData(data);
-      } catch (err) {
-        setError(err.message);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
     loadInstagramData();
   }, []);
+
+  const loadInstagramData = async () => {
+    setIsLoading(true);
+    try {
+      const data = await fetchInstagramData(
+        "17841473036355290",
+        "osmancayir73",
+        "EAAZAde8LZA8zIBO4O8QsOQmyMMMShi79cCZBMRJZCjbSbXG7Y3ZAQ4OGvJN1vi8LYLeNx6K9pbxpFuU2saC3lWWt43za1ggpCu9YONtmCuwucaWVgtYYqRcG2oMtuHPhxq6x4n3ImiE3TzXf4IzMHxMtuDbwNfT52ZA6yjkwWabhrLZCrb7zqWzdkjZBApQJmNntUgZDZD"
+      );
+      setInstagramData(data);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handlePostSuccess = (updatedData) => {
+    setInstagramData(updatedData);
+    setShowNewPostModal(false);
+  };
+
+  const handleStorySuccess = (updatedData) => {
+    setInstagramData(updatedData);
+    setShowNewStoryModal(false);
+  };
 
   const handleTabClick = (tab) => {
     setActiveTab(tab);
   };
 
-  const handleNewPostSubmit = async (e) => {
-    e.preventDefault();
-    setIsLoading(true);
-    try {
-      const formData = new FormData(e.target);
-      const mediaFile = formData.get("mediaFile");
-      const mediaUrl = formData.get("mediaUrl")?.trim();
-      const caption = formData.get("caption")?.trim();
-
-      let postData = {
-        user_id: "17841473036355290",
-        access_token: "EAAZAde8LZA8zIBO4O8QsOQmyMMMShi79cCZBMRJZCjbSbXG7Y3ZAQ4OGvJN1vi8LYLeNx6K9pbxpFuU2saC3lWWt43za1ggpCu9YONtmCuwucaWVgtYYqRcG2oMtuHPhxq6x4n3ImiE3TzXf4IzMHxMtuDbwNfT52ZA6yjkwWabhrLZCrb7zqWzdkjZBApQJmNntUgZDZD",
-        caption,
-      };
-
-      if (mediaFile) {
-        const formDataUpload = new FormData();
-        formDataUpload.append("mediaFile", mediaFile);
-        const uploadResponse = await fetch("http://localhost:8000/api/upload", {
-          method: "POST",
-          body: formDataUpload,
-        });
-        if (!uploadResponse.ok) throw new Error("Failed to upload media");
-        const uploadData = await uploadResponse.json();
-        postData.image_url = uploadData.url;
-      } else if (mediaUrl) {
-        postData.image_url = mediaUrl;
-      }
-
-      const result = await publishPost(postData);
-      if (result.success) {
-        const updatedData = await fetchInstagramData(
-          "17841473036355290",
-          "osmancayir73",
-          "EAAZAde8LZA8zIBO4O8QsOQmyMMMShi79cCZBMRJZCjbSbXG7Y3ZAQ4OGvJN1vi8LYLeNx6K9pbxpFuU2saC3lWWt43za1ggpCu9YONtmCuwucaWVgtYYqRcG2oMtuHPhxq6x4n3ImiE3TzXf4IzMHxMtuDbwNfT52ZA6yjkwWabhrLZCrb7zqWzdkjZBApQJmNntUgZDZD"
-        );
-        setInstagramData(updatedData);
-        setShowNewPostModal(false);
-        alert("Post published successfully!");
-      } else {
-        throw new Error(result.error || "Unknown error");
-      }
-    } catch (error) {
-      setError(error.message);
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
   const handleToggleCommentVisibility = async (commentId, hide) => {
     setIsLoading(true);
@@ -347,7 +310,7 @@ const Dashboard = () => {
                 }}
                 onMouseOver={(e) => (e.currentTarget.style.backgroundColor = "#d9d9d9")}
                 onMouseOut={(e) => (e.currentTarget.style.backgroundColor = "#e9e9e9")}
-                onClick={() => setSelectedStoryIndex(0)}
+                onClick={() => setShowNewStoryModal(true)}
                 aria-label="Add new story"
               >
                 <svg
@@ -422,10 +385,17 @@ const Dashboard = () => {
             )}
           </div>
           {showNewPostModal && (
-            <NewPostModal
-              onSubmit={handleNewPostSubmit}
-              isLoading={isLoading}
+              <NewPostModal
               onClose={() => setShowNewPostModal(false)}
+              onPostSuccess={handlePostSuccess}
+              fetchInstagramData={fetchInstagramData}
+            />
+          )}
+           {showNewStoryModal && (
+            <NewStoryModal
+              onClose={() => setShowNewStoryModal(false)}
+              onStorySuccess={handleStorySuccess}
+              fetchInstagramData={fetchInstagramData}
             />
           )}
           {selectedPost && (
