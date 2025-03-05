@@ -1,31 +1,35 @@
 import React, { useState, useEffect } from "react";
-import InstagramPost from "../../components/instagram/InstagramPost";
 import NewPostModal from "../../components/instagram/NewPostModal";
 import CarouselSlider from "../../components/instagram/CarouselSlider";
-import { fetchInstagramData, publishPost, toggleCommentVisibility, deleteComment, createComment, createReply } from "../../services/instagram/instagramService";
+import { fetchInstagramData, publishPost, toggleCommentVisibility, deleteComment, createComment, createReply, getUserPosts } from "../../services/instagram/instagramService";
 
 const PostsManager = ({ instagramData }) => {
   const [posts, setPosts] = useState([]);
-  const [selectedPost, setSelectedPost] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [showNewPostModal, setShowNewPostModal] = useState(false);
-  const [newComment, setNewComment] = useState("");
+  const [newComments, setNewComments] = useState({});
+  const [newReplies, setNewReplies] = useState({});
   const [replyingTo, setReplyingTo] = useState(null);
-  const [newReply, setNewReply] = useState("");
-  const [showInsights, setShowInsights] = useState(false);
+  const [showInsights, setShowInsights] = useState({});
 
   useEffect(() => {
-    if (instagramData) {
+    const fetchPosts = async () => {
       setIsLoading(true);
-      fetchInstagramData(
-        "17841473036355290",
-        "osmancayir73",
-        "EAAZAde8LZA8zIBO4O8QsOQmyMMMShi79cCZBMRJZCjbSbXG7Y3ZAQ4OGvJN1vi8LYLeNx6K9pbxpFuU2saC3lWWt43za1ggpCu9YONtmCuwucaWVgtYYqRcG2oMtuHPhxq6x4n3ImiE3TzXf4IzMHxMtuDbwNfT52ZA6yjkwWabhrLZCrb7zqWzdkjZBApQJmNntUgZDZD"
-      )
-        .then((data) => setPosts(data.business_discovery.media.data))
-        .catch((error) => console.error("Error fetching posts:", error))
-        .finally(() => setIsLoading(false));
-    }
+      try {
+        const data = await getUserPosts(
+          "17841473036355290",
+          "osmancayir73",
+          "EAAZAde8LZA8zIBO4O8QsOQmyMMMShi79cCZBMRJZCjbSbXG7Y3ZAQ4OGvJN1vi8LYLeNx6K9pbxpFuU2saC3lWWt43za1ggpCu9YONtmCuwucaWVgtYYqRcG2oMtuHPhxq6x4n3ImiE3TzXf4IzMHxMtuDbwNfT52ZA6yjkwWabhrLZCrb7zqWzdkjZBApQJmNntUgZDZD"
+        );
+        setPosts(data.posts || []);
+      } catch (error) {
+        console.error("Error fetching posts:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchPosts();
   }, [instagramData]);
 
   const handleNewPostSubmit = async (e) => {
@@ -167,11 +171,12 @@ const PostsManager = ({ instagramData }) => {
 
       const result = await publishPost(postData);
       if (result.success) {
-        fetchInstagramData(
+        const data = await getUserPosts(
           "17841473036355290",
           "osmancayir73",
           "EAAZAde8LZA8zIBO4O8QsOQmyMMMShi79cCZBMRJZCjbSbXG7Y3ZAQ4OGvJN1vi8LYLeNx6K9pbxpFuU2saC3lWWt43za1ggpCu9YONtmCuwucaWVgtYYqRcG2oMtuHPhxq6x4n3ImiE3TzXf4IzMHxMtuDbwNfT52ZA6yjkwWabhrLZCrb7zqWzdkjZBApQJmNntUgZDZD"
-        ).then((data) => setPosts(data.business_discovery.media.data));
+        );
+        setPosts(data.posts || []);
         setShowNewPostModal(false);
         alert("Post published successfully!");
       } else {
@@ -179,27 +184,36 @@ const PostsManager = ({ instagramData }) => {
       }
     } catch (error) {
       console.error("Error publishing post:", error);
+      alert(`Error publishing post: ${error.message}`);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleToggleCommentVisibility = async (commentId, isHidden) => {
+  const handleToggleCommentVisibility = async (postId, commentId, isHidden) => {
     setIsLoading(true);
     try {
-      const result = await toggleCommentVisibility(
+      await toggleCommentVisibility(
         instagramData.business_discovery.id,
         commentId,
         instagramData.accessToken,
         !isHidden
       );
-      const updatedComments = selectedPost.comments.data.map((comment) =>
-        comment.id === commentId ? { ...comment, hidden: !isHidden } : comment
+      setPosts((prevPosts) =>
+        prevPosts.map((post) =>
+          post.id === postId
+            ? {
+                ...post,
+                comments: {
+                  ...post.comments,
+                  data: post.comments.data.map((comment) =>
+                    comment.id === commentId ? { ...comment, hidden: !isHidden } : comment
+                  ),
+                },
+              }
+            : post
+        )
       );
-      setSelectedPost({
-        ...selectedPost,
-        comments: { ...selectedPost.comments, data: updatedComments },
-      });
       alert(`Comment ${!isHidden ? "hidden" : "shown"} successfully!`);
     } catch (error) {
       console.error("Error toggling comment visibility:", error);
@@ -208,17 +222,26 @@ const PostsManager = ({ instagramData }) => {
     }
   };
 
-  const handleDeleteComment = async (commentId) => {
+  const handleDeleteComment = async (postId, commentId) => {
     if (!window.confirm("Are you sure you want to delete this comment?")) return;
 
     setIsLoading(true);
     try {
       await deleteComment(instagramData.business_discovery.id, commentId, instagramData.accessToken);
-      const updatedComments = selectedPost.comments.data.filter((comment) => comment.id !== commentId);
-      setSelectedPost({
-        ...selectedPost,
-        comments: { ...selectedPost.comments, data: updatedComments },
-      });
+      setPosts((prevPosts) =>
+        prevPosts.map((post) =>
+          post.id === postId
+            ? {
+                ...post,
+                comments: {
+                  ...post.comments,
+                  data: post.comments.data.filter((comment) => comment.id !== commentId),
+                },
+                comments_count: post.comments_count - 1,
+              }
+            : post
+        )
+      );
       alert("Comment deleted successfully!");
     } catch (error) {
       console.error("Error deleting comment:", error);
@@ -227,32 +250,41 @@ const PostsManager = ({ instagramData }) => {
     }
   };
 
-  const handleCreateComment = async (e) => {
+  const handleCreateComment = async (e, postId) => {
     e.preventDefault();
-    if (!newComment.trim()) return;
+    const commentText = newComments[postId]?.trim();
+    if (!commentText) return;
 
     setIsLoading(true);
     try {
       const result = await createComment(
         instagramData.business_discovery.id,
-        selectedPost.id,
+        postId,
         instagramData.accessToken,
-        newComment
+        commentText
       );
       const newCommentObj = {
         id: result.comment_id,
         username: instagramData.business_discovery.username,
-        text: newComment,
+        text: commentText,
         timestamp: new Date().toISOString(),
         hidden: false,
       };
-      const updatedComments = [...(selectedPost.comments?.data || []), newCommentObj];
-      setSelectedPost({
-        ...selectedPost,
-        comments: { ...selectedPost.comments, data: updatedComments },
-        comments_count: (selectedPost.comments_count || 0) + 1,
-      });
-      setNewComment("");
+      setPosts((prevPosts) =>
+        prevPosts.map((post) =>
+          post.id === postId
+            ? {
+                ...post,
+                comments: {
+                  ...post.comments,
+                  data: [...(post.comments?.data || []), newCommentObj],
+                },
+                comments_count: (post.comments_count || 0) + 1,
+              }
+            : post
+        )
+      );
+      setNewComments((prev) => ({ ...prev, [postId]: "" }));
       alert("Comment posted successfully!");
     } catch (error) {
       console.error("Error creating comment:", error);
@@ -261,36 +293,44 @@ const PostsManager = ({ instagramData }) => {
     }
   };
 
-  const handleCreateReply = async (e, commentId) => {
+  const handleCreateReply = async (e, postId, commentId) => {
     e.preventDefault();
-    if (!newReply.trim()) return;
+    const replyText = newReplies[`${postId}-${commentId}`]?.trim();
+    if (!replyText) return;
 
     setIsLoading(true);
     try {
-      const result = await createReply(instagramData.business_discovery.id, commentId, instagramData.accessToken, newReply);
+      const result = await createReply(instagramData.business_discovery.id, commentId, instagramData.accessToken, replyText);
       const newReplyObj = {
         id: result.reply_id,
         username: instagramData.business_discovery.username,
-        text: newReply,
+        text: replyText,
         timestamp: new Date().toISOString(),
       };
-      const updatedComments = selectedPost.comments.data.map((comment) => {
-        if (comment.id === commentId) {
-          return {
-            ...comment,
-            replies: {
-              ...comment.replies,
-              data: [...(comment.replies?.data || []), newReplyObj],
-            },
-          };
-        }
-        return comment;
-      });
-      setSelectedPost({
-        ...selectedPost,
-        comments: { ...selectedPost.comments, data: updatedComments },
-      });
-      setNewReply("");
+      setPosts((prevPosts) =>
+        prevPosts.map((post) =>
+          post.id === postId
+            ? {
+                ...post,
+                comments: {
+                  ...post.comments,
+                  data: post.comments.data.map((comment) =>
+                    comment.id === commentId
+                      ? {
+                          ...comment,
+                          replies: {
+                            ...comment.replies,
+                            data: [...(comment.replies?.data || []), newReplyObj],
+                          },
+                        }
+                      : comment
+                  ),
+                },
+              }
+            : post
+        )
+      );
+      setNewReplies((prev) => ({ ...prev, [`${postId}-${commentId}`]: "" }));
       setReplyingTo(null);
       alert("Reply posted successfully!");
     } catch (error) {
@@ -300,178 +340,262 @@ const PostsManager = ({ instagramData }) => {
     }
   };
 
+  const toggleInsights = (postId) => {
+    setShowInsights((prev) => ({ ...prev, [postId]: !prev[postId] }));
+  };
+
   return (
-    <div className="media-feed">
-      <button onClick={() => setShowNewPostModal(true)}>Create New Post</button>
-      <div className="media-grid">
-        {posts.map((post) => (
-          <InstagramPost key={post.id} post={post} onClick={() => setSelectedPost(post)} />
-        ))}
+    <div className="media-feed" style={{ maxWidth: '900px', margin: '0 auto', padding: '20px' }}>
+      <div className="posts-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+        <h2 style={{ margin: 0 }}>Your Posts</h2>
+        <button 
+          onClick={() => setShowNewPostModal(true)}
+          style={{ 
+            padding: '10px 20px', 
+            backgroundColor: '#0095f6', 
+            color: 'white', 
+            border: 'none', 
+            borderRadius: '4px', 
+            cursor: 'pointer',
+            fontWeight: 'bold'
+          }}
+        >
+          Create Post
+        </button>
       </div>
-      {showNewPostModal && (
-        <NewPostModal onSubmit={handleNewPostSubmit} isLoading={isLoading} onClose={() => setShowNewPostModal(false)} />
-      )}
-      {selectedPost && (
-        <div className="modal" onClick={() => setSelectedPost(null)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <span className="close" onClick={() => setSelectedPost(null)}>×</span>
-            <div className="modal-body">
-              <div className="modal-image">
-                {selectedPost.media_type === "IMAGE" ? (
-                  <img src={selectedPost.media_url} alt="Post" className="modal-img" />
-                ) : selectedPost.media_type === "VIDEO" ? (
-                  <video src={selectedPost.media_url} className="modal-img" controls autoPlay muted />
-                ) : selectedPost.media_type === "CAROUSEL_ALBUM" ? (
-                  <CarouselSlider media={selectedPost} />
-                ) : null}
-              </div>
-              <div className="post-details-section">
-                <div className="post-header">
-                  <img
-                    src={instagramData.business_discovery.profile_picture_url}
-                    alt="Profile"
-                    className="post-profile-img"
+
+      {isLoading ? (
+        <p style={{ textAlign: 'center' }}>Loading posts...</p>
+      ) : posts.length === 0 ? (
+        <p style={{ textAlign: 'center' }}>No posts available.</p>
+      ) : (
+        <div className="posts-list">
+          {posts.map((post) => (
+            <div 
+              key={post.id} 
+              className="post-item" 
+              style={{ 
+                display: 'flex', 
+                border: '1px solid #dbdbdb', 
+                marginBottom: '20px', 
+                padding: '20px', 
+                borderRadius: '4px', 
+                backgroundColor: '#fff' 
+              }}
+            >
+              {/* Left: Media */}
+              <div className="post-media" style={{ flex: '1', maxWidth: '400px', marginRight: '20px' }}>
+                {post.media_type === "IMAGE" ? (
+                  <img 
+                    src={post.media_url} 
+                    alt="Post" 
+                    style={{ width: '100%', borderRadius: '4px', objectFit: 'cover' }} 
                   />
-                  <span className="post-username">@{instagramData.business_discovery.username}</span>
-                </div>
-                <p className="post-caption">{selectedPost.caption || "No caption available"}</p>
-                <p className="likes-time">
-                  <strong>{selectedPost.like_count || 0} likes</strong>
-                  <br />
-                  <span>{new Date(selectedPost.timestamp).toLocaleString()}</span>
+                ) : post.media_type === "VIDEO" ? (
+                  <video 
+                    src={post.media_url} 
+                    controls 
+                    style={{ width: '100%', borderRadius: '4px' }} 
+                  />
+                ) : post.media_type === "CAROUSEL_ALBUM" ? (
+                  <CarouselSlider media={post} /> // Assuming CarouselSlider can handle single media_url
+                ) : null}
+                {post.media_type === "CAROUSEL_ALBUM" && (
+                  <p style={{ textAlign: 'center', color: '#8e8e8e', fontSize: '12px', marginTop: '5px' }}>
+                    Carousel ({post.children?.data?.length || 'multiple'} items)
+                  </p>
+                )}
+              </div>
+
+              {/* Right: Details */}
+              <div className="post-details-section" style={{ flex: '1', minWidth: '0' }}>
+       
+                <p style={{ margin: '10px 0', wordBreak: 'break-word' }}>
+                  {post.caption || "No caption available"}
                 </p>
-                <div className="comments-section">
-                  {selectedPost.comments && selectedPost.comments.data.length > 0 ? (
-                    selectedPost.comments.data.map((comment) => (
-                      <div key={comment.id} className="comment-container">
-                        <div className="comment">
-                          <img
-                            src={`https://picsum.photos/seed/${comment.username}/32/32`}
-                            alt={`${comment.username}'s avatar`}
-                            className="comment-avatar"
-                          />
-                          <div className="comment-content">
-                            <span className="comment-username">{comment.username}</span>
-                            <span className="comment-text">{comment.text}</span>
-                            <div className="comment-meta">
-                              <span className="comment-timestamp">
-                                {new Date(comment.timestamp).toLocaleString()}
-                              </span>
-                              <button
-                                onClick={() => handleToggleCommentVisibility(comment.id, comment.hidden)}
-                                className="comment-action-btn"
-                              >
-                                {comment.hidden ? "Show" : "Hide"}
-                              </button>
-                              <button
-                                onClick={() => handleDeleteComment(comment.id)}
-                                className="comment-action-btn delete"
-                              >
-                                Delete
-                              </button>
-                              <button
-                                onClick={() => setReplyingTo(comment.id)}
-                                className="comment-reply-btn"
-                              >
-                                Reply
-                              </button>
-                            </div>
-                            {replyingTo === comment.id && (
-                              <div className="reply-input-container">
-                                <form
-                                  onSubmit={(e) => handleCreateReply(e, comment.id)}
-                                  style={{ display: "flex", width: "100%", marginTop: "8px" }}
+                <p style={{ color: '#8e8e8e', fontSize: '14px' }}>
+                  <strong>{post.like_count || 0} likes</strong>
+                  <br />
+                  <span>{new Date(post.timestamp).toLocaleString()}</span>
+                </p>
+
+                {/* Comments Section */}
+                <div className="comments-section" style={{ marginTop: '20px', maxHeight: '300px', overflowY: 'auto' }}>
+                  {post?.comments?.data && post.comments.data.length > 0 ? (
+                    post.comments.data
+                      .filter((comment) => comment && comment.id)
+                      .map((comment) => (
+                        <div key={comment.id} className="comment-container" style={{ marginBottom: '15px' }}>
+                          <div className="comment" style={{ display: 'flex' }}>
+                            <img
+                              src={`https://picsum.photos/seed/${comment?.username || 'default'}/32/32`}
+                              alt={`${comment?.username || 'User'}'s avatar`}
+                              style={{ width: '32px', height: '32px', borderRadius: '50%', marginRight: '10px' }}
+                            />
+                            <div className="comment-content" style={{ flex: 1 }}>
+                              <span style={{ fontWeight: 'bold' }}>{comment?.username || 'Anonymous'}</span>
+                              <span style={{ marginLeft: '5px' }}>{comment?.text || 'No text'}</span>
+                              <div style={{ marginTop: '5px', color: '#8e8e8e', fontSize: '12px' }}>
+                                <span>
+                                  {comment?.timestamp
+                                    ? new Date(comment.timestamp).toLocaleString()
+                                    : 'Unknown time'}
+                                </span>
+                                <button
+                                  onClick={() => handleToggleCommentVisibility(post.id, comment.id, comment?.hidden || false)}
+                                  style={{ marginLeft: '10px', color: '#0095f6', background: 'none', border: 'none', cursor: 'pointer' }}
                                 >
-                                  <input
-                                    type="text"
-                                    placeholder={`Reply to ${comment.username}...`}
-                                    className="comment-input"
-                                    value={newReply}
-                                    onChange={(e) => setNewReply(e.target.value)}
-                                    disabled={isLoading}
-                                  />
-                                  <button
-                                    type="submit"
-                                    className="comment-btn"
-                                    disabled={isLoading || !newReply.trim()}
-                                  >
-                                    {isLoading ? "Posting..." : "Post"}
-                                  </button>
-                                </form>
+                                  {comment?.hidden ? "Show" : "Hide"}
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteComment(post.id, comment.id)}
+                                  style={{ marginLeft: '10px', color: '#ed4956', background: 'none', border: 'none', cursor: 'pointer' }}
+                                >
+                                  Delete
+                                </button>
+                                <button
+                                  onClick={() => setReplyingTo(`${post.id}-${comment.id}`)}
+                                  style={{ marginLeft: '10px', color: '#0095f6', background: 'none', border: 'none', cursor: 'pointer' }}
+                                >
+                                  Reply
+                                </button>
                               </div>
-                            )}
+                              {replyingTo === `${post.id}-${comment.id}` && (
+                                <div style={{ marginTop: '10px' }}>
+                                  <form
+                                    onSubmit={(e) => handleCreateReply(e, post.id, comment.id)}
+                                    style={{ display: "flex", width: "100%" }}
+                                  >
+                                    <input
+                                      type="text"
+                                      placeholder={`Reply to ${comment?.username || 'User'}...`}
+                                      value={newReplies[`${post.id}-${comment.id}`] || ""}
+                                      onChange={(e) =>
+                                        setNewReplies((prev) => ({
+                                          ...prev,
+                                          [`${post.id}-${comment.id}`]: e.target.value,
+                                        }))
+                                      }
+                                      disabled={isLoading}
+                                      style={{ flex: 1, padding: '8px', borderRadius: '4px', border: '1px solid #dbdbdb' }}
+                                    />
+                                    <button
+                                      type="submit"
+                                      disabled={isLoading || !newReplies[`${post.id}-${comment.id}`]?.trim()}
+                                      style={{
+                                        marginLeft: '10px',
+                                        padding: '8px 16px',
+                                        backgroundColor: '#0095f6',
+                                        color: 'white',
+                                        border: 'none',
+                                        borderRadius: '4px',
+                                        cursor: 'pointer',
+                                      }}
+                                    >
+                                      {isLoading ? "Posting..." : "Post"}
+                                    </button>
+                                  </form>
+                                </div>
+                              )}
+                            </div>
                           </div>
-                        </div>
-                        {comment.replies && comment.replies.data.length > 0 && (
-                          <div className="replies-container">
-                            {comment.replies.data.map((reply) => (
-                              <div key={reply.id} className="reply">
-                                <img
-                                  src={`https://picsum.photos/seed/${reply.username}/24/24`}
-                                  alt={`${reply.username}'s avatar`}
-                                  className="reply-avatar"
-                                />
-                                <div className="reply-content">
-                                  <span className="comment-username">{reply.username}</span>
-                                  <span className="comment-text">{reply.text}</span>
-                                  <div className="reply-meta">
-                                    <span className="comment-timestamp">
-                                      {new Date(reply.timestamp).toLocaleString()}
-                                    </span>
+                          {comment?.replies?.data && comment.replies.data.length > 0 && (
+                            <div style={{ marginLeft: '42px', marginTop: '10px' }}>
+                              {comment.replies.data.map((reply) => (
+                                <div key={reply.id} style={{ display: 'flex', marginBottom: '10px' }}>
+                                  <img
+                                    src={`https://picsum.photos/seed/${reply?.username || 'default'}/24/24`}
+                                    alt={`${reply?.username || 'User'}'s avatar`}
+                                    style={{ width: '24px', height: '24px', borderRadius: '50%', marginRight: '10px' }}
+                                  />
+                                  <div style={{ flex: 1 }}>
+                                    <span style={{ fontWeight: 'bold' }}>{reply?.username || 'Anonymous'}</span>
+                                    <span style={{ marginLeft: '5px' }}>{reply?.text || 'No text'}</span>
+                                    <div style={{ marginTop: '5px', color: '#8e8e8e', fontSize: '12px' }}>
+                                      <span>
+                                        {reply?.timestamp
+                                          ? new Date(reply.timestamp).toLocaleString()
+                                          : 'Unknown time'}
+                                      </span>
+                                    </div>
                                   </div>
                                 </div>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    ))
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      ))
                   ) : (
-                    <p className="no-comments">No comments yet. Start the conversation.</p>
+                    <p style={{ color: '#8e8e8e' }}>No comments yet. Start the conversation.</p>
                   )}
-                  <div className="comment-input-container">
-                    <span className="emoji-icon">😊</span>
-                    <form onSubmit={handleCreateComment} style={{ display: "flex", width: "100%" }}>
+                  <div style={{ marginTop: '20px' }}>
+                    <span style={{ marginRight: '10px' }}>😊</span>
+                    <form onSubmit={(e) => handleCreateComment(e, post.id)} style={{ display: "flex", width: "100%" }}>
                       <input
                         type="text"
                         placeholder="Add a comment..."
-                        className="comment-input"
-                        value={newComment}
-                        onChange={(e) => setNewComment(e.target.value)}
+                        value={newComments[post.id] || ""}
+                        onChange={(e) =>
+                          setNewComments((prev) => ({ ...prev, [post.id]: e.target.value }))
+                        }
                         disabled={isLoading}
+                        style={{ flex: 1, padding: '8px', borderRadius: '4px', border: '1px solid #dbdbdb' }}
                       />
                       <button
                         type="submit"
-                        className="comment-btn"
-                        disabled={isLoading || !newComment.trim()}
+                        disabled={isLoading || !newComments[post.id]?.trim()}
+                        style={{
+                          marginLeft: '10px',
+                          padding: '8px 16px',
+                          backgroundColor: '#0095f6',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '4px',
+                          cursor: 'pointer',
+                        }}
                       >
                         {isLoading ? "Posting..." : "Post"}
                       </button>
                     </form>
                   </div>
                 </div>
-                <div className="post-additional-actions">
+
+                {/* Additional Actions */}
+                <div style={{ marginTop: '20px' }}>
                   <a
                     href="#"
-                    className="view-insights"
                     onClick={(e) => {
                       e.preventDefault();
-                      setShowInsights(!showInsights);
+                      toggleInsights(post.id);
+                    }}
+                    style={{ color: '#0095f6', textDecoration: 'none', marginRight: '20px' }}
+                  >
+                    {showInsights[post.id] ? "Hide insights" : "View insights"}
+                  </a>
+                  <button
+                    style={{
+                      padding: '8px 16px',
+                      backgroundColor: '#0095f6',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '4px',
+                      cursor: 'pointer',
                     }}
                   >
-                    {showInsights ? "Hide insights" : "View insights"}
-                  </a>
-                  <button className="boost-btn">Boost post</button>
+                    Boost post
+                  </button>
                 </div>
-                {showInsights && selectedPost.insights && (
-                  <div className="insights-section">
+
+                {/* Insights */}
+                {showInsights[post.id] && post?.insights && (
+                  <div style={{ marginTop: '20px' }}>
                     <h3>Insights</h3>
-                    <ul>
-                      {selectedPost.insights.map((insight, index) => (
-                        <li key={index} className="insight-item">
-                          <strong>{insight.title}:</strong> {insight.values[0]?.value || 0}
+                    <ul style={{ listStyle: 'none', padding: 0 }}>
+                      {post.insights.map((insight, index) => (
+                        <li key={index} style={{ marginBottom: '10px' }}>
+                          <strong>{insight.title || 'Unknown'}:</strong> {insight.values[0]?.value || 0}
                           <br />
-                          <small>{insight.description}</small>
+                          <small style={{ color: '#8e8e8e' }}>{insight.description || 'No description'}</small>
                         </li>
                       ))}
                     </ul>
@@ -479,8 +603,12 @@ const PostsManager = ({ instagramData }) => {
                 )}
               </div>
             </div>
-          </div>
+          ))}
         </div>
+      )}
+
+      {showNewPostModal && (
+        <NewPostModal onSubmit={handleNewPostSubmit} isLoading={isLoading} onClose={() => setShowNewPostModal(false)} />
       )}
     </div>
   );

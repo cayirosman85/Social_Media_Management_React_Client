@@ -80,11 +80,11 @@ const Login = () => {
         <Grid
           component="img"
           sx={{
-            width: "80vh", // Genişliği %100 yaparak gridin tamamını kaplar
-            height: "80vh", // Yüksekliği otomatik yaparak orijinal oranları korur
+            width: "100vh", // Genişliği %100 yaparak gridin tamamını kaplar
+            height: "60vh", // Yüksekliği otomatik yaparak orijinal oranları korur
           }}
           alt="My Image"
-          src={`/images/login-pages.png`} // public klasöründen çağırma
+          src={`/images/s.webp`} // public klasöründen çağırma
         />
       </Grid>
 
@@ -106,28 +106,8 @@ const Login = () => {
       >
         {/* Sağ taraftaki giriş formu */}
 
-        <Grid item md={12}>
-          <Typography variant="h4">Rahat ... Hoşgeldiniz</Typography>
-          <Typography variant="body1" color="textSecondary">
-            Lütfen hesabınızda oturum açın ve "RAHAT"ınıza bakın :)
-          </Typography>
-        </Grid>
-        <Grid
-          item
-          md={12}
-          sx={{
-            backgroundColor: "#e8e7fd",
-            height: "100vh",
-            width: "100vh",
-            padding: "1.3vh",
-            borderRadius: "5px",
-          }}
-        >
-          <Typography variant="body2" color="#786af2" height={"100"}>
-            Email: admin@rahat.com / Pass: admin
-          </Typography>
-        </Grid>
 
+ 
         <Grid item md={12} sx={{ width: "100vh" }}>
           <TextField
             className="input-field"

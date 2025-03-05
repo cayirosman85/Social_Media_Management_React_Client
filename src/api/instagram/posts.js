@@ -62,3 +62,29 @@ export const publishPost = async (postData) => {
     }
     return response.json();
   };
+
+  export const getUserPosts = async (userId, username, accessToken, limit = 25, after = '') => {
+    const requestBody = { 
+      user_id: userId, 
+      username: username, 
+      access_token: accessToken,
+      limit: limit,
+    };
+    
+    if (after) {
+      requestBody.after = after;
+    }
+
+    const response = await fetch("http://localhost:8000/api/get-user-posts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(requestBody),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to fetch user posts: ${errorText}`);
+    }
+
+    return response.json();
+  };

@@ -1,4 +1,4 @@
-import { publishPost, toggleCommentVisibility, deleteComment, createComment, createReply } from "../../api/instagram/posts";
+import { publishPost, toggleCommentVisibility, deleteComment, createComment, createReply ,getUserPosts} from "../../api/instagram/posts";
 import { publishStory } from "../../api/instagram/stories";
 import { fetchStoryInsights  } from "../../api/instagram/stories";
 
@@ -21,5 +21,6 @@ export {
   deleteComment, 
   createComment, 
   createReply, 
-  fetchStoryInsights 
+  fetchStoryInsights ,
+  getUserPosts
 };

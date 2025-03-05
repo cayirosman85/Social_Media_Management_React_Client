@@ -13,7 +13,7 @@ import {
 } from "@mui/material";
 import { logout } from "../../api/auth/logout";
 import localStorage from "local-storage";
-import { ExpandLess, ExpandMore, Instagram } from "@mui/icons-material";
+import { ExpandLess, ExpandMore, Girl, InsertChart, Instagram, Person } from "@mui/icons-material";
 import { useNavigate, useLocation, Link } from "react-router-dom";
 import largeLogo from "../../assets/images/linkedin-banner.jpg";
 import smallLogo from "../../assets/images/small-linkedin-logo.jpg";
@@ -28,6 +28,9 @@ import {
   List as ListIcon,
   FileText as User,
   Key,
+  Share,
+  Phone,
+  LivePhoto,
 } from "tabler-icons-react";
 import { useSidebar } from "../../context/SidebarContext";
 
@@ -41,13 +44,23 @@ const menuItems = [
     subItems: [
       {
         text: "Profile",
-        icon: <User size={22} />,
+        icon: <Person size={22} />,
         path: "/dashboard",
+      },
+      {
+        text: "Posts",
+        icon: <InsertChart size={22} />,
+        path: "/posts",
+      },
+      {
+        text: "Stories",
+        icon: <LivePhoto size={22} />,
+        path: "/stories",
       },
       {
         text: "Schedule",
         icon: <Calendar size={22} />,
-        path: "/dashboard",
+        path: "/schedule",
       },
     ],
   },
