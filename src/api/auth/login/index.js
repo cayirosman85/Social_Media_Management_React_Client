@@ -10,10 +10,10 @@ export const login = (email, password) => {
     return new Promise((resolve,reject)=>setTimeout(resolve({
         data:{tokens:{
             access:{
-                token:"eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwicm9sZSI6ImFkbWluIiwiaWF0IjoxNzIxNzQwODQwLCJleHAiOjE3MjE3NDQ0NDB9.oPgxCSa_odc2ZnlltEwfI3ozLzxh69qOVSdZBwPEWDM",expires:1721732440
+                token:"eyJ0eXAiOiJKV1QiLCJhbGciOiJFUzI1NiIsImtpZCI6IjZlNTkyMTUzODE5MDRlYjc4M2QyMzQ4YTFhYjM4NjA0In0.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwicm9sZSI6InVzZXIiLCJpYXQiOjE3MjE3NDA4NDAsImV4cCI6MTcyMTc0NDQ0MH0.zYcwW1piheBg0RX3Ril8h8fx114-O_Xq4qfHrKVZ4z02Qs99YLZsgrEXWhVnxsrpsK5fOn3nRIj1cai9XpUoJw",expires:1721732440
             }, //Giriş 
             refresh  :{
-                token:"eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwicm9sZSI6InVzZXIiLCJpYXQiOjE3MjE3Mjg4NDAsImV4cCI6MTcyMTczMjQ0MH0.NCeqvyHm_3lBwMdfhDhouuc1UNaGndP0wcmYVXLSmEU",
+                token:"eyJ0eXAiOiJKV1QiLCJhbGciOiJFUzI1NiIsImtpZCI6IjZlNTkyMTUzODE5MDRlYjc4M2QyMzQ4YTFhYjM4NjA0In0.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwicm9sZSI6InVzZXIiLCJpYXQiOjE3MjE3NDA4NDAsImV4cCI6MTcyMTc0NDQ0MH0.zYcwW1piheBg0RX3Ril8h8fx114-O_Xq4qfHrKVZ4z02Qs99YLZsgrEXWhVnxsrpsK5fOn3nRIj1cai9XpUoJw",
                 expires:1721732440
             }
         }}

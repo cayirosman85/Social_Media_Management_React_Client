@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React from "react";
 import {
   Drawer,
   List,
@@ -17,7 +17,6 @@ import { useNavigate, useLocation, Link } from "react-router-dom";
 import LogoutOutlinedIcon from "@mui/icons-material/LogoutOutlined";
 import largeLogo from "../../assets/images/by-rahatsistem-logo.png";
 import smallLogo from "../../assets/images/rahatsistem-logo.png";
-
 import {
   Home,
   Settings,
@@ -27,6 +26,8 @@ import {
 } from "tabler-icons-react";
 import GroupOutlinedIcon from "@mui/icons-material/GroupOutlined";
 import { logout } from "../../api/auth/logout";
+import { useSidebar } from "../../context/SidebarContext";
+
 const menuItems = [
   { text: "Anasayfa", icon: <Home size={22} />, path: "/admin" },
   {
@@ -47,20 +48,15 @@ const menuItems = [
   },
 ];
 
-const AdminSidebar = ({ status, toggleSidebar }) => {
-
-  const [isHovered, setIsHovered] = useState(true);
-  
-  const [openSubMenu, setOpenSubMenu] = useState({});
+const AdminSidebar = () => {
+  const { sidebarOpen, toggleSidebar } = useSidebar();
+  const [isHovered, setIsHovered] = React.useState(true);
+  const [openSubMenu, setOpenSubMenu] = React.useState({});
   const navigate = useNavigate();
   const location = useLocation();
 
-  const toggleDrawer = () => {
-    toggleSidebar(!status);
-  };
-
   const handleMouseEnter = () => {
-    if (!status) setIsHovered(true);
+    if (!sidebarOpen) setIsHovered(true);
   };
 
   const handleMouseLeave = () => {
@@ -71,8 +67,9 @@ const AdminSidebar = ({ status, toggleSidebar }) => {
     setOpenSubMenu((prevState) => ({ ...prevState, [text]: !prevState[text] }));
   };
 
-  const drawerWidth = status ? 240 : 60;
-  const effectiveWidth = status || isHovered ? 240 : 60;
+  const drawerWidth = sidebarOpen ? 240 : 60;
+  const effectiveWidth = sidebarOpen || isHovered ? 240 : 60;
+
   const handleItemClick = (item) => {
     if (item.action) {
       item.action();
@@ -81,13 +78,14 @@ const AdminSidebar = ({ status, toggleSidebar }) => {
       navigate(item.path);
     }
   };
+
   const renderMenuItem = (item, index) => {
     const isActive = location.pathname === item.path;
     const itemClass = isActive ? "selected-menu-item" : "unselected-menu-item";
 
     if (item.header) {
       return (
-        (status || isHovered) && (
+        (sidebarOpen || isHovered) && (
           <Typography
             key={index}
             variant="overline"
@@ -116,7 +114,7 @@ const AdminSidebar = ({ status, toggleSidebar }) => {
             sx={{ mt: 0.3, mb: 0.3 }}
           >
             <ListItemIcon>{item.icon}</ListItemIcon>
-            {(status || isHovered) && (
+            {(sidebarOpen || isHovered) && (
               <>
                 <ListItemText primary={item.text} />
                 {openSubMenu[item.text] ? <ExpandLess /> : <ExpandMore />}
@@ -138,8 +136,7 @@ const AdminSidebar = ({ status, toggleSidebar }) => {
                   }
                   sx={{ pl: 4, m: 1, width: "95%" }}
                 >
-                  <ListItemIcon>{subItem.icon}</ListItemIcon>{" "}
-                  {/* Alt öğe için ikon ekledik */}
+                  <ListItemIcon>{subItem.icon}</ListItemIcon>
                   <ListItemText primary={subItem.text} />
                 </ListItem>
               ))}
@@ -153,14 +150,14 @@ const AdminSidebar = ({ status, toggleSidebar }) => {
       <ListItem
         button
         key={item.text}
-        component={item.action ? undefined: Link}
-        to={item.action ? undefined:item.path}
-        onClick={item.action ? () => handleItemClick(item):undefined}
+        component={item.action ? undefined : Link}
+        to={item.action ? undefined : item.path}
+        onClick={item.action ? () => handleItemClick(item) : undefined}
         className={itemClass}
         sx={{ mt: 0.3, mb: 0.3 }}
       >
         <ListItemIcon>{item.icon}</ListItemIcon>
-        {(status || isHovered) && (
+        {(sidebarOpen || isHovered) && (
           <>
             <ListItemText primary={item.text} />
             {item.badge && (
@@ -197,7 +194,7 @@ const AdminSidebar = ({ status, toggleSidebar }) => {
           backgroundColor: "#ffffff",
           transition: "width 0.2s",
           overflowX: "hidden",
-          overflowY: isHovered === true || status === true ? "" : "hidden",
+          overflowY: sidebarOpen || isHovered ? "" : "hidden",
         },
         "& .MuiDrawer-paper::-webkit-scrollbar": {
           width: "0.7vh", // Scrollbar genişliği
@@ -219,7 +216,7 @@ const AdminSidebar = ({ status, toggleSidebar }) => {
         }}
       >
         <img
-          src={status || isHovered ? largeLogo : smallLogo}
+          src={sidebarOpen || isHovered ? largeLogo : smallLogo}
           alt="Logo"
           style={{
             height: "40px",
@@ -237,10 +234,10 @@ const AdminSidebar = ({ status, toggleSidebar }) => {
               <span style={{ fontSize: "1.5rem" }}>◉</span>
             </IconButton>
           }
-          checked={status}
-          onChange={() => {
-            toggleDrawer();
-            localStorage.set("sidebar", `${!status}`);
+          checked={sidebarOpen}
+          onChange={toggleSidebar}
+          onClick={() => {
+            localStorage.set("sidebar", `${!sidebarOpen}`);
           }}
           sx={{
             "&.Mui-checked": {

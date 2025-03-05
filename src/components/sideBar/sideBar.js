@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React from "react";
 import {
   Drawer,
   List,
@@ -12,13 +12,11 @@ import {
   IconButton,
 } from "@mui/material";
 import { logout } from "../../api/auth/logout";
-
 import localStorage from "local-storage";
-import { ExpandLess, ExpandMore } from "@mui/icons-material";
+import { ExpandLess, ExpandMore, Instagram } from "@mui/icons-material";
 import { useNavigate, useLocation, Link } from "react-router-dom";
 import largeLogo from "../../assets/images/by-rahatsistem-logo.png";
 import smallLogo from "../../assets/images/rahatsistem-logo.png";
-
 import LogoutOutlinedIcon from "@mui/icons-material/LogoutOutlined";
 import {
   Home,
@@ -31,40 +29,28 @@ import {
   FileText as User,
   Key,
 } from "tabler-icons-react";
+import { useSidebar } from "../../context/SidebarContext";
 
 const menuItems = [
   { text: "Anasayfa", icon: <Home size={22} />, path: "/homepage", badge: 7 },
   { text: "GridPage", icon: <Files size={22} />, path: "/user/gridPage" },
   { text: "Alt Programlar", header: true },
   {
-    text: "Rahat Fatura",
-    icon: <ShoppingCart size={22} />,
+    text: "Instagram",
+    icon: <Instagram size={22} />,
     subItems: [
       {
-        text: "paneladmin",
-        icon: <ShoppingCart size={22} />,
-        path: "/panel/admin",
+        text: "Profile",
+        icon: <User size={22} />,
+        path: "/dashboard",
       },
-      { text: "Add", icon: <ShoppingCart size={22} /> },
       {
-        text: "Category",
-        icon: <ShoppingCart size={22} />,
+        text: "Schedule",
+        icon: <Calendar size={22} />,
+        path: "/dashboard",
       },
     ],
   },
-  {
-    text: "Rahat Dinle",
-    icon: <Mail size={22} />,
-    subItems: [
-      { text: "Page1", icon: <Mail size={22} />, path: "/products/list" },
-      { text: "Page2", icon: <Mail size={22} />, path: "/products/add" },
-      { text: "Page3", icon: <Mail size={22} />, path: "/products/category" },
-    ],
-  },
-  { text: "Rahat İletişim", icon: <MessageCircle size={22} />, path: "/" },
-  { text: "Takvim", icon: <Calendar size={22} /> },
-  { text: "Belgeler", icon: <User size={22} /> },
-  { text: "Yetkilendirmeler", icon: <Key size={22} /> },
   {
     text: "Çıkış",
     icon: <LogoutOutlinedIcon size={22} />,
@@ -73,18 +59,15 @@ const menuItems = [
   },
 ];
 
-const Sidebar = ({ status,toggleSidebar }) => {
-  const [isHovered, setIsHovered] = useState(true);
-  const [openSubMenu, setOpenSubMenu] = useState({});
+const Sidebar = () => {
+  const { sidebarOpen, toggleSidebar } = useSidebar();
+  const [isHovered, setIsHovered] = React.useState(true);
+  const [openSubMenu, setOpenSubMenu] = React.useState({});
   const navigate = useNavigate();
   const location = useLocation();
 
-  const toggleDrawer = () => {
-    toggleSidebar(!status);
-  };
-
   const handleMouseEnter = () => {
-    if (!status) setIsHovered(true);
+    if (!sidebarOpen) setIsHovered(true);
   };
 
   const handleMouseLeave = () => {
@@ -95,8 +78,9 @@ const Sidebar = ({ status,toggleSidebar }) => {
     setOpenSubMenu((prevState) => ({ ...prevState, [text]: !prevState[text] }));
   };
 
-  const drawerWidth = status ? 240 : 60;
-  const effectiveWidth = status || isHovered ? 240 : 60;
+  const drawerWidth = sidebarOpen ? 240 : 60;
+  const effectiveWidth = sidebarOpen || isHovered ? 240 : 60;
+
   const handleItemClick = (item) => {
     if (item.action) {
       item.action();
@@ -105,13 +89,14 @@ const Sidebar = ({ status,toggleSidebar }) => {
       navigate(item.path);
     }
   };
+
   const renderMenuItem = (item, index) => {
     const isActive = location.pathname === item.path;
     const itemClass = isActive ? "selected-menu-item" : "unselected-menu-item";
 
     if (item.header) {
       return (
-        (status || isHovered) && (
+        (sidebarOpen || isHovered) && (
           <Typography
             key={index}
             variant="overline"
@@ -140,7 +125,7 @@ const Sidebar = ({ status,toggleSidebar }) => {
             sx={{ mt: 0.3, mb: 0.3 }}
           >
             <ListItemIcon>{item.icon}</ListItemIcon>
-            {(status || isHovered) && (
+            {(sidebarOpen || isHovered) && (
               <>
                 <ListItemText primary={item.text} />
                 {openSubMenu[item.text] ? <ExpandLess /> : <ExpandMore />}
@@ -162,8 +147,7 @@ const Sidebar = ({ status,toggleSidebar }) => {
                   }
                   sx={{ pl: 4, m: 1, width: "95%" }}
                 >
-                  <ListItemIcon>{subItem.icon}</ListItemIcon>{" "}
-                  {/* Alt öğe için ikon ekledik */}
+                  <ListItemIcon>{subItem.icon}</ListItemIcon>
                   <ListItemText primary={subItem.text} />
                 </ListItem>
               ))}
@@ -184,7 +168,7 @@ const Sidebar = ({ status,toggleSidebar }) => {
         sx={{ mt: 0.3, mb: 0.3 }}
       >
         <ListItemIcon>{item.icon}</ListItemIcon>
-        {(status || isHovered) && (
+        {(sidebarOpen || isHovered) && (
           <>
             <ListItemText primary={item.text} />
             {item.badge && (
@@ -221,7 +205,7 @@ const Sidebar = ({ status,toggleSidebar }) => {
           backgroundColor: "#ffffff",
           transition: "width 0.2s",
           overflowX: "hidden",
-          overflowY: isHovered === true || status === true ? "" : "hidden",
+          overflowY: sidebarOpen || isHovered ? "" : "hidden",
         },
         "& .MuiDrawer-paper::-webkit-scrollbar": {
           width: "0.7vh", // Scrollbar genişliği
@@ -243,10 +227,10 @@ const Sidebar = ({ status,toggleSidebar }) => {
         }}
       >
         <img
-          src={status || isHovered ? largeLogo : smallLogo}
+          src={sidebarOpen || isHovered ? largeLogo : smallLogo}
           alt="Logo"
           style={{
-            height: status ? "40px" : "40px",
+            height: sidebarOpen ? "40px" : "40px",
             transition: "height 0.2s",
           }}
         />
@@ -261,10 +245,10 @@ const Sidebar = ({ status,toggleSidebar }) => {
               <span style={{ fontSize: "1.5rem" }}>◉</span>
             </IconButton>
           }
-          checked={status}
-          onChange={toggleDrawer}
+          checked={sidebarOpen}
+          onChange={toggleSidebar}
           onClick={() => {
-            localStorage.set("sidebar", `${!status}`);
+            localStorage.set("sidebar", `${!sidebarOpen}`);
           }}
           sx={{
             "&.Mui-checked": {

@@ -4,9 +4,17 @@ import {
   Route,
   Routes,
   Navigate,
+  Outlet,
   useNavigate,
   useLocation,
+  useOutletContext,
 } from "react-router-dom";
+import Navbar from "./components/navbar/navbar.js";
+import Dashboard from "./pages/instagram/Dashboard.js";
+import PostsManager from "./pages/instagram/PostsManager.js";
+import StoriesManager from "./pages/instagram/StoriesManager.js";
+import AdsManager from "./pages/instagram/AdsManager.js";
+import ErrorModal from "./components/instagram/ErrorModal";
 import Login from "./pages/loginPage/loginPage.js";
 import ForgotPassword from "./pages/forgotPassword/forgotPassword.js";
 import Register from "./pages/registerPage/register.js";
@@ -18,8 +26,12 @@ import AdminUsers from "./pages/adminPage/adminUsers.js";
 import AdminSettings from "./pages/adminPage/adminProfilePage.js";
 import "./App.css";
 import { jwtDecode } from "jwt-decode";
-
 import { cookies } from "./utils/cookie";
+import Sidebar from "./components/sideBar/sideBar.js";
+import AdminSidebar from "./components/adminSideBar/adminSideBar.js";
+import { SidebarProvider } from "./context/SidebarContext";
+import { useSidebar } from "./context/SidebarContext";
+
 const NotFound = () => {
   return (
     <div
@@ -40,68 +52,211 @@ const NotFound = () => {
   );
 };
 
-function AppRoutes() {
+const Layout = ({ errorModalMessage, setErrorModalMessage }) => {
+  const { sidebarOpen, toggleSidebar } = useSidebar();
+  const jwtToken = cookies.get("jwt-access");
+  const isAdmin = jwtToken ? jwtDecode(jwtToken).role === "admin" : false;
+
+  return (
+    <div style={{ display: "flex" }}>
+      {isAdmin ? (
+        <AdminSidebar status={sidebarOpen} toggleSidebar={toggleSidebar} />
+      ) : (
+        <Sidebar status={sidebarOpen} toggleSidebar={toggleSidebar} />
+      )}
+      <div style={{ flexGrow: 1, display: "flex", flexDirection: "column" }}>
+        <Navbar />
+        <Outlet context={{ errorModalMessage, setErrorModalMessage }} /> {/* Pass state via context */}
+      </div>
+    </div>
+  );
+};
+
+function ProtectedRoute({ children }) {
   const navigate = useNavigate();
   const location = useLocation();
-  const [isLoading, setIsLoading] = useState(true);
-  let userRole;
+  const { errorModalMessage, setErrorModalMessage } = useOutletContext(); // Access from Outlet context
+
   useEffect(() => {
     const checkAuth = async () => {
       const jwtToken = cookies.get("jwt-access");
-    
-      if (jwtToken) {
-        const decodedToken = jwtDecode(jwtToken);
-        const userRole = decodedToken.role;
-        if (userRole === "admin" && !location.pathname.startsWith("/admin")) {
-          navigate("/admin");
-        } else if (
-          userRole === "user" &&
-          location.pathname.startsWith("/admin")
-        ) {
-          navigate("/NotFound");
-        }
-      }else if (!jwtToken) {
-        if (!['/register', '/forgot-password', '/login'].includes(location.pathname)) {
+
+      try {
+        if (jwtToken) {
+          const decodedToken = jwtDecode(jwtToken);
+          const userRole = decodedToken.role;
+
+          // Role-based routing
+          if (userRole === "admin" && !location.pathname.startsWith("/admin")) {
+            navigate("/admin");
+          } else if (
+            userRole === "user" &&
+            location.pathname.startsWith("/admin")
+          ) {
+            navigate("/NotFound");
+          }
+        } else if (!['/register', '/forgot-password', '/login'].includes(location.pathname)) {
           navigate("/login");
         }
+      } catch (error) {
+        console.error("Error during auth check:", error);
+        setErrorModalMessage("An error occurred during authentication.");
+        navigate("/login");
       }
-      setIsLoading(false);
     };
 
     checkAuth();
-  }, [navigate, location]);
+  }, [navigate, location.pathname, setErrorModalMessage]);
+
+  return children; // Render the child routes if authenticated
+}
+
+function AppRoutes() {
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    setIsLoading(false); // No auth check here; handled by ProtectedRoute
+  }, []);
 
   if (isLoading) {
-    return <div>...</div>; // veya bir yükleme spinner'ı
+    return (
+      <div className="loader-overlay">
+        <div className="loader"></div>
+      </div>
+    );
   }
 
   return (
     <Routes>
-      <Route path="/" element={<Navigate to="/homepage" replace />} />
-
+      {/* Public Routes */}
       <Route path="/login" element={<Login />} />
       <Route path="/forgot-password" element={<ForgotPassword />} />
       <Route path="/register" element={<Register />} />
 
+      {/* Protected Routes with Layout (Global Sidebar) */}
+      <Route
+        path="/"
+        element={
+          <Layout />
+        }
+      >
+        <Route
+          path="/"
+          element={
+            <ProtectedRoute>
+              <Navigate to="/homepage" replace />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/homepage"
+          element={
+            <ProtectedRoute>
+              <HomePage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/user/gridPage"
+          element={
+            <ProtectedRoute>
+              <GridPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/user/profile"
+          element={
+            <ProtectedRoute>
+              <ProfilePage />
+            </ProtectedRoute>
+          }
+        />
 
-      <Route path="/user/profile" element={<ProfilePage />} />
-      <Route path="/homepage" element={<HomePage />} />
-      <Route path="/user/gridPage" element={<GridPage />} />
+        {/* Instagram Management Routes */}
+        <Route
+          path="/dashboard"
+          element={
+            <ProtectedRoute>
+              <Dashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/posts"
+          element={
+            <ProtectedRoute>
+              <PostsManager />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/stories"
+          element={
+            <ProtectedRoute>
+              <StoriesManager />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/ads"
+          element={
+            <ProtectedRoute>
+              <AdsManager />
+            </ProtectedRoute>
+          }
+        />
 
+        {/* Admin Routes */}
+        <Route
+          path="/admin"
+          element={
+            <ProtectedRoute>
+              <AdminPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/users"
+          element={
+            <ProtectedRoute>
+              <AdminUsers />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/settings"
+          element={
+            <ProtectedRoute>
+              <AdminSettings />
+            </ProtectedRoute>
+          }
+        />
+      </Route>
 
-      <Route path="/admin" element={<AdminPage />} />
-      <Route path="/admin/settings" element={<AdminSettings />} />
-      <Route path="/admin/users" element={<AdminUsers />} />
+      {/* Fallback Route */}
       <Route path="*" element={<NotFound />} />
     </Routes>
   );
 }
 
 function App() {
+  const [errorModalMessage, setErrorModalMessage] = useState(null);
+
   return (
-    <Router>
-      <AppRoutes />
-    </Router>
+    <SidebarProvider>
+      <Router>
+        <div className="App">
+          <AppRoutes />
+          {errorModalMessage && (
+            <ErrorModal
+              message={errorModalMessage}
+              onClose={() => setErrorModalMessage(null)}
+            />
+          )}
+        </div>
+      </Router>
+    </SidebarProvider>
   );
 }
 
