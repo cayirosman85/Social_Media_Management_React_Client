@@ -5,7 +5,14 @@ import InstagramPost from "../../components/instagram/InstagramPost.js";
 import NewPostModal from "../../components/instagram/NewPostModal.js";
 import InstagramStory from "../../components/instagram/InstagramStory.js";
 import CarouselSlider from "../../components/instagram/CarouselSlider.js";
-import { fetchInstagramData } from "../../services/instagram/instagramService"; // Import the service
+import { 
+  fetchInstagramData, 
+  publishPost, 
+  toggleCommentVisibility, 
+  deleteComment, 
+  createComment, 
+  createReply 
+} from "../../services/instagram/instagramService";
 import "./Dashboard.css";
 
 const Dashboard = () => {
@@ -13,11 +20,14 @@ const Dashboard = () => {
   const [selectedPost, setSelectedPost] = useState(null);
   const [selectedStoryIndex, setSelectedStoryIndex] = useState(null);
   const [showNewPostModal, setShowNewPostModal] = useState(false);
-  const [isLoading, setIsLoading] = useState(true); // Start as true since we'll fetch on mount
-  const [instagramData, setInstagramData] = useState(null); // Local state for Instagram data
-  const [error, setError] = useState(null); // To handle fetch errors
+  const [isLoading, setIsLoading] = useState(true);
+  const [instagramData, setInstagramData] = useState(null);
+  const [error, setError] = useState(null);
+  const [newComment, setNewComment] = useState("");
+  const [newReply, setNewReply] = useState("");
+  const [replyingTo, setReplyingTo] = useState(null);
+  const [showInsights, setShowInsights] = useState(false);
 
-  // Fetch Instagram data when Dashboard mounts
   useEffect(() => {
     const loadInstagramData = async () => {
       setIsLoading(true);
@@ -36,7 +46,7 @@ const Dashboard = () => {
     };
 
     loadInstagramData();
-  }, []); // Empty dependency array means it runs once on mount
+  }, []);
 
   const handleTabClick = (tab) => {
     setActiveTab(tab);
@@ -45,10 +55,194 @@ const Dashboard = () => {
   const handleNewPostSubmit = async (e) => {
     e.preventDefault();
     setIsLoading(true);
-    // Implement actual post publishing logic here using instagramService.js
-    setIsLoading(false);
-    setShowNewPostModal(false);
-    alert("Post published successfully!");
+    try {
+      const formData = new FormData(e.target);
+      const mediaFile = formData.get("mediaFile");
+      const mediaUrl = formData.get("mediaUrl")?.trim();
+      const caption = formData.get("caption")?.trim();
+
+      let postData = {
+        user_id: "17841473036355290",
+        access_token: "EAAZAde8LZA8zIBO4O8QsOQmyMMMShi79cCZBMRJZCjbSbXG7Y3ZAQ4OGvJN1vi8LYLeNx6K9pbxpFuU2saC3lWWt43za1ggpCu9YONtmCuwucaWVgtYYqRcG2oMtuHPhxq6x4n3ImiE3TzXf4IzMHxMtuDbwNfT52ZA6yjkwWabhrLZCrb7zqWzdkjZBApQJmNntUgZDZD",
+        caption,
+      };
+
+      if (mediaFile) {
+        const formDataUpload = new FormData();
+        formDataUpload.append("mediaFile", mediaFile);
+        const uploadResponse = await fetch("http://localhost:8000/api/upload", {
+          method: "POST",
+          body: formDataUpload,
+        });
+        if (!uploadResponse.ok) throw new Error("Failed to upload media");
+        const uploadData = await uploadResponse.json();
+        postData.image_url = uploadData.url;
+      } else if (mediaUrl) {
+        postData.image_url = mediaUrl;
+      }
+
+      const result = await publishPost(postData);
+      if (result.success) {
+        const updatedData = await fetchInstagramData(
+          "17841473036355290",
+          "osmancayir73",
+          "EAAZAde8LZA8zIBO4O8QsOQmyMMMShi79cCZBMRJZCjbSbXG7Y3ZAQ4OGvJN1vi8LYLeNx6K9pbxpFuU2saC3lWWt43za1ggpCu9YONtmCuwucaWVgtYYqRcG2oMtuHPhxq6x4n3ImiE3TzXf4IzMHxMtuDbwNfT52ZA6yjkwWabhrLZCrb7zqWzdkjZBApQJmNntUgZDZD"
+        );
+        setInstagramData(updatedData);
+        setShowNewPostModal(false);
+        alert("Post published successfully!");
+      } else {
+        throw new Error(result.error || "Unknown error");
+      }
+    } catch (error) {
+      setError(error.message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleToggleCommentVisibility = async (commentId, hide) => {
+    setIsLoading(true);
+    try {
+      const response = await toggleCommentVisibility(
+        "17841473036355290",
+        commentId,
+        "EAAZAde8LZA8zIBO4O8QsOQmyMMMShi79cCZBMRJZCjbSbXG7Y3ZAQ4OGvJN1vi8LYLeNx6K9pbxpFuU2saC3lWWt43za1ggpCu9YONtmCuwucaWVgtYYqRcG2oMtuHPhxq6x4n3ImiE3TzXf4IzMHxMtuDbwNfT52ZA6yjkwWabhrLZCrb7zqWzdkjZBApQJmNntUgZDZD",
+        !hide
+      );
+      if (response.success) {
+        const updatedComments = selectedPost.comments.data.map((comment) =>
+          comment.id === commentId ? { ...comment, hidden: !hide } : comment
+        );
+        setSelectedPost({
+          ...selectedPost,
+          comments: { ...selectedPost.comments, data: updatedComments },
+        });
+      } else {
+        throw new Error(response.error || "Failed to toggle comment visibility");
+      }
+    } catch (error) {
+      setError(error.message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleDeleteComment = async (commentId) => {
+    setIsLoading(true);
+    try {
+      const response = await deleteComment(
+        "17841473036355290",
+        commentId,
+        "EAAZAde8LZA8zIBO4O8QsOQmyMMMShi79cCZBMRJZCjbSbXG7Y3ZAQ4OGvJN1vi8LYLeNx6K9pbxpFuU2saC3lWWt43za1ggpCu9YONtmCuwucaWVgtYYqRcG2oMtuHPhxq6x4n3ImiE3TzXf4IzMHxMtuDbwNfT52ZA6yjkwWabhrLZCrb7zqWzdkjZBApQJmNntUgZDZD"
+      );
+      if (response.success) {
+        const updatedComments = selectedPost.comments.data.filter(
+          (comment) => comment.id !== commentId
+        );
+        setSelectedPost({
+          ...selectedPost,
+          comments: { ...selectedPost.comments, data: updatedComments },
+          comments_count: (selectedPost.comments_count || 0) - 1,
+        });
+      } else {
+        throw new Error(response.error || "Failed to delete comment");
+      }
+    } catch (error) {
+      setError(error.message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleCreateComment = async (e) => {
+    e.preventDefault();
+    if (!newComment.trim()) return;
+
+    setIsLoading(true);
+    try {
+      const response = await createComment(
+        "17841473036355290",
+        selectedPost.id,
+        "EAAZAde8LZA8zIBO4O8QsOQmyMMMShi79cCZBMRJZCjbSbXG7Y3ZAQ4OGvJN1vi8LYLeNx6K9pbxpFuU2saC3lWWt43za1ggpCu9YONtmCuwucaWVgtYYqRcG2oMtuHPhxq6x4n3ImiE3TzXf4IzMHxMtuDbwNfT52ZA6yjkwWabhrLZCrb7zqWzdkjZBApQJmNntUgZDZD",
+        newComment
+      );
+      if (response.success) {
+        const newCommentObj = {
+          id: response.commentId || `temp-${Date.now()}`, // Use API-provided ID or temporary ID
+          text: newComment,
+          username: "osmancayir73", // Adjust based on your app logic
+          timestamp: new Date().toISOString(),
+          like_count: 0,
+          hidden: false,
+        };
+        const updatedComments = [...(selectedPost.comments?.data || []), newCommentObj];
+        setSelectedPost({
+          ...selectedPost,
+          comments: { ...selectedPost.comments, data: updatedComments },
+          comments_count: (selectedPost.comments_count || 0) + 1,
+        });
+        setNewComment("");
+        alert("Comment posted successfully!");
+      } else {
+        throw new Error(response.error || "Failed to create comment");
+      }
+    } catch (error) {
+      setError(error.message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleCreateReply = async (e, commentId) => {
+    e.preventDefault();
+    if (!newReply.trim()) return;
+
+    setIsLoading(true);
+    try {
+      const response = await createReply(
+        "17841473036355290",
+        commentId,
+        "EAAZAde8LZA8zIBO4O8QsOQmyMMMShi79cCZBMRJZCjbSbXG7Y3ZAQ4OGvJN1vi8LYLeNx6K9pbxpFuU2saC3lWWt43za1ggpCu9YONtmCuwucaWVgtYYqRcG2oMtuHPhxq6x4n3ImiE3TzXf4IzMHxMtuDbwNfT52ZA6yjkwWabhrLZCrb7zqWzdkjZBApQJmNntUgZDZD",
+        newReply
+      );
+      if (response.success) {
+        const newReplyObj = {
+          id: response.replyId || `temp-reply-${Date.now()}`, // Use API-provided ID or temporary ID
+          text: newReply,
+          username: "osmancayir73", // Adjust based on your app logic
+          timestamp: new Date().toISOString(),
+        };
+        const updatedComments = selectedPost.comments.data.map((comment) =>
+          comment.id === commentId
+            ? {
+                ...comment,
+                replies: {
+                  ...comment.replies,
+                  data: [...(comment.replies?.data || []), newReplyObj],
+                },
+              }
+            : comment
+        );
+        setSelectedPost({
+          ...selectedPost,
+          comments: { ...selectedPost.comments, data: updatedComments },
+        });
+        setNewReply("");
+        setReplyingTo(null);
+        alert("Reply posted successfully!");
+      } else {
+        throw new Error(response.error || "Failed to create reply");
+      }
+    } catch (error) {
+      setError(error.message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const toggleInsights = () => {
+    setShowInsights((prev) => !prev);
   };
 
   if (isLoading) {
@@ -261,7 +455,163 @@ const Dashboard = () => {
                     ) : null}
                   </div>
                   <div className="post-details-section">
-                    {/* Add more details if needed */}
+                    <div className="post-header">
+                      <img
+                        src={instagramData.business_discovery.profile_picture_url}
+                        alt="Profile"
+                        className="post-profile-img"
+                      />
+                      <span className="post-username">@{instagramData.business_discovery.username}</span>
+                    </div>
+                    <p className="post-caption">{selectedPost.caption || "No caption available"}</p>
+                    <p className="likes-time">
+                      <strong>{selectedPost.like_count || 0} likes</strong>
+                      <br />
+                      <span>{new Date(selectedPost.timestamp).toLocaleString()}</span>
+                    </p>
+                    <div className="comments-section">
+                      {selectedPost?.comments?.data && selectedPost.comments.data.length > 0 ? (
+                        selectedPost.comments.data
+                          .filter((comment) => comment && comment.id)
+                          .map((comment) => (
+                            <div key={comment.id} className="comment-container">
+                              <div className="comment">
+                                <img
+                                  src={`https://picsum.photos/seed/${comment?.username || 'default'}/32/32`}
+                                  alt={`${comment?.username || 'User'}'s avatar`}
+                                  className="comment-avatar"
+                                />
+                                <div className="comment-content">
+                                  <span className="comment-username">{comment?.username || 'Anonymous'}</span>
+                                  <span className="comment-text">{comment?.text || 'No text'}</span>
+                                  <div className="comment-meta">
+                                    <span className="comment-timestamp">
+                                      {comment?.timestamp
+                                        ? new Date(comment.timestamp).toLocaleString()
+                                        : 'Unknown time'}
+                                    </span>
+                                    <button
+                                      onClick={() => handleToggleCommentVisibility(comment.id, comment?.hidden || false)}
+                                      className="comment-action-btn"
+                                    >
+                                      {comment?.hidden ? "Show" : "Hide"}
+                                    </button>
+                                    <button
+                                      onClick={() => handleDeleteComment(comment.id)}
+                                      className="comment-action-btn delete"
+                                    >
+                                      Delete
+                                    </button>
+                                    <button
+                                      onClick={() => setReplyingTo(comment.id)}
+                                      className="comment-reply-btn"
+                                    >
+                                      Reply
+                                    </button>
+                                  </div>
+                                  {replyingTo === comment.id && (
+                                    <div className="reply-input-container">
+                                      <form
+                                        onSubmit={(e) => handleCreateReply(e, comment.id)}
+                                        style={{ display: "flex", width: "100%", marginTop: "8px" }}
+                                      >
+                                        <input
+                                          type="text"
+                                          placeholder={`Reply to ${comment?.username || 'User'}...`}
+                                          className="comment-input"
+                                          value={newReply}
+                                          onChange={(e) => setNewReply(e.target.value)}
+                                          disabled={isLoading}
+                                        />
+                                        <button
+                                          type="submit"
+                                          className="comment-btn"
+                                          disabled={isLoading || !newReply.trim()}
+                                        >
+                                          {isLoading ? "Posting..." : "Post"}
+                                        </button>
+                                      </form>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                              {comment?.replies?.data && comment.replies.data.length > 0 && (
+                                <div className="replies-container">
+                                  {comment.replies.data.map((reply) => (
+                                    <div key={reply.id} className="reply">
+                                      <img
+                                        src={`https://picsum.photos/seed/${reply?.username || 'default'}/24/24`}
+                                        alt={`${reply?.username || 'User'}'s avatar`}
+                                        className="reply-avatar"
+                                      />
+                                      <div className="reply-content">
+                                        <span className="comment-username">{reply?.username || 'Anonymous'}</span>
+                                        <span className="comment-text">{reply?.text || 'No text'}</span>
+                                        <div className="reply-meta">
+                                          <span className="comment-timestamp">
+                                            {reply?.timestamp
+                                              ? new Date(reply.timestamp).toLocaleString()
+                                              : 'Unknown time'}
+                                          </span>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          ))
+                      ) : (
+                        <p className="no-comments">No comments yet. Start the conversation.</p>
+                      )}
+                      <div className="comment-input-container">
+                        <span className="emoji-icon">😊</span>
+                        <form onSubmit={handleCreateComment} style={{ display: "flex", width: "100%" }}>
+                          <input
+                            type="text"
+                            placeholder="Add a comment..."
+                            className="comment-input"
+                            value={newComment}
+                            onChange={(e) => setNewComment(e.target.value)}
+                            disabled={isLoading}
+                          />
+                          <button
+                            type="submit"
+                            className="comment-btn"
+                            disabled={isLoading || !newComment.trim()}
+                          >
+                            {isLoading ? "Posting..." : "Post"}
+                          </button>
+                        </form>
+                      </div>
+                    </div>
+                    <div className="post-additional-actions">
+                      <a
+                        href="#"
+                        className="view-insights"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          toggleInsights();
+                        }}
+                      >
+                        {showInsights ? "Hide insights" : "View insights"}
+                      </a>
+                      <button className="boost-btn">Boost post</button>
+                    </div>
+                    {showInsights && selectedPost?.insights && (
+                      <div className="insights-section">
+                        <h3>Insights</h3>
+                        <ul>
+                          {selectedPost.insights.map((insight, index) => (
+                            <li key={index} className="insight-item">
+                              <strong>{insight.title || 'Unknown'}:</strong> {insight.values[0]?.value || 0}
+                              <br />
+                              <small>{insight.description || 'No description'}</small>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>

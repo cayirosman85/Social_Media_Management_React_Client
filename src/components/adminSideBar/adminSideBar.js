@@ -15,8 +15,8 @@ import localStorage from "local-storage";
 import { ExpandLess, ExpandMore } from "@mui/icons-material";
 import { useNavigate, useLocation, Link } from "react-router-dom";
 import LogoutOutlinedIcon from "@mui/icons-material/LogoutOutlined";
-import largeLogo from "../../assets/images/by-rahatsistem-logo.png";
-import smallLogo from "../../assets/images/rahatsistem-logo.png";
+import largeLogo from "../../assets/images/linkedin-banner.jpg";
+import smallLogo from "../../assets/images/small-linkedin-logo.jpg";
 import {
   Home,
   Settings,

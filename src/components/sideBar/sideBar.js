@@ -15,8 +15,8 @@ import { logout } from "../../api/auth/logout";
 import localStorage from "local-storage";
 import { ExpandLess, ExpandMore, Instagram } from "@mui/icons-material";
 import { useNavigate, useLocation, Link } from "react-router-dom";
-import largeLogo from "../../assets/images/by-rahatsistem-logo.png";
-import smallLogo from "../../assets/images/rahatsistem-logo.png";
+import largeLogo from "../../assets/images/linkedin-banner.jpg";
+import smallLogo from "../../assets/images/small-linkedin-logo.jpg";
 import LogoutOutlinedIcon from "@mui/icons-material/LogoutOutlined";
 import {
   Home,
@@ -32,8 +32,8 @@ import {
 import { useSidebar } from "../../context/SidebarContext";
 
 const menuItems = [
-  { text: "Anasayfa", icon: <Home size={22} />, path: "/homepage", badge: 7 },
-  { text: "GridPage", icon: <Files size={22} />, path: "/user/gridPage" },
+  { text: "Anasayfa", icon: <Home size={22} />, path: "/homepage" },
+  { text: "Clients", icon: <Files size={22} />, path: "/user/gridPage" },
   { text: "Alt Programlar", header: true },
   {
     text: "Instagram",

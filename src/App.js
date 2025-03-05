@@ -118,13 +118,7 @@ function AppRoutes() {
     setIsLoading(false); // No auth check here; handled by ProtectedRoute
   }, []);
 
-  if (isLoading) {
-    return (
-      <div className="loader-overlay">
-        <div className="loader"></div>
-      </div>
-    );
-  }
+
 
   return (
     <Routes>

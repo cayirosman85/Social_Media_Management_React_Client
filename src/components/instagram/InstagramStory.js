@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useRef } from "react";
+import { fetchStoryInsights } from "../../services/instagram/instagramService"; // Updated import
 
 const InstagramStory = ({ stories, initialIndex, onClose, instagramData }) => {
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
   const [showOptions, setShowOptions] = useState(false);
+  const [insights, setInsights] = useState(null);
   const [isPaused, setIsPaused] = useState(false);
-  const STORY_DURATION = 5000; // 5 seconds
+  const STORY_DURATION = 5000;
   const moreOptionsRef = useRef(null);
   const timerRef = useRef(null);
   const videoRef = useRef(null);
@@ -74,39 +76,29 @@ const InstagramStory = ({ stories, initialIndex, onClose, instagramData }) => {
   };
 
   const handleViewInsights = async () => {
-    // Assuming isLoading is managed in a parent or context
     try {
-      const response = await fetch("http://localhost:8000/api/story-insights", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          user_id: instagramData.business_discovery.id,
-          media_id: stories[currentIndex].id,
-          access_token: instagramData.accessToken,
-        }),
-      });
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Failed to fetch insights: ${errorText}`);
-      }
-
-      const data = await response.json();
-      if (data.success) {
-        console.log("Story insights from server:", data.insights);
-        // Handle insights display (e.g., set state in parent or use context)
+  
+      const response = await fetchStoryInsights(
+        "17841473036355290",
+        stories[currentIndex].id,
+        "EAAZAde8LZA8zIBO4O8QsOQmyMMMShi79cCZBMRJZCjbSbXG7Y3ZAQ4OGvJN1vi8LYLeNx6K9pbxpFuU2saC3lWWt43za1ggpCu9YONtmCuwucaWVgtYYqRcG2oMtuHPhxq6x4n3ImiE3TzXf4IzMHxMtuDbwNfT52ZA6yjkwWabhrLZCrb7zqWzdkjZBApQJmNntUgZDZD"
+      );
+  
+      if (response.success) {
+        console.log("Story insights from server:", response.insights);
+        setInsights(response.insights);
       } else {
-        throw new Error(data.error || "Failed to retrieve insights");
+        throw new Error(response.error || "Failed to retrieve insights");
       }
-
+  
       setShowOptions(false);
       setIsPaused(false);
     } catch (error) {
-      console.error("Error fetching insights:", error);
-      // Handle error (e.g., setErrorModalMessage in parent)
+      console.error("Error fetching insights:", error.message);
     }
   };
-
+  
   const handleCancel = () => {
     setShowOptions(false);
     setIsPaused(false);
@@ -166,6 +158,48 @@ const InstagramStory = ({ stories, initialIndex, onClose, instagramData }) => {
               <li onClick={handleViewInsights}>Insights</li>
               <li onClick={handleCancel}>Cancel</li>
             </ul>
+          </div>
+        )}
+        {insights && (
+          <div
+            className="story-insights"
+            style={{
+              position: "absolute",
+              bottom: "20px",
+              left: "20px",
+              right: "20px",
+              background: "rgba(255, 255, 255, 0.9)",
+              borderRadius: "8px",
+              padding: "10px",
+              color: "#262626",
+              fontSize: "14px",
+              zIndex: 1010,
+            }}
+          >
+            <h3 style={{ fontSize: "16px", margin: "0 0 10px" }}>Story Insights</h3>
+            <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
+              {insights.map((insight) => (
+                <li key={insight.name} style={{ marginBottom: "8px" }}>
+                  <strong>{insight.title}:</strong> {insight.values[0]?.value || 0}
+                  <br />
+                  <small>{insight.description}</small>
+                </li>
+              ))}
+            </ul>
+            <button
+              onClick={() => setInsights(null)}
+              style={{
+                marginTop: "10px",
+                background: "#0095f6",
+                color: "white",
+                border: "none",
+                padding: "5px 10px",
+                borderRadius: "4px",
+                cursor: "pointer",
+              }}
+            >
+              Close Insights
+            </button>
           </div>
         )}
       </div>
