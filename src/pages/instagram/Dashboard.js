@@ -6,12 +6,14 @@ import NewPostModal from "../../components/instagram/NewPostModal.js";
 import InstagramStory from "../../components/instagram/InstagramStory.js";
 import CarouselSlider from "../../components/instagram/CarouselSlider.js";
 import NewStoryModal from "../../components/instagram/NewStoryModal.js";
+import InsightsModal from "../../components/instagram/InsightsModal.js"; // Add this import
 import { 
   fetchInstagramData, 
   toggleCommentVisibility, 
   deleteComment, 
   createComment, 
-  createReply 
+  createReply,
+  getMediaInsights // Add this import from your service
 } from "../../services/instagram/instagramService";
 import "./Dashboard.css";
 
@@ -20,14 +22,15 @@ const Dashboard = () => {
   const [selectedPost, setSelectedPost] = useState(null);
   const [selectedStoryIndex, setSelectedStoryIndex] = useState(null);
   const [showNewPostModal, setShowNewPostModal] = useState(false);
-  const [showNewStoryModal, setShowNewStoryModal] = useState(false); // Add state for story modal
+  const [showNewStoryModal, setShowNewStoryModal] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [instagramData, setInstagramData] = useState(null);
   const [error, setError] = useState(null);
   const [newComment, setNewComment] = useState("");
   const [newReply, setNewReply] = useState("");
   const [replyingTo, setReplyingTo] = useState(null);
-  const [showInsights, setShowInsights] = useState(false);
+  const [insightsData, setInsightsData] = useState({}); // Add state for insights
+  const [selectedPostId, setSelectedPostId] = useState(null); // Add state for modal
 
   useEffect(() => {
     loadInstagramData();
@@ -63,6 +66,36 @@ const Dashboard = () => {
     setActiveTab(tab);
   };
 
+  const fetchInsights = async (postId, mediaType) => {
+    setIsLoading(true);
+    try {
+      const data = await getMediaInsights(
+        "17841473036355290",
+        postId,
+        "EAAZAde8LZA8zIBO4O8QsOQmyMMMShi79cCZBMRJZCjbSbXG7Y3ZAQ4OGvJN1vi8LYLeNx6K9pbxpFuU2saC3lWWt43za1ggpCu9YONtmCuwucaWVgtYYqRcG2oMtuHPhxq6x4n3ImiE3TzXf4IzMHxMtuDbwNfT52ZA6yjkwWabhrLZCrb7zqWzdkjZBApQJmNntUgZDZD",
+        mediaType
+      );
+      setInsightsData((prev) => ({ ...prev, [postId]: data.insights || [] }));
+      setSelectedPostId(postId);
+    } catch (error) {
+      console.error("Error fetching insights:", error);
+      alert(`Error fetching insights: ${error.message}`);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const toggleInsights = (postId, mediaType) => {
+    if (insightsData[postId]) {
+      setSelectedPostId(postId);
+    } else {
+      fetchInsights(postId, mediaType);
+    }
+  };
+
+  const closeInsightsModal = () => {
+    setSelectedPostId(null);
+  };
 
   const handleToggleCommentVisibility = async (commentId, hide) => {
     setIsLoading(true);
@@ -132,9 +165,9 @@ const Dashboard = () => {
       );
       if (response.success) {
         const newCommentObj = {
-          id: response.commentId || `temp-${Date.now()}`, // Use API-provided ID or temporary ID
+          id: response.commentId || `temp-${Date.now()}`,
           text: newComment,
-          username: "osmancayir73", // Adjust based on your app logic
+          username: "osmancayir73",
           timestamp: new Date().toISOString(),
           like_count: 0,
           hidden: false,
@@ -171,9 +204,9 @@ const Dashboard = () => {
       );
       if (response.success) {
         const newReplyObj = {
-          id: response.replyId || `temp-reply-${Date.now()}`, // Use API-provided ID or temporary ID
+          id: response.replyId || `temp-reply-${Date.now()}`,
           text: newReply,
-          username: "osmancayir73", // Adjust based on your app logic
+          username: "osmancayir73",
           timestamp: new Date().toISOString(),
         };
         const updatedComments = selectedPost.comments.data.map((comment) =>
@@ -204,14 +237,38 @@ const Dashboard = () => {
     }
   };
 
-  const toggleInsights = () => {
-    setShowInsights((prev) => !prev);
-  };
-
   if (isLoading) {
     return (
-      <div className="loader-overlay">
-        <div className="loader"></div>
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          minHeight: "200px",
+        }}
+      >
+        <div
+          style={{
+            width: "40px",
+            height: "40px",
+            border: "4px solid #f3f3f3",
+            borderTop: "4px solid #0095f6",
+            borderRadius: "50%",
+            animation: "spin 1s linear infinite",
+          }}
+        />
+        <p style={{ marginTop: "15px", color: "#8e8e8e", fontSize: "16px" }}>
+          Loading dashboard...
+        </p>
+        <style>
+          {`
+            @keyframes spin {
+              0% { transform: rotate(0deg); }
+              100% { transform: rotate(360deg); }
+            }
+          `}
+        </style>
       </div>
     );
   }
@@ -385,13 +442,13 @@ const Dashboard = () => {
             )}
           </div>
           {showNewPostModal && (
-              <NewPostModal
+            <NewPostModal
               onClose={() => setShowNewPostModal(false)}
               onPostSuccess={handlePostSuccess}
               fetchInstagramData={fetchInstagramData}
             />
           )}
-           {showNewStoryModal && (
+          {showNewStoryModal && (
             <NewStoryModal
               onClose={() => setShowNewStoryModal(false)}
               onStorySuccess={handleStorySuccess}
@@ -561,27 +618,13 @@ const Dashboard = () => {
                         className="view-insights"
                         onClick={(e) => {
                           e.preventDefault();
-                          toggleInsights();
+                          toggleInsights(selectedPost.id, selectedPost.media_type);
                         }}
                       >
-                        {showInsights ? "Hide insights" : "View insights"}
+                        View insights
                       </a>
                       <button className="boost-btn">Boost post</button>
                     </div>
-                    {showInsights && selectedPost?.insights && (
-                      <div className="insights-section">
-                        <h3>Insights</h3>
-                        <ul>
-                          {selectedPost.insights.map((insight, index) => (
-                            <li key={index} className="insight-item">
-                              <strong>{insight.title || 'Unknown'}:</strong> {insight.values[0]?.value || 0}
-                              <br />
-                              <small>{insight.description || 'No description'}</small>
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
                   </div>
                 </div>
               </div>
@@ -593,6 +636,17 @@ const Dashboard = () => {
               initialIndex={selectedStoryIndex}
               onClose={() => setSelectedStoryIndex(null)}
               instagramData={instagramData}
+            />
+          )}
+          {selectedPostId && (
+            <InsightsModal
+              isOpen={!!selectedPostId}
+              onClose={closeInsightsModal}
+              insights={insightsData[selectedPostId]}
+              postId={selectedPostId}
+              mediaType={instagramData.business_discovery.media.data.find(
+                (post) => post.id === selectedPostId
+              )?.media_type}
             />
           )}
         </>
