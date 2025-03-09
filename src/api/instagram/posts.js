@@ -63,28 +63,47 @@ export const publishPost = async (postData) => {
     return response.json();
   };
 
-  export const getUserPosts = async (userId, username, accessToken, limit = 25, after = '') => {
-    const requestBody = { 
-      user_id: userId, 
-      username: username, 
-      access_token: accessToken,
-      limit: limit,
-    };
-    
-    if (after) {
-      requestBody.after = after;
-    }
 
+
+  export const getUserPosts = async (userId, username, accessToken, limit = 5, after = null) => {
     const response = await fetch("http://localhost:8000/api/get-user-posts", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(requestBody),
+      body: JSON.stringify({ user_id: userId, username, access_token: accessToken, limit, after }),
     });
-
+  
     if (!response.ok) {
       const errorText = await response.text();
       throw new Error(`Failed to fetch user posts: ${errorText}`);
     }
-
+  
     return response.json();
   };
+
+  // Fetch Instagram user data
+export const fetchInstagramData = async (userId, username, accessToken) => {
+  const response = await fetch(
+    `http://localhost:8000/api/users?user_id=${encodeURIComponent(userId)}&username=${encodeURIComponent(username)}&access_token=${encodeURIComponent(accessToken)}&fields=media{media_type,media_url,children{media_type,media_url},media_product_type,like_count,comments_count},stories,tags`
+  );
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`HTTP error! Status: ${response.status}, Response: ${errorText}`);
+  }
+  return response.json();
+};
+
+
+export const getMediaInsights = async (userId, mediaId, accessToken, mediaType) => {
+  const response = await fetch("http://localhost:8000/api/get-media-insights", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ user_id: userId, media_id: mediaId, access_token: accessToken, media_type: mediaType }),
+  });
+
+  if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to fetch media insights: ${errorText}`);
+  }
+
+  return response.json();
+};
