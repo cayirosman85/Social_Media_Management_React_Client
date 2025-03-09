@@ -63,8 +63,6 @@ export const publishPost = async (postData) => {
     return response.json();
   };
 
-
-
   export const getUserPosts = async (userId, username, accessToken, limit = 5, after = null) => {
     const response = await fetch("http://localhost:8000/api/get-user-posts", {
       method: "POST",
@@ -83,7 +81,7 @@ export const publishPost = async (postData) => {
   // Fetch Instagram user data
 export const fetchInstagramData = async (userId, username, accessToken) => {
   const response = await fetch(
-    `http://localhost:8000/api/users?user_id=${encodeURIComponent(userId)}&username=${encodeURIComponent(username)}&access_token=${encodeURIComponent(accessToken)}&fields=media{media_type,media_url,children{media_type,media_url},media_product_type,like_count,comments_count},stories,tags`
+    `http://localhost:8000/api/get-profile?user_id=${encodeURIComponent(userId)}&username=${encodeURIComponent(username)}&access_token=${encodeURIComponent(accessToken)}&fields=media{media_type,media_url,children{media_type,media_url},media_product_type,like_count,comments_count},stories,tags`
   );
   if (!response.ok) {
     const errorText = await response.text();
@@ -91,7 +89,6 @@ export const fetchInstagramData = async (userId, username, accessToken) => {
   }
   return response.json();
 };
-
 
 export const getMediaInsights = async (userId, mediaId, accessToken, mediaType) => {
   const response = await fetch("http://localhost:8000/api/get-media-insights", {

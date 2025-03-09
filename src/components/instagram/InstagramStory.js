@@ -1,13 +1,15 @@
 import React, { useState, useEffect, useRef } from "react";
-import { fetchStoryInsights } from "../../services/instagram/instagramService"; // Updated import
+import { fetchStoryInsights } from "../../services/instagram/instagramService";
+import InsightsModal from "../../components/instagram/InsightsModal";
+import { FaChartBar } from "react-icons/fa";
+import "./InstagramStory.css"; // Import the CSS file
 
 const InstagramStory = ({ stories, initialIndex, onClose, instagramData }) => {
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
-  const [showOptions, setShowOptions] = useState(false);
   const [insights, setInsights] = useState(null);
   const [isPaused, setIsPaused] = useState(false);
+  const [isInsightsModalOpen, setIsInsightsModalOpen] = useState(false);
   const STORY_DURATION = 5000;
-  const moreOptionsRef = useRef(null);
   const timerRef = useRef(null);
   const videoRef = useRef(null);
 
@@ -30,7 +32,7 @@ const InstagramStory = ({ stories, initialIndex, onClose, instagramData }) => {
       clearTimeout(timerRef.current);
     }
 
-    if (!isPaused && !showOptions) {
+    if (!isPaused) {
       timerRef.current = setTimeout(nextStory, STORY_DURATION);
     }
 
@@ -39,68 +41,47 @@ const InstagramStory = ({ stories, initialIndex, onClose, instagramData }) => {
         clearTimeout(timerRef.current);
       }
     };
-  }, [currentIndex, isPaused, showOptions]);
+  }, [currentIndex, isPaused]);
 
   useEffect(() => {
     if (currentStory.media_type === "VIDEO" && videoRef.current) {
-      if (isPaused || showOptions) {
+      if (isPaused) {
         videoRef.current.pause();
       } else {
         videoRef.current.play().catch((error) => console.error("Error resuming video:", error));
       }
     }
-  }, [isPaused, showOptions, currentIndex]);
-
-  const toggleOptions = (e) => {
-    e.stopPropagation();
-    setShowOptions((prev) => {
-      const newShowOptions = !prev;
-      setIsPaused(newShowOptions);
-      return newShowOptions;
-    });
-  };
-
-  useEffect(() => {
-    const handleOutsideClick = (e) => {
-      if (moreOptionsRef.current && !moreOptionsRef.current.contains(e.target)) {
-        setShowOptions(false);
-        setIsPaused(false);
-      }
-    };
-    document.addEventListener("click", handleOutsideClick);
-    return () => document.removeEventListener("click", handleOutsideClick);
-  }, []);
+  }, [isPaused, currentIndex]);
 
   const togglePlayPause = () => {
     setIsPaused((prev) => !prev);
   };
 
-  const handleViewInsights = async () => {
+  const handleViewInsights = async (e) => {
+    e.stopPropagation();
     try {
-
-  
       const response = await fetchStoryInsights(
         "17841473036355290",
         stories[currentIndex].id,
         "EAAZAde8LZA8zIBO4O8QsOQmyMMMShi79cCZBMRJZCjbSbXG7Y3ZAQ4OGvJN1vi8LYLeNx6K9pbxpFuU2saC3lWWt43za1ggpCu9YONtmCuwucaWVgtYYqRcG2oMtuHPhxq6x4n3ImiE3TzXf4IzMHxMtuDbwNfT52ZA6yjkwWabhrLZCrb7zqWzdkjZBApQJmNntUgZDZD"
       );
-  
+
       if (response.success) {
         console.log("Story insights from server:", response.insights);
         setInsights(response.insights);
+        setIsInsightsModalOpen(true);
+        setIsPaused(true);
       } else {
         throw new Error(response.error || "Failed to retrieve insights");
       }
-  
-      setShowOptions(false);
-      setIsPaused(false);
     } catch (error) {
       console.error("Error fetching insights:", error.message);
     }
   };
-  
-  const handleCancel = () => {
-    setShowOptions(false);
+
+  const closeInsightsModal = () => {
+    setIsInsightsModalOpen(false);
+    setInsights(null);
     setIsPaused(false);
   };
 
@@ -111,9 +92,11 @@ const InstagramStory = ({ stories, initialIndex, onClose, instagramData }) => {
       <div className="story-modal-content" onClick={(e) => e.stopPropagation()}>
         <div className="story-controls">
           <div className="story-right-controls">
-            <span ref={moreOptionsRef} className="story-more-options" onClick={toggleOptions}>
-              ⋯
-            </span>
+            <FaChartBar
+              className="story-insights-icon"
+              onClick={handleViewInsights}
+              title="View Insights"
+            />
             <button className="story-play-pause-btn" onClick={togglePlayPause}>
               {isPaused ? "▶️" : "⏸️"}
             </button>
@@ -148,60 +131,16 @@ const InstagramStory = ({ stories, initialIndex, onClose, instagramData }) => {
               className={`story-progress-bar ${index === currentIndex ? "active" : ""} ${
                 index < currentIndex ? "viewed" : ""
               }`}
-              style={{ animationPlayState: isPaused || showOptions ? "paused" : "running" }}
             />
           ))}
         </div>
-        {showOptions && (
-          <div className="story-options-dropdown">
-            <ul>
-              <li onClick={handleViewInsights}>Insights</li>
-              <li onClick={handleCancel}>Cancel</li>
-            </ul>
-          </div>
-        )}
-        {insights && (
-          <div
-            className="story-insights"
-            style={{
-              position: "absolute",
-              bottom: "20px",
-              left: "20px",
-              right: "20px",
-              background: "rgba(255, 255, 255, 0.9)",
-              borderRadius: "8px",
-              padding: "10px",
-              color: "#262626",
-              fontSize: "14px",
-              zIndex: 1010,
-            }}
-          >
-            <h3 style={{ fontSize: "16px", margin: "0 0 10px" }}>Story Insights</h3>
-            <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
-              {insights.map((insight) => (
-                <li key={insight.name} style={{ marginBottom: "8px" }}>
-                  <strong>{insight.title}:</strong> {insight.values[0]?.value || 0}
-                  <br />
-                  <small>{insight.description}</small>
-                </li>
-              ))}
-            </ul>
-            <button
-              onClick={() => setInsights(null)}
-              style={{
-                marginTop: "10px",
-                background: "#0095f6",
-                color: "white",
-                border: "none",
-                padding: "5px 10px",
-                borderRadius: "4px",
-                cursor: "pointer",
-              }}
-            >
-              Close Insights
-            </button>
-          </div>
-        )}
+        <InsightsModal
+          isOpen={isInsightsModalOpen}
+          onClose={closeInsightsModal}
+          insights={insights}
+          postId={stories[currentIndex]?.id}
+          mediaType={currentStory.media_type}
+        />
       </div>
     </div>
   );

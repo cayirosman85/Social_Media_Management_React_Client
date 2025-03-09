@@ -1,26 +1,38 @@
 import React, { useState, useEffect } from "react";
 import InstagramStory from "../../components/instagram/InstagramStory";
 import NewPostModal from "../../components/instagram/NewPostModal";
-import { fetchInstagramData, publishStory } from "../../services/instagram/instagramService";
+import { fetchStories, publishStory } from "../../services/instagram/instagramService";
 
 const StoriesManager = ({ instagramData }) => {
   const [stories, setStories] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [showNewStoryModal, setShowNewStoryModal] = useState(false);
+  const [showStoriesModal, setShowStoriesModal] = useState(false);
   const [selectedStoryIndex, setSelectedStoryIndex] = useState(null);
 
   useEffect(() => {
-    if (instagramData) {
+    const loadStories = async () => {
       setIsLoading(true);
-      fetchInstagramData(
-        "17841473036355290",
-        "osmancayir73",
-        "EAAZAde8LZA8zIBO4O8QsOQmyMMMShi79cCZBMRJZCjbSbXG7Y3ZAQ4OGvJN1vi8LYLeNx6K9pbxpFuU2saC3lWWt43za1ggpCu9YONtmCuwucaWVgtYYqRcG2oMtuHPhxq6x4n3ImiE3TzXf4IzMHxMtuDbwNfT52ZA6yjkwWabhrLZCrb7zqWzdkjZBApQJmNntUgZDZD"
-      )
-        .then((data) => setStories(data.business_discovery.stories.data))
-        .catch((error) => console.error("Error fetching stories:", error))
-        .finally(() => setIsLoading(false));
-    }
+      try {
+        const userId = instagramData?.user_id || "17841473036355290";
+        const accessToken = instagramData?.access_token || "EAAZAde8LZA8zIBO6PGvN672KLJ8x0dBFwrlXnicLFSwhMXSBVepQZBMlVJlAcM1Ul8mfcDqBx0QggGCE1LruXvApOiyNidYdC0hlLsuoz8m33FD3PDkDFqyzfSEVCO55gL3ZB3lQe1Q9AKq1omGkZCvES7Q9j5qv0g4tAem52QzFr0fBwMr4mjUUWB0y1GHjjpwZDZD";
+
+        const response = await fetchStories(userId, accessToken);
+        if (response.success) {
+          setStories(response.stories || []);
+          console.log("Stories fetched successfully:", response.stories);
+        } else {
+          throw new Error(response.error || "Failed to fetch stories");
+        }
+      } catch (error) {
+        console.error("Error fetching stories:", error.message);
+        setStories([]);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadStories();
   }, [instagramData]);
 
   const handleNewStorySubmit = async (e) => {
@@ -33,8 +45,8 @@ const StoriesManager = ({ instagramData }) => {
 
     try {
       let storyData = {
-        user_id: "17841473036355290",
-        access_token: "EAAZAde8LZA8zIBO6PGvN672KLJ8x0dBFwrlXnicLFSwhMXSBVepQZBMlVJlAcM1Ul8mfcDqBx0QggGCE1LruXvApOiyNidYdC0hlLsuoz8m33FD3PDkDFqyzfSEVCO55gL3ZB3lQe1Q9AKq1omGkZCvES7Q9j5qv0g4tAem52QzFr0fBwMr4mjUUWB0y1GHjjpwZDZD",
+        user_id: instagramData?.user_id || "17841473036355290",
+        access_token: instagramData?.access_token || "EAAZAde8LZA8zIBO6PGvN672KLJ8x0dBFwrlXnicLFSwhMXSBVepQZBMlVJlAcM1Ul8mfcDqBx0QggGCE1LruXvApOiyNidYdC0hlLsuoz8m33FD3PDkDFqyzfSEVCO55gL3ZB3lQe1Q9AKq1omGkZCvES7Q9j5qv0g4tAem52QzFr0fBwMr4mjUUWB0y1GHjjpwZDZD",
       };
 
       if (!mediaFile && !mediaUrl) {
@@ -137,11 +149,10 @@ const StoriesManager = ({ instagramData }) => {
 
       const result = await publishStory(storyData);
       if (result.success) {
-        fetchInstagramData(
-          "17841473036355290",
-          "osmancayir73",
-          "EAAZAde8LZA8zIBO4O8QsOQmyMMMShi79cCZBMRJZCjbSbXG7Y3ZAQ4OGvJN1vi8LYLeNx6K9pbxpFuU2saC3lWWt43za1ggpCu9YONtmCuwucaWVgtYYqRcG2oMtuHPhxq6x4n3ImiE3TzXf4IzMHxMtuDbwNfT52ZA6yjkwWabhrLZCrb7zqWzdkjZBApQJmNntUgZDZD"
-        ).then((data) => setStories(data.business_discovery.stories.data));
+        const response = await fetchStories(storyData.user_id, storyData.access_token);
+        if (response.success) {
+          setStories(response.stories || []);
+        }
         setShowNewStoryModal(false);
         alert("Story published successfully!");
       } else {
@@ -149,22 +160,115 @@ const StoriesManager = ({ instagramData }) => {
       }
     } catch (error) {
       console.error("Error publishing story:", error);
-      // Handle error (e.g., setErrorModalMessage in parent or context)
+      alert(`Error: ${error.message}`);
     } finally {
       setIsLoading(false);
     }
   };
 
+  const handleStoryClick = (index) => {
+    setSelectedStoryIndex(index);
+    setShowStoriesModal(true);
+  };
+
   return (
-    <div className="media-feed">
-      <button onClick={() => setShowNewStoryModal(true)}>Create New Story</button>
-      <div className="media-grid">
-        {stories.map((story, index) => (
-          <div key={story.id} className="media-item" onClick={() => setSelectedStoryIndex(index)}>
-            <img src={story.media_url} alt="Story" className="media-img" />
-          </div>
-        ))}
-      </div>
+    <div className="stories-manager">
+      <style>
+        {`
+          .stories-manager {
+            padding: 20px;
+            max-width: 1200px;
+            margin: 0 auto;
+          }
+
+          .stories-manager-button {
+            background-color: #0095f6;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-bottom: 20px;
+          }
+
+          .stories-manager-button:hover {
+            background-color: #007bb5;
+          }
+
+          .stories-manager-cards {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+          }
+
+          .stories-manager-card {
+            width: 100px;
+            height: 150px;
+            border-radius: 8px;
+            overflow: hidden;
+            cursor: pointer;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+            transition: transform 0.2s;
+            position: relative;
+          }
+
+          .stories-manager-card:hover {
+            transform: scale(1.05);
+          }
+
+          .stories-manager-card-img,
+          .stories-manager-card-video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+          }
+
+          .stories-manager-card-video {
+            pointer-events: none; /* Prevents video controls from appearing on hover */
+          }
+
+          .stories-manager-message {
+            font-size: 16px;
+            color: #666;
+            text-align: center;
+          }
+        `}
+      </style>
+
+      <button className="stories-manager-button" onClick={() => setShowNewStoryModal(true)}>
+        Create New Story
+      </button>
+      {isLoading && <p className="stories-manager-message">Loading stories...</p>}
+      {!isLoading && stories.length === 0 && (
+        <p className="stories-manager-message">No stories available.</p>
+      )}
+      {!isLoading && stories.length > 0 && (
+        <div className="stories-manager-cards">
+          {stories.map((story, index) => (
+            <div
+              key={story.id}
+              className="stories-manager-card"
+              onClick={() => handleStoryClick(index)}
+            >
+              {story.media_type === "VIDEO" ? (
+                <video
+                  src={story.media_url}
+                  className="stories-manager-card-video"
+                  muted
+                  playsInline
+                />
+              ) : (
+                <img
+                  src={story.media_url}
+                  alt="Story thumbnail"
+                  className="stories-manager-card-img"
+                />
+              )}
+            </div>
+          ))}
+        </div>
+      )}
       {showNewStoryModal && (
         <NewPostModal
           onSubmit={handleNewStorySubmit}
@@ -172,11 +276,11 @@ const StoriesManager = ({ instagramData }) => {
           onClose={() => setShowNewStoryModal(false)}
         />
       )}
-      {selectedStoryIndex !== null && (
+      {showStoriesModal && (
         <InstagramStory
           stories={stories}
           initialIndex={selectedStoryIndex}
-          onClose={() => setSelectedStoryIndex(null)}
+          onClose={() => setShowStoriesModal(false)}
           instagramData={instagramData}
         />
       )}

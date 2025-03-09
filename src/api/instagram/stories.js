@@ -30,3 +30,22 @@ export const fetchStoryInsights = async (userId, mediaId, accessToken) => {
 
   return response.json(); // Expecting { success: true, insights: [...] }
 };
+
+
+  export const fetchStories = async (userId, accessToken) => {
+    const response = await fetch("http://localhost:8000/api/stories", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        user_id: userId,
+        access_token: accessToken,
+      }),
+    });
+  
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`HTTP error! Status: ${response.status}, Response: ${errorText}`);
+    }
+  
+    return response.json();
+  };
