@@ -295,3 +295,29 @@ body {
   0% { transform: rotate(0deg); }
   100% { transform: rotate(360deg); }
 }
+
+
+.story-insights-icon {
+  margin-right: 10px; /* Space between icons */
+  transition: color 0.2s ease; /* Smooth color transition */
+}
+
+.story-insights-icon:hover {
+  color: #0095f6; /* Instagram blue on hover */
+}
+
+.story-right-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px; /* Space between icons */
+}
+
+.story-insights-icon,
+.story-play-pause-btn svg {
+  transition: color 0.2s ease;
+}
+
+.story-insights-icon:hover,
+.story-play-pause-btn svg:hover {
+  color: #0095f6; /* Instagram blue on hover */
+}

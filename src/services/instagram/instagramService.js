@@ -1,5 +1,7 @@
 import { publishPost, toggleCommentVisibility, deleteComment, createComment, createReply ,getUserPosts,getMediaInsights,fetchInstagramData} from "../../api/instagram/posts";
 import { publishStory } from "../../api/instagram/stories";
+import { getRecentMedia,getTopMedia,searchHashtag } from "../../api/instagram/hashtag";
+
 import { fetchStoryInsights ,fetchStories } from "../../api/instagram/stories";
 
 
@@ -13,6 +15,8 @@ export {
   fetchStoryInsights ,
   getUserPosts,getMediaInsights,
   fetchInstagramData,
-  fetchStories
-  
+  fetchStories,
+  getRecentMedia,
+  getTopMedia
+  ,searchHashtag
 };

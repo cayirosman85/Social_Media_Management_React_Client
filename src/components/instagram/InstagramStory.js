@@ -1,8 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { fetchStoryInsights } from "../../services/instagram/instagramService";
 import InsightsModal from "../../components/instagram/InsightsModal";
-import { FaChartBar } from "react-icons/fa";
-import "./InstagramStory.css"; // Import the CSS file
+import { FaChartBar, FaPlay, FaPause } from "react-icons/fa"; // Existing icons
 
 const InstagramStory = ({ stories, initialIndex, onClose, instagramData }) => {
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
@@ -91,23 +90,83 @@ const InstagramStory = ({ stories, initialIndex, onClose, instagramData }) => {
     <div className="story-modal" onClick={onClose}>
       <div className="story-modal-content" onClick={(e) => e.stopPropagation()}>
         <div className="story-controls">
-          <div className="story-right-controls">
-            <FaChartBar
-              className="story-insights-icon"
+          <div className="story-right-controls" style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+            <span
+              className="story-icon-wrapper"
               onClick={handleViewInsights}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                width: "30px",
+                height: "30px",
+                backgroundColor: "rgba(0, 0, 0, 0.6)",
+                borderRadius: "50%",
+                cursor: "pointer",
+              }}
               title="View Insights"
-            />
-            <button className="story-play-pause-btn" onClick={togglePlayPause}>
-              {isPaused ? "▶️" : "⏸️"}
+            >
+              <FaChartBar style={{ fontSize: "16px", color: "#fff" }} />
+            </span>
+            <button
+              className="story-play-pause-btn"
+              onClick={togglePlayPause}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                width: "30px",
+                height: "30px",
+                backgroundColor: "rgba(0, 0, 0, 0.6)",
+                borderRadius: "50%",
+                border: "none",
+                padding: 0,
+                cursor: "pointer",
+              }}
+            >
+              {isPaused ? (
+                <FaPlay style={{ fontSize: "16px", color: "#fff" }} title="Play" />
+              ) : (
+                <FaPause style={{ fontSize: "16px", color: "#fff" }} title="Pause" />
+              )}
             </button>
-            <span className="story-close" onClick={onClose}>
+            <span
+              className="story-close"
+              onClick={onClose}
+              style={{ fontSize: "24px", cursor: "pointer", color: "#fff" }}
+            >
               ×
             </span>
           </div>
         </div>
-        <button className="story-btn prev" onClick={prevStory}>
+
+        {/* Previous Button */}
+        <button
+          className="story-btn prev"
+          onClick={prevStory}
+          style={{
+            position: "absolute",
+            left: "10px",
+            top: "50%",
+            transform: "translateY(-50%)",
+            width: "40px",
+            height: "40px",
+            backgroundColor: "rgba(0, 0, 0, 0.6)",
+            borderRadius: "50%",
+            border: "none",
+            color: "#fff",
+            fontSize: "20px",
+            cursor: "pointer",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+          disabled={currentIndex === 0} // Disable if at the first story
+        >
           ❮
         </button>
+
+        {/* Story Content */}
         {currentStory.media_type === "VIDEO" ? (
           <video
             ref={videoRef}
@@ -121,9 +180,33 @@ const InstagramStory = ({ stories, initialIndex, onClose, instagramData }) => {
         ) : (
           <img src={currentStory.media_url} alt="Story" className="story-modal-img" />
         )}
-        <button className="story-btn next" onClick={nextStory}>
+
+        {/* Next Button */}
+        <button
+          className="story-btn next"
+          onClick={nextStory}
+          style={{
+            position: "absolute",
+            right: "10px",
+            top: "50%",
+            transform: "translateY(-50%)",
+            width: "40px",
+            height: "40px",
+            backgroundColor: "rgba(0, 0, 0, 0.6)",
+            borderRadius: "50%",
+            border: "none",
+            color: "#fff",
+            fontSize: "20px",
+            cursor: "pointer",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+          disabled={currentIndex === stories.length - 1} // Disable if at the last story
+        >
           ❯
         </button>
+
         <div className="story-progress">
           {stories.map((_, index) => (
             <div
@@ -131,9 +214,11 @@ const InstagramStory = ({ stories, initialIndex, onClose, instagramData }) => {
               className={`story-progress-bar ${index === currentIndex ? "active" : ""} ${
                 index < currentIndex ? "viewed" : ""
               }`}
+              style={{ animationPlayState: isPaused ? "paused" : "running" }}
             />
           ))}
         </div>
+
         <InsightsModal
           isOpen={isInsightsModalOpen}
           onClose={closeInsightsModal}

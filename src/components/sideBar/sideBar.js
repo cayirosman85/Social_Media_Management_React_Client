@@ -31,6 +31,7 @@ import {
   Share,
   Phone,
   LivePhoto,
+  Mountain,
 } from "tabler-icons-react";
 import { useSidebar } from "../../context/SidebarContext";
 
@@ -51,6 +52,11 @@ const menuItems = [
         text: "Posts",
         icon: <InsertChart size={22} />,
         path: "/posts",
+      },
+      {
+        text: "Hashtags",
+        icon: <Mountain size={22} />,
+        path: "/hashtags",
       },
       {
         text: "Stories",

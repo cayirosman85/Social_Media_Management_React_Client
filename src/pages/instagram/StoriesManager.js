@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from "react";
 import InstagramStory from "../../components/instagram/InstagramStory";
-import NewPostModal from "../../components/instagram/NewPostModal";
+import NewStoryModal from "../../components/instagram/NewStoryModal";
 import { fetchStories, publishStory } from "../../services/instagram/instagramService";
+import { FaPlus } from "react-icons/fa";
 
 const StoriesManager = ({ instagramData }) => {
   const [stories, setStories] = useState([]);
@@ -12,6 +13,7 @@ const StoriesManager = ({ instagramData }) => {
 
   useEffect(() => {
     const loadStories = async () => {
+      console.log("Starting to load stories, setting isLoading to true");
       setIsLoading(true);
       try {
         const userId = instagramData?.user_id || "17841473036355290";
@@ -28,6 +30,7 @@ const StoriesManager = ({ instagramData }) => {
         console.error("Error fetching stories:", error.message);
         setStories([]);
       } finally {
+        console.log("Finished loading stories, setting isLoading to false");
         setIsLoading(false);
       }
     };
@@ -37,6 +40,7 @@ const StoriesManager = ({ instagramData }) => {
 
   const handleNewStorySubmit = async (e) => {
     e.preventDefault();
+    console.log("Submitting new story, setting isLoading to true");
     setIsLoading(true);
 
     const formData = new FormData(e.target);
@@ -147,6 +151,8 @@ const StoriesManager = ({ instagramData }) => {
         else if (finalIsVideo) storyData.video_url = url;
       }
 
+      console.log("Sending story data:", storyData);
+
       const result = await publishStory(storyData);
       if (result.success) {
         const response = await fetchStories(storyData.user_id, storyData.access_token);
@@ -162,6 +168,7 @@ const StoriesManager = ({ instagramData }) => {
       console.error("Error publishing story:", error);
       alert(`Error: ${error.message}`);
     } finally {
+      console.log("Finished submitting story, setting isLoading to false");
       setIsLoading(false);
     }
   };
@@ -171,25 +178,48 @@ const StoriesManager = ({ instagramData }) => {
     setShowStoriesModal(true);
   };
 
+  const handleStorySuccess = (updatedData) => {
+    if (updatedData && updatedData.stories) {
+      setStories(updatedData.stories);
+    }
+    setShowNewStoryModal(false);
+  };
+
+  const fetchInstagramData = async (userId, username, accessToken) => {
+    const response = await fetchStories(userId, accessToken);
+    return response.success ? { stories: response.stories || [] } : { stories: [] };
+  };
+
+  console.log("Rendering StoriesManager, isLoading:", isLoading);
+
   return (
     <div className="stories-manager">
       <style>
         {`
-          .stories-manager {
+    .stories-manager {
             padding: 20px;
-            max-width: 1200px;
+            width: 90%;
             margin: 0 auto;
+            position: relative;
+          }
+
+          .stories-manager-header {
+            display: flex;
+            justify-content: flex-end;
+            margin-bottom: 20px;
           }
 
           .stories-manager-button {
+            display: flex;
+            align-items: center;
+            gap: 5px;
             background-color: #0095f6;
             color: white;
             border: none;
-            padding: 10px 20px;
+            padding: 8px 16px;
             border-radius: 5px;
             cursor: pointer;
             font-size: 16px;
-            margin-bottom: 20px;
           }
 
           .stories-manager-button:hover {
@@ -198,8 +228,9 @@ const StoriesManager = ({ instagramData }) => {
 
           .stories-manager-cards {
             display: flex;
-            flex-wrap: wrap;
+            flex-direction: row;
             gap: 20px;
+            overflow-x: auto;
           }
 
           .stories-manager-card {
@@ -225,7 +256,7 @@ const StoriesManager = ({ instagramData }) => {
           }
 
           .stories-manager-card-video {
-            pointer-events: none; /* Prevents video controls from appearing on hover */
+            pointer-events: none;
           }
 
           .stories-manager-message {
@@ -233,17 +264,50 @@ const StoriesManager = ({ instagramData }) => {
             color: #666;
             text-align: center;
           }
+
+
+          .spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #0095f6;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+          }
+
+          @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+          }
         `}
       </style>
 
-      <button className="stories-manager-button" onClick={() => setShowNewStoryModal(true)}>
-        Create New Story
-      </button>
-      {isLoading && <p className="stories-manager-message">Loading stories...</p>}
-      {!isLoading && stories.length === 0 && (
+      <div className="stories-manager-header">
+        <button
+          className="stories-manager-button"
+          onClick={() => setShowNewStoryModal(true)}
+          disabled={isLoading}
+        >
+          <FaPlus /> Story
+        </button>
+      </div>
+
+      {isLoading ? (
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            minHeight: "200px",
+          }}
+        >
+          <div className="spinner" />
+          <p style={{ marginTop: "15px", color: "#8e8e8e", fontSize: "16px" }}>Loading stories...</p>
+        </div>
+      ) : stories.length === 0 ? (
         <p className="stories-manager-message">No stories available.</p>
-      )}
-      {!isLoading && stories.length > 0 && (
+      ) : (
         <div className="stories-manager-cards">
           {stories.map((story, index) => (
             <div
@@ -269,11 +333,12 @@ const StoriesManager = ({ instagramData }) => {
           ))}
         </div>
       )}
+
       {showNewStoryModal && (
-        <NewPostModal
-          onSubmit={handleNewStorySubmit}
-          isLoading={isLoading}
+        <NewStoryModal
           onClose={() => setShowNewStoryModal(false)}
+          onStorySuccess={handleStorySuccess}
+          fetchInstagramData={fetchInstagramData}
         />
       )}
       {showStoriesModal && (
