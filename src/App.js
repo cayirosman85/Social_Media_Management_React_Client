@@ -14,6 +14,8 @@ import Dashboard from "./pages/instagram/Dashboard.js";
 import PostsManager from "./pages/instagram/PostsManager.js";
 import StoriesManager from "./pages/instagram/StoriesManager.js";
 import HashtagManager from "./pages/instagram/HashtagManager.js";
+import FacebookLogin from "./pages/instagram/FacebookLogin.js";
+
 
 import AdsManager from "./pages/instagram/AdsManager.js";
 import ErrorModal from "./components/instagram/ErrorModal";
@@ -178,6 +180,7 @@ function AppRoutes() {
             </ProtectedRoute>
           }
         />
+
         <Route
           path="/posts"
           element={
@@ -194,6 +197,16 @@ function AppRoutes() {
             </ProtectedRoute>
           }
         />
+      <Route
+          path="/FacebookLogin"
+          element={
+            <ProtectedRoute>
+              <FacebookLogin />
+            </ProtectedRoute>
+          }
+        />
+
+
         <Route
           path="/stories"
           element={

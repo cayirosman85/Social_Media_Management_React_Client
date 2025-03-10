@@ -17,15 +17,14 @@ const StoriesManager = ({ instagramData }) => {
       setIsLoading(true);
       try {
         const userId = instagramData?.user_id || "17841473036355290";
-        const accessToken = instagramData?.access_token || "EAAZAde8LZA8zIBO6PGvN672KLJ8x0dBFwrlXnicLFSwhMXSBVepQZBMlVJlAcM1Ul8mfcDqBx0QggGCE1LruXvApOiyNidYdC0hlLsuoz8m33FD3PDkDFqyzfSEVCO55gL3ZB3lQe1Q9AKq1omGkZCvES7Q9j5qv0g4tAem52QzFr0fBwMr4mjUUWB0y1GHjjpwZDZD";
+        const accessToken =
+          instagramData?.access_token ||
+          "EAAZAde8LZA8zIBO6PGvN672KLJ8x0dBFwrlXnicLFSwhMXSBVepQZBMlVJlAcM1Ul8mfcDqBx0QggGCE1LruXvApOiyNidYdC0hlLsuoz8m33FD3PDkDFqyzfSEVCO55gL3ZB3lQe1Q9AKq1omGkZCvES7Q9j5qv0g4tAem52QzFr0fBwMr4mjUUWB0y1GHjjpwZDZD";
 
         const response = await fetchStories(userId, accessToken);
-        if (response.success) {
-          setStories(response.stories || []);
-          console.log("Stories fetched successfully:", response.stories);
-        } else {
-          throw new Error(response.error || "Failed to fetch stories");
-        }
+        console.log("Raw response:", response); // Logs the response object
+        setStories(response.data || []); // Use response.data directly
+        console.log("Stories fetched successfully:", response.data);
       } catch (error) {
         console.error("Error fetching stories:", error.message);
         setStories([]);
@@ -50,7 +49,9 @@ const StoriesManager = ({ instagramData }) => {
     try {
       let storyData = {
         user_id: instagramData?.user_id || "17841473036355290",
-        access_token: instagramData?.access_token || "EAAZAde8LZA8zIBO6PGvN672KLJ8x0dBFwrlXnicLFSwhMXSBVepQZBMlVJlAcM1Ul8mfcDqBx0QggGCE1LruXvApOiyNidYdC0hlLsuoz8m33FD3PDkDFqyzfSEVCO55gL3ZB3lQe1Q9AKq1omGkZCvES7Q9j5qv0g4tAem52QzFr0fBwMr4mjUUWB0y1GHjjpwZDZD",
+        access_token:
+          instagramData?.access_token ||
+          "EAAZAde8LZA8zIBO6PGvN672KLJ8x0dBFwrlXnicLFSwhMXSBVepQZBMlVJlAcM1Ul8mfcDqBx0QggGCE1LruXvApOiyNidYdC0hlLsuoz8m33FD3PDkDFqyzfSEVCO55gL3ZB3lQe1Q9AKq1omGkZCvES7Q9j5qv0g4tAem52QzFr0fBwMr4mjUUWB0y1GHjjpwZDZD",
       };
 
       if (!mediaFile && !mediaUrl) {
@@ -156,9 +157,7 @@ const StoriesManager = ({ instagramData }) => {
       const result = await publishStory(storyData);
       if (result.success) {
         const response = await fetchStories(storyData.user_id, storyData.access_token);
-        if (response.success) {
-          setStories(response.stories || []);
-        }
+        setStories(response.data || []); // Update to use response.data
         setShowNewStoryModal(false);
         alert("Story published successfully!");
       } else {
@@ -187,7 +186,7 @@ const StoriesManager = ({ instagramData }) => {
 
   const fetchInstagramData = async (userId, username, accessToken) => {
     const response = await fetchStories(userId, accessToken);
-    return response.success ? { stories: response.stories || [] } : { stories: [] };
+    return { stories: response.data || [] }; // Simplified, no success check needed
   };
 
   console.log("Rendering StoriesManager, isLoading:", isLoading);
@@ -196,7 +195,7 @@ const StoriesManager = ({ instagramData }) => {
     <div className="stories-manager">
       <style>
         {`
-    .stories-manager {
+          .stories-manager {
             padding: 20px;
             width: 90%;
             margin: 0 auto;
@@ -264,7 +263,6 @@ const StoriesManager = ({ instagramData }) => {
             color: #666;
             text-align: center;
           }
-
 
           .spinner {
             width: 40px;

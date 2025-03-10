@@ -35,54 +35,54 @@ const PostsManager = () => {
     accessToken: "EAAZAde8LZA8zIBO4O8QsOQmyMMMShi79cCZBMRJZCjbSbXG7Y3ZAQ4OGvJN1vi8LYLeNx6K9pbxpFuU2saC3lWWt43za1ggpCu9YONtmCuwucaWVgtYYqRcG2oMtuHPhxq6x4n3ImiE3TzXf4IzMHxMtuDbwNfT52ZA6yjkwWabhrLZCrb7zqWzdkjZBApQJmNntUgZDZD",
   };
 
-  const fetchPosts = async (cursor = null, direction = "after", append = false) => {
-    setIsLoading(true);
-    let scrollPosition = 0;
+const fetchPosts = async (cursor = null, direction = "after", append = false) => {
+  setIsLoading(true);
+  let scrollPosition = 0;
 
-    // If appending (Load More), save the current scroll position
-    if (append && postsContainerRef.current) {
-      scrollPosition = postsContainerRef.current.scrollTop;
-    }
+  if (append && postsContainerRef.current) {
+    scrollPosition = postsContainerRef.current.scrollTop;
+  }
 
-    try {
-      const data = await getUserPosts(
-        instagramData.business_discovery.id,
-        instagramData.business_discovery.username,
-        instagramData.accessToken,
-        5,
-        cursor
-      );
-      console.log("Raw response from getUserPosts:", data);
+  try {
+    const data = await getUserPosts(
+      instagramData.business_discovery.id,
+      instagramData.business_discovery.username,
+      instagramData.accessToken,
+      5, // Limit
+      cursor
+    );
+    console.log("Raw response from getUserPosts:", data);
 
-      if (append) {
-        setPosts((prevPosts) => {
-          const newPosts = data.posts || [];
-          const existingIds = new Set(prevPosts.map((post) => post.id));
-          const filteredNewPosts = newPosts.filter((post) => !existingIds.has(post.id));
-          return [...prevPosts, ...filteredNewPosts];
-        });
-      } else {
-        setPosts(data.posts || []);
-      }
-
-      setPaging({
-        after: data.paging?.after || data.paging?.cursors?.after || null,
-        before: data.paging?.before || data.paging?.cursors?.before || null,
+    // Extract media items from the correct path
+    const mediaItems = data?.business_discovery?.media?.data || [];
+    
+    if (append) {
+      setPosts((prevPosts) => {
+        const existingIds = new Set(prevPosts.map((post) => post.id));
+        const filteredNewPosts = mediaItems.filter((post) => !existingIds.has(post.id));
+        return [...prevPosts, ...filteredNewPosts];
       });
-
-      // Restore scroll position after state update
-      if (append && postsContainerRef.current) {
-        requestAnimationFrame(() => {
-          postsContainerRef.current.scrollTop = scrollPosition;
-        });
-      }
-    } catch (error) {
-      console.error("Error fetching posts:", error);
-    } finally {
-      setIsLoading(false);
+    } else {
+      setPosts(mediaItems);
     }
-  };
 
+    // Update paging info from the response
+    setPaging({
+      after: data?.paging?.cursors?.after || null,
+      before: data?.paging?.cursors?.before || null,
+    });
+
+    if (append && postsContainerRef.current) {
+      requestAnimationFrame(() => {
+        postsContainerRef.current.scrollTop = scrollPosition;
+      });
+    }
+  } catch (error) {
+    console.error("Error fetching posts:", error);
+  } finally {
+    setIsLoading(false);
+  }
+};
   useEffect(() => {
     fetchPosts(null, "after", false);
   }, []);

@@ -1,5 +1,5 @@
 export const publishPost = async (postData) => {
-    const response = await fetch("http://localhost:8000/api/publish-post", {
+    const response = await fetch("https://localhost:7099/api/Post/publish-post", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(postData),
@@ -64,10 +64,10 @@ export const publishPost = async (postData) => {
   };
 
   export const getUserPosts = async (userId, username, accessToken, limit = 5, after = null) => {
-    const response = await fetch("http://localhost:8000/api/get-user-posts", {
+    const response = await fetch("https://localhost:7099/api/User/user-posts", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ user_id: userId, username, access_token: accessToken, limit, after }),
+      body: JSON.stringify({ user_id: userId, username, access_token: accessToken}),
     });
   
     if (!response.ok) {
@@ -80,15 +80,21 @@ export const publishPost = async (postData) => {
 
   // Fetch Instagram user data
 export const fetchInstagramData = async (userId, username, accessToken) => {
-  const response = await fetch(
-    `http://localhost:8000/api/get-profile?user_id=${encodeURIComponent(userId)}&username=${encodeURIComponent(username)}&access_token=${encodeURIComponent(accessToken)}&fields=media{media_type,media_url,children{media_type,media_url},media_product_type,like_count,comments_count},stories,tags`
-  );
+  
+
+  const response = await fetch("https://localhost:7099/api/User/get-profile", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ user_id: userId, username, access_token: accessToken}),
+  });
+
   if (!response.ok) {
     const errorText = await response.text();
     throw new Error(`HTTP error! Status: ${response.status}, Response: ${errorText}`);
   }
   return response.json();
 };
+
 
 export const getMediaInsights = async (userId, mediaId, accessToken, mediaType) => {
   const response = await fetch("http://localhost:8000/api/get-media-insights", {

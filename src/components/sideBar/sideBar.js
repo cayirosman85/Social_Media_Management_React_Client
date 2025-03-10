@@ -32,6 +32,7 @@ import {
   Phone,
   LivePhoto,
   Mountain,
+  Login,
 } from "tabler-icons-react";
 import { useSidebar } from "../../context/SidebarContext";
 
@@ -67,6 +68,11 @@ const menuItems = [
         text: "Schedule",
         icon: <Calendar size={22} />,
         path: "/schedule",
+      },
+      {
+        text: "Login",
+        icon: <Login size={22} />,
+        path: "/FacebookLogin",
       },
     ],
   },

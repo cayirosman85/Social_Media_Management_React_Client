@@ -5,7 +5,7 @@ export const searchHashtag = async (userId, hashtagName, accessToken) => {
       access_token: accessToken 
     };
     console.log("Sending payload to /api/searchHashtag:", payload);
-    const response = await fetch("http://localhost:8000/api/searchHashtag", {
+    const response = await fetch("https://localhost:7099/api/Hashtag/searchHashtag", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
@@ -26,7 +26,7 @@ export const searchHashtag = async (userId, hashtagName, accessToken) => {
       access_token: accessToken 
     };
     console.log("Sending payload to /api/getRecentMedia:", payload);
-    const response = await fetch("http://localhost:8000/api/getRecentMedia", {
+    const response = await fetch("https://localhost:7099/api/Hashtag/getRecentMedia", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
@@ -47,7 +47,7 @@ export const searchHashtag = async (userId, hashtagName, accessToken) => {
       access_token: accessToken 
     };
     console.log("Sending payload to /api/getTopMedia:", payload);
-    const response = await fetch("http://localhost:8000/api/getTopMedia", {
+    const response = await fetch("https://localhost:7099/api/Hashtag/getTopMedia", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
