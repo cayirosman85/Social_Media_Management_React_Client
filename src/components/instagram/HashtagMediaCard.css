@@ -1,0 +1,220 @@
+/* MediaCard.css */
+.media-card {
+    background-color: #ffffff;
+    border-radius: 12px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    min-height: 400px;
+    width: 100%;
+    max-width: 350px;
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+    cursor: pointer;
+  }
+  
+  .media-card:hover {
+    transform: translateY(-6px);
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
+  }
+  
+  /* Media Section */
+  .media-section {
+    flex-shrink: 0;
+    width: 100%;
+    margin-bottom: 12px;
+  }
+  
+  .media-content {
+    width: 100%;
+    max-height: 250px;
+    border-radius: 8px;
+    object-fit: contain;
+    display: block;
+  }
+  
+  /* Carousel */
+  .carousel {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 12px;
+    overflow: hidden;
+    max-height: 250px;
+    width: 100%;
+  }
+  
+  .carousel-content {
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+  }
+  
+  .carousel-item {
+    background-color: #f0f4f8;
+    padding: 8px;
+    border-radius: 8px;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+    text-align: center;
+    flex-shrink: 0;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+  }
+  
+  .carousel-arrow {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    background-color: rgba(0, 0, 0, 0.5);
+    color: #fff;
+    border: none;
+    border-radius: 50%;
+    width: 30px;
+    height: 30px;
+    font-size: 1.2rem;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+    z-index: 1;
+  }
+  
+  .carousel-arrow:hover {
+    background-color: rgba(0, 0, 0, 0.7);
+  }
+  
+  .carousel-prev {
+    left: 10px;
+  }
+  
+  .carousel-next {
+    right: 10px;
+  }
+  
+  .unsupported-text {
+    font-size: 0.9rem;
+    color: #666;
+    text-align: center;
+    margin: 0;
+  }
+  
+  /* Info Section */
+  .media-info {
+    flex-grow: 1;
+    padding: 12px;
+    background-color: #f0f4f8;
+    border-radius: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  
+  /* Caption Section */
+  .caption-section {
+    background-color: #ffffff;
+    padding: 10px;
+    border-radius: 6px;
+    border: 1px solid #e0e7ff;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    max-height: 100px;
+    overflow-y: auto;
+  }
+  
+  .caption-section strong {
+    color: #2c5282;
+    font-weight: 600;
+    font-size: 0.95rem;
+  }
+  
+  .caption-section span {
+    color: #4a5568;
+    word-wrap: break-word;
+    font-size: 0.9rem;
+  }
+  
+  /* Details Section */
+  .details-section {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+  }
+  
+  .stats-container {
+    display: flex;
+    gap: 20px;
+  }
+  
+  .stat-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+  }
+  
+  .stat-item strong {
+    color: #2c5282;
+    font-weight: 600;
+    font-size: 0.95rem;
+    margin-bottom: 2px;
+  }
+  
+  .stat-item span {
+    color: #4a5568;
+    font-size: 0.9rem;
+    padding: 2px 8px;
+    background-color: #edf2f7;
+    border-radius: 4px;
+  }
+  
+  .date-container {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  
+  .date-container strong {
+    color: #2c5282;
+    font-weight: 600;
+    font-size: 0.95rem;
+  }
+  
+  .date-container span {
+    color: #4a5568;
+    font-size: 0.9rem;
+  }
+  
+  /* Responsive Design */
+  @media (max-width: 400px) {
+    .media-card {
+      max-width: 100%;
+      padding: 12px;
+    }
+  
+    .media-content,
+    .carousel {
+      max-height: 200px;
+    }
+  
+    .media-info {
+      padding: 8px;
+    }
+  
+    .stats-container {
+      flex-direction: column;
+      gap: 10px;
+    }
+  
+    .caption-section {
+      max-height: 80px;
+    }
+  
+    .stat-item span {
+      padding: 2px 6px;
+    }
+  }

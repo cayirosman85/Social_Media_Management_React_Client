@@ -6,7 +6,7 @@ import CalendarTodayIcon from "@mui/icons-material/CalendarToday";
 import DescriptionIcon from "@mui/icons-material/Description";
 import PeopleIcon from "@mui/icons-material/People";
 import SecurityIcon from "@mui/icons-material/Security";
-import DashboardIcon from "@mui/icons-material/Dashboard";
+import ProfileIcon from "@mui/icons-material/Dashboard";
 import SettingsIcon from "@mui/icons-material/Settings";
 import { useState } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
@@ -34,7 +34,7 @@ const AppsMenu = () => {
       subtitle: "Permissions",
       path: "/login"
     },
-    { icon: <DashboardIcon />, title: "Dashboard", subtitle: "User Dashboard" },
+    { icon: <ProfileIcon />, title: "Profile", subtitle: "User Profile" },
     { icon: <SettingsIcon />, title: "Settings", subtitle: "Account Settings" },
   ];
 

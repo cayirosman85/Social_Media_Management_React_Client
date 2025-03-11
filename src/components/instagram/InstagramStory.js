@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { fetchStoryInsights } from "../../services/instagram/instagramService";
 import InsightsModal from "../../components/instagram/InsightsModal";
 import { FaChartBar, FaPlay, FaPause } from "react-icons/fa"; // Existing icons
-
+import "./InstagramStory.css";
 const InstagramStory = ({ stories, initialIndex, onClose, instagramData }) => {
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
   const [insights, setInsights] = useState(null);

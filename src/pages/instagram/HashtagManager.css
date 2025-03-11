@@ -1,24 +1,10 @@
-/* Global Reset and Base Styles */
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
-}
-
-body {
-  font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
-  background-color: #f0f2f5;
-  color: #333;
-}
-
-/* Container */
+/* HashtagManager.css */
 .hashtags-container {
-  max-width: 1200px;
+  width: 96%;
   margin: 0 auto;
   padding: 30px;
 }
 
-/* Title */
 .hashtags-title {
   font-size: 2.5rem;
   font-weight: 700;
@@ -29,55 +15,6 @@ body {
   letter-spacing: 1px;
 }
 
-/* Search Form */
-.search-form {
-  display: flex;
-  gap: 15px;
-  margin-bottom: 30px;
-  align-items: center;
-  justify-content: center;
-}
-
-.search-input {
-  flex: 1;
-  max-width: 400px;
-  padding: 12px 16px;
-  font-size: 1rem;
-  border: 2px solid #ddd;
-  border-radius: 25px;
-  outline: none;
-  transition: border-color 0.3s ease, box-shadow 0.3s ease;
-}
-
-.search-input:focus {
-  border-color: #1a73e8;
-  box-shadow: 0 0 8px rgba(26, 115, 232, 0.3);
-}
-
-.search-button {
-  padding: 12px 24px;
-  font-size: 1rem;
-  font-weight: 600;
-  background-color: #1a73e8;
-  color: white;
-  border: none;
-  border-radius: 25px;
-  cursor: pointer;
-  transition: background-color 0.3s ease, transform 0.2s ease;
-}
-
-.search-button:hover:not(:disabled) {
-  background-color: #1557b0;
-  transform: translateY(-2px);
-}
-
-.search-button:disabled {
-  background-color: #b0bec5;
-  cursor: not-allowed;
-  transform: none;
-}
-
-/* Error Message */
 .error-message {
   color: #d32f2f;
   font-size: 1.1rem;
@@ -88,198 +25,6 @@ body {
   border-radius: 8px;
 }
 
-/* Hashtag Info */
-.hashtag-info {
-  background-color: #ffffff;
-  padding: 15px 20px;
-  margin-bottom: 30px;
-  border-radius: 12px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-  text-align: center;
-}
-
-.hashtag-info p {
-  font-size: 1.1rem;
-  margin: 5px 0;
-  color: #555;
-}
-
-/* Tabs */
-.tabs-container {
-  display: flex;
-  justify-content: center;
-  gap: 10px;
-  margin-bottom: 30px;
-}
-
-.tab-button {
-  padding: 12px 25px;
-  font-size: 1.1rem;
-  font-weight: 600;
-  background-color: #e0e0e0;
-  color: #555;
-  border: none;
-  border-radius: 8px;
-  cursor: pointer;
-  transition: background-color 0.3s ease, color 0.3s ease, box-shadow 0.3s ease;
-}
-
-.tab-button:hover {
-  background-color: #d0d0d0;
-}
-
-.tab-button.active {
-  background-color: #1a73e8;
-  color: white;
-  box-shadow: 0 4px 12px rgba(26, 115, 232, 0.3);
-}
-
-/* Tab Content */
-.tab-content {
-  min-height: 200px;
-}
-
-/* Media Grid */
-.media-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-  gap: 25px;
-}
-
-/* Media Card */
-.media-card {
-  background-color: #ffffff;
-  border-radius: 12px;
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.1);
-  padding: 20px;
-  transition: transform 0.3s ease, box-shadow 0.3s ease;
-  display: flex;
-  flex-direction: column;
-  height: 600px; /* Fixed height for all cards */
-}
-
-.media-card:hover {
-  transform: translateY(-5px);
-  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
-}
-
-.media-content {
-  max-width: 100%;
-  height: 200px; /* Fixed height for media */
-  border-radius: 8px;
-  margin-bottom: 15px;
-  display: block;
-  object-fit: cover;
-}
-
-/* Carousel */
-.carousel {
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-bottom: 15px;
-  overflow: hidden;
-  height: 200px; /* Match media-content height */
-}
-
-.carousel-content {
-  width: 100%;
-  display: flex;
-  justify-content: center;
-}
-
-.carousel-item {
-  background-color: #f9f9f9;
-  padding: 10px;
-  border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
-  text-align: center;
-  flex-shrink: 0;
-  width: 100%;
-}
-
-.carousel-item p {
-  font-size: 0.9rem;
-  color: #666;
-  margin: 5px 0;
-}
-
-.carousel-arrow {
-  position: absolute;
-  top: 50%;
-  transform: translateY(-50%);
-  background-color: rgba(0, 0, 0, 0.5);
-  color: white;
-  border: none;
-  border-radius: 50%;
-  width: 30px;
-  height: 30px;
-  font-size: 1.2rem;
-  cursor: pointer;
-  transition: background-color 0.3s ease;
-}
-
-.carousel-arrow:hover {
-  background-color: rgba(0, 0, 0, 0.8);
-}
-
-.carousel-prev {
-  left: 10px;
-}
-
-.carousel-next {
-  right: 10px;
-}
-
-/* Media Info */
-.media-info {
-  font-size: 0.95rem;
-  line-height: 1.6;
-  color: #444;
-  flex-grow: 1; /* Allows it to take remaining space */
-  display: flex;
-  flex-direction: column;
-}
-
-.media-info p {
-  margin: 8px 0;
-  word-wrap: break-word;
-}
-
-.media-info strong {
-  color: #1a73e8;
-  font-weight: 600;
-  margin-right: 5px;
-}
-
-.media-info a {
-  color: #1a73e8;
-  text-decoration: none;
-  transition: color 0.3s ease;
-}
-
-.media-info a:hover {
-  color: #1557b0;
-  text-decoration: underline;
-}
-
-/* Caption Container */
-.caption-container {
-  max-height: 100px; /* Fixed height for caption */
-  overflow-y: auto; /* Scrollable if content exceeds height */
-  margin: 8px 0;
-  padding: 5px;
-  background-color: #f9f9f9;
-  border-radius: 5px;
-  flex-grow: 0; /* Prevents it from expanding beyond max-height */
-}
-
-.caption-container span {
-  word-wrap: break-word;
-}
-
-/* Loader */
 .loader {
   text-align: center;
   font-size: 1.2rem;
@@ -289,18 +34,11 @@ body {
 }
 
 @keyframes pulse {
-  0% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.5;
-  }
-  100% {
-    opacity: 1;
-  }
+  0% { opacity: 1; }
+  50% { opacity: 0.5; }
+  100% { opacity: 1; }
 }
 
-/* No Data */
 .no-data {
   text-align: center;
   font-size: 1.1rem;
@@ -308,4 +46,28 @@ body {
   padding: 20px;
   background-color: #fafafa;
   border-radius: 8px;
+}
+
+/* Media Grid */
+.media-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 25px;
+}
+
+/* Button to fetch recent searches */
+.fetch-recent-btn {
+  background-color: #1a73e8;
+  color: #fff;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 1rem;
+  margin: 15px 0;
+  transition: background-color 0.3s ease;
+}
+
+.fetch-recent-btn:hover {
+  background-color: #1557b0;
 }

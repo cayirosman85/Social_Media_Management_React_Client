@@ -13,7 +13,7 @@ import {
 } from "@mui/material";
 import { logout } from "../../api/auth/logout";
 import localStorage from "local-storage";
-import { ExpandLess, ExpandMore, Girl, InsertChart, Instagram, Person } from "@mui/icons-material";
+import { ExpandLess, ExpandMore, Girl, InsertChart, Instagram, Person, Tv } from "@mui/icons-material";
 import { useNavigate, useLocation, Link } from "react-router-dom";
 import largeLogo from "../../assets/images/linkedin-banner.jpg";
 import smallLogo from "../../assets/images/small-linkedin-logo.jpg";
@@ -37,7 +37,7 @@ import {
 import { useSidebar } from "../../context/SidebarContext";
 
 const menuItems = [
-  { text: "Dashboard", icon: <Home size={22} />, path: "/homepage" },
+  { text: "Profile", icon: <Home size={22} />, path: "/homepage" },
   { text: "Clients", icon: <Files size={22} />, path: "/user/gridPage" },
   { text: "Social Medias", header: true },
   {
@@ -47,7 +47,7 @@ const menuItems = [
       {
         text: "Profile",
         icon: <Person size={22} />,
-        path: "/dashboard",
+        path: "/Profile",
       },
       {
         text: "Posts",
@@ -63,6 +63,11 @@ const menuItems = [
         text: "Stories",
         icon: <LivePhoto size={22} />,
         path: "/stories",
+      },
+      {
+        text: "Ads",
+        icon: <Tv size={22} />,
+        path: "/ads",
       },
       {
         text: "Schedule",

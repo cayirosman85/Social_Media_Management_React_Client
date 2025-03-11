@@ -1,0 +1,58 @@
+/* InsightsModal.css */
+.insights-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(0, 0, 0, 0.5);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+  }
+  
+  .insights-modal-content {
+    background-color: #fff;
+    padding: 20px;
+    border-radius: 8px;
+    width: 400px;
+    max-height: 80vh;
+    overflow-y: auto;
+    position: relative;
+  }
+  
+  .insights-modal-close {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background: none;
+    border: none;
+    font-size: 20px;
+    cursor: pointer;
+  }
+  
+  .insights-modal-title {
+    margin-bottom: 15px;
+  }
+  
+  .insights-modal-list {
+    list-style: none;
+    padding: 0;
+  }
+  
+  .insights-modal-item {
+    margin-bottom: 10px;
+  }
+  
+  .insights-modal-item strong {
+    font-weight: 600;
+    color: #262626;
+  }
+  
+  .insights-modal-item small {
+    display: block;
+    color: #8e8e8e;
+    font-size: 12px;
+    line-height: 16px;
+  }

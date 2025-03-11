@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-
+import "./NewStoryModal.css";
 const NewStoryModal = ({ onClose, onStorySuccess, fetchInstagramData }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);

@@ -32,6 +32,7 @@ export const searchHashtag = async (userId, hashtagName, accessToken) => {
       body: JSON.stringify(payload),
     });
   
+    console.log("getting payload to /api/getRecentMedia:", response);
     if (!response.ok) {
       const errorText = await response.text();
       throw new Error(`Failed to fetch recent media: ${errorText}`);
@@ -53,9 +54,30 @@ export const searchHashtag = async (userId, hashtagName, accessToken) => {
       body: JSON.stringify(payload),
     });
   
+    console.log("getting payload to /api/getTopMedia:", response);
     if (!response.ok) {
       const errorText = await response.text();
       throw new Error(`Failed to fetch top media: ${errorText}`);
+    }
+  
+    return response.json();
+  };
+
+  export const getRecentSearchHashtags = async (userId, accessToken) => {
+    const payload = { 
+      user_id: userId, 
+      access_token: accessToken 
+    };
+    console.log("Sending payload to /api/getTopMedia:", payload);
+    const response = await fetch("https://localhost:7099/api/Hashtag/recently-searched-hashtags", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+  
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to fetch getRecentSearchHashtags: ${errorText}`);
     }
   
     return response.json();

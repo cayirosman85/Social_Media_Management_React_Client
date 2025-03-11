@@ -1,5 +1,5 @@
 import React from "react";
-
+import "./InsightsModal.css";
 const InsightsModal = ({ isOpen, onClose, insights, postId, mediaType }) => {
   if (!isOpen) return null;
 

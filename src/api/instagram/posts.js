@@ -12,20 +12,24 @@ export const publishPost = async (postData) => {
   };
   
   export const toggleCommentVisibility = async (userId, commentId, accessToken, hide) => {
-    const response = await fetch("http://localhost:8000/api/comment-visibility", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ user_id: userId, comment_id: commentId, access_token: accessToken, hide }),
+    const response = await fetch("https://localhost:7099/api/Post/comment-visibility", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ 
+            user_id: userId, 
+            comment_id: commentId, 
+            access_token: accessToken, 
+            hide: hide
+        }),
     });
     if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Failed to toggle comment visibility: ${errorText}`);
+        const errorText = await response.text();
+        throw new Error(`Failed to toggle comment visibility: ${errorText}`);
     }
     return response.json();
-  };
-  
+};
   export const deleteComment = async (userId, commentId, accessToken) => {
-    const response = await fetch("http://localhost:8000/api/delete-comment", {
+    const response = await fetch("https://localhost:7099/api/Post/delete-comment", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ user_id: userId, comment_id: commentId, access_token: accessToken }),
@@ -38,7 +42,7 @@ export const publishPost = async (postData) => {
   };
   
   export const createComment = async (userId, mediaId, accessToken, comment) => {
-    const response = await fetch("http://localhost:8000/api/create-comment", {
+    const response = await fetch("https://localhost:7099/api/Post/create-comment", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ user_id: userId, media_id: mediaId, access_token: accessToken, comment }),
@@ -51,7 +55,7 @@ export const publishPost = async (postData) => {
   };
   
   export const createReply = async (userId, commentId, accessToken, reply) => {
-    const response = await fetch("http://localhost:8000/api/create-reply", {
+    const response = await fetch("https://localhost:7099/api/Post/create-reply", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ user_id: userId, comment_id: commentId, access_token: accessToken, reply }),

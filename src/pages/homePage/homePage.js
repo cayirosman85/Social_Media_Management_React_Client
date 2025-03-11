@@ -100,7 +100,7 @@ function HomePage() {
         </Typography>
         <Typography variant="subtitle1" color="text.secondary">
           Plan, publish, and analyze your social media content across Instagram,
-          Twitter, Facebook, and Google Business—all in one intuitive dashboard.
+          Twitter, Facebook, and Google Business—all in one intuitive Profile.
         </Typography>
 
         <Tabs value={tabValue} onChange={handleTabChange} centered>

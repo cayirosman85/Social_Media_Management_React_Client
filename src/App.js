@@ -10,13 +10,11 @@ import {
   useOutletContext,
 } from "react-router-dom";
 import Navbar from "./components/navbar/navbar.js";
-import Dashboard from "./pages/instagram/Dashboard.js";
+import Profile from "./pages/instagram/ProfileManager.js";
 import PostsManager from "./pages/instagram/PostsManager.js";
 import StoriesManager from "./pages/instagram/StoriesManager.js";
 import HashtagManager from "./pages/instagram/HashtagManager.js";
 import FacebookLogin from "./pages/instagram/FacebookLogin.js";
-
-
 import AdsManager from "./pages/instagram/AdsManager.js";
 import ErrorModal from "./components/instagram/ErrorModal";
 import Login from "./pages/loginPage/loginPage.js";
@@ -173,10 +171,10 @@ function AppRoutes() {
 
         {/* Instagram Management Routes */}
         <Route
-          path="/dashboard"
+          path="/Profile"
           element={
             <ProtectedRoute>
-              <Dashboard />
+              <Profile />
             </ProtectedRoute>
           }
         />
@@ -194,6 +192,14 @@ function AppRoutes() {
           element={
             <ProtectedRoute>
               <HashtagManager />
+            </ProtectedRoute>
+          }
+        />
+          <Route
+          path="/ads"
+          element={
+            <ProtectedRoute>
+              <AdsManager />
             </ProtectedRoute>
           }
         />

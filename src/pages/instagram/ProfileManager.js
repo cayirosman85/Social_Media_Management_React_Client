@@ -1,3 +1,4 @@
+// Profile.js
 import React, { useState, useEffect } from "react";
 import ProfileHeader from "../../components/instagram/ProfileHeader.js";
 import TabNavigation from "../../components/instagram/TabNavigation.js";
@@ -6,18 +7,19 @@ import NewPostModal from "../../components/instagram/NewPostModal.js";
 import InstagramStory from "../../components/instagram/InstagramStory.js";
 import CarouselSlider from "../../components/instagram/CarouselSlider.js";
 import NewStoryModal from "../../components/instagram/NewStoryModal.js";
-import InsightsModal from "../../components/instagram/InsightsModal.js"; // Add this import
-import { 
-  fetchInstagramData, 
-  toggleCommentVisibility, 
-  deleteComment, 
-  createComment, 
+import InsightsModal from "../../components/instagram/InsightsModal.js";
+import InstagramPostDetails from "../../components/instagram/InstagramPostDetails.js"; // Add this import
+import {
+  fetchInstagramData,
+  toggleCommentVisibility,
+  deleteComment,
+  createComment,
   createReply,
-  getMediaInsights // Add this import from your service
-} from "../../services/instagram/instagramService";
-import "./Dashboard.css";
+  getMediaInsights,
+} from "../../services/instagram/instagramService.js";
+import "./ProfileManager.css";
 
-const Dashboard = () => {
+const ProfileManager = () => {
   const [activeTab, setActiveTab] = useState("POSTS");
   const [selectedPost, setSelectedPost] = useState(null);
   const [selectedStoryIndex, setSelectedStoryIndex] = useState(null);
@@ -29,8 +31,8 @@ const Dashboard = () => {
   const [newComment, setNewComment] = useState("");
   const [newReply, setNewReply] = useState("");
   const [replyingTo, setReplyingTo] = useState(null);
-  const [insightsData, setInsightsData] = useState({}); // Add state for insights
-  const [selectedPostId, setSelectedPostId] = useState(null); // Add state for modal
+  const [insightsData, setInsightsData] = useState({});
+  const [selectedPostId, setSelectedPostId] = useState(null);
 
   useEffect(() => {
     loadInstagramData();
@@ -259,7 +261,7 @@ const Dashboard = () => {
           }}
         />
         <p style={{ marginTop: "15px", color: "#8e8e8e", fontSize: "16px" }}>
-          Loading dashboard...
+          Loading Profile...
         </p>
         <style>
           {`
@@ -402,7 +404,10 @@ const Dashboard = () => {
                     <InstagramPost
                       key={media.id}
                       post={media}
-                      onClick={() => setSelectedPost(media)}
+                      onClick={() => {
+                        console.log("Post clicked:", media);
+                        setSelectedPost(media);
+                      }}
                     />
                   ))}
                 </div>
@@ -456,179 +461,23 @@ const Dashboard = () => {
             />
           )}
           {selectedPost && (
-            <div className="modal" onClick={() => setSelectedPost(null)}>
-              <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-                <span className="close" onClick={() => setSelectedPost(null)}>
-                  ×
-                </span>
-                <div className="modal-body">
-                  <div className="modal-image">
-                    {selectedPost.media_type === "IMAGE" ? (
-                      <img
-                        src={selectedPost.media_url}
-                        alt="Post"
-                        className="modal-img"
-                      />
-                    ) : selectedPost.media_type === "VIDEO" ? (
-                      <video
-                        src={selectedPost.media_url}
-                        className="modal-img"
-                        controls
-                        autoPlay
-                        muted
-                      />
-                    ) : selectedPost.media_type === "CAROUSEL_ALBUM" ? (
-                      <CarouselSlider media={selectedPost} />
-                    ) : null}
-                  </div>
-                  <div className="post-details-section">
-                    <div className="post-header">
-                      <img
-                        src={instagramData.business_discovery.profile_picture_url}
-                        alt="Profile"
-                        className="post-profile-img"
-                      />
-                      <span className="post-username">@{instagramData.business_discovery.username}</span>
-                    </div>
-                    <p className="post-caption">{selectedPost.caption || "No caption available"}</p>
-                    <p className="likes-time">
-                      <strong>{selectedPost.like_count || 0} likes</strong>
-                      <br />
-                      <span>{new Date(selectedPost.timestamp).toLocaleString()}</span>
-                    </p>
-                    <div className="comments-section">
-                      {selectedPost?.comments?.data && selectedPost.comments.data.length > 0 ? (
-                        selectedPost.comments.data
-                          .filter((comment) => comment && comment.id)
-                          .map((comment) => (
-                            <div key={comment.id} className="comment-container">
-                              <div className="comment">
-                                <img
-                                  src={`https://picsum.photos/seed/${comment?.username || 'default'}/32/32`}
-                                  alt={`${comment?.username || 'User'}'s avatar`}
-                                  className="comment-avatar"
-                                />
-                                <div className="comment-content">
-                                  <span className="comment-username">{comment?.username || 'Anonymous'}</span>
-                                  <span className="comment-text">{comment?.text || 'No text'}</span>
-                                  <div className="comment-meta">
-                                    <span className="comment-timestamp">
-                                      {comment?.timestamp
-                                        ? new Date(comment.timestamp).toLocaleString()
-                                        : 'Unknown time'}
-                                    </span>
-                                    <button
-                                      onClick={() => handleToggleCommentVisibility(comment.id, comment?.hidden || false)}
-                                      className="comment-action-btn"
-                                    >
-                                      {comment?.hidden ? "Show" : "Hide"}
-                                    </button>
-                                    <button
-                                      onClick={() => handleDeleteComment(comment.id)}
-                                      className="comment-action-btn delete"
-                                    >
-                                      Delete
-                                    </button>
-                                    <button
-                                      onClick={() => setReplyingTo(comment.id)}
-                                      className="comment-reply-btn"
-                                    >
-                                      Reply
-                                    </button>
-                                  </div>
-                                  {replyingTo === comment.id && (
-                                    <div className="reply-input-container">
-                                      <form
-                                        onSubmit={(e) => handleCreateReply(e, comment.id)}
-                                        style={{ display: "flex", width: "100%", marginTop: "8px" }}
-                                      >
-                                        <input
-                                          type="text"
-                                          placeholder={`Reply to ${comment?.username || 'User'}...`}
-                                          className="comment-input"
-                                          value={newReply}
-                                          onChange={(e) => setNewReply(e.target.value)}
-                                          disabled={isLoading}
-                                        />
-                                        <button
-                                          type="submit"
-                                          className="comment-btn"
-                                          disabled={isLoading || !newReply.trim()}
-                                        >
-                                          {isLoading ? "Posting..." : "Post"}
-                                        </button>
-                                      </form>
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-                              {comment?.replies?.data && comment.replies.data.length > 0 && (
-                                <div className="replies-container">
-                                  {comment.replies.data.map((reply) => (
-                                    <div key={reply.id} className="reply">
-                                      <img
-                                        src={`https://picsum.photos/seed/${reply?.username || 'default'}/24/24`}
-                                        alt={`${reply?.username || 'User'}'s avatar`}
-                                        className="reply-avatar"
-                                      />
-                                      <div className="reply-content">
-                                        <span className="comment-username">{reply?.username || 'Anonymous'}</span>
-                                        <span className="comment-text">{reply?.text || 'No text'}</span>
-                                        <div className="reply-meta">
-                                          <span className="comment-timestamp">
-                                            {reply?.timestamp
-                                              ? new Date(reply.timestamp).toLocaleString()
-                                              : 'Unknown time'}
-                                          </span>
-                                        </div>
-                                      </div>
-                                    </div>
-                                  ))}
-                                </div>
-                              )}
-                            </div>
-                          ))
-                      ) : (
-                        <p className="no-comments">No comments yet. Start the conversation.</p>
-                      )}
-                      <div className="comment-input-container">
-                        <span className="emoji-icon">😊</span>
-                        <form onSubmit={handleCreateComment} style={{ display: "flex", width: "100%" }}>
-                          <input
-                            type="text"
-                            placeholder="Add a comment..."
-                            className="comment-input"
-                            value={newComment}
-                            onChange={(e) => setNewComment(e.target.value)}
-                            disabled={isLoading}
-                          />
-                          <button
-                            type="submit"
-                            className="comment-btn"
-                            disabled={isLoading || !newComment.trim()}
-                          >
-                            {isLoading ? "Posting..." : "Post"}
-                          </button>
-                        </form>
-                      </div>
-                    </div>
-                    <div className="post-additional-actions">
-                      <a
-                        href="#"
-                        className="view-insights"
-                        onClick={(e) => {
-                          e.preventDefault();
-                          toggleInsights(selectedPost.id, selectedPost.media_type);
-                        }}
-                      >
-                        View insights
-                      </a>
-                      <button className="boost-btn">Boost post</button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
+            <InstagramPostDetails
+              post={selectedPost}
+              instagramData={instagramData}
+              onClose={() => setSelectedPost(null)}
+              onToggleCommentVisibility={handleToggleCommentVisibility}
+              onDeleteComment={handleDeleteComment}
+              onCreateComment={handleCreateComment}
+              onCreateReply={handleCreateReply}
+              onToggleInsights={toggleInsights}
+              isLoading={isLoading}
+              newComment={newComment}
+              setNewComment={setNewComment}
+              newReply={newReply}
+              setNewReply={setNewReply}
+              replyingTo={replyingTo}
+              setReplyingTo={setReplyingTo}
+            />
           )}
           {selectedStoryIndex !== null && (
             <InstagramStory
@@ -655,4 +504,4 @@ const Dashboard = () => {
   );
 };
 
-export default Dashboard;
+export default ProfileManager;

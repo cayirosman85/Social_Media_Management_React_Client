@@ -1,0 +1,15 @@
+/* HashtagInfo.css */
+.hashtag-info {
+    background-color: #ffffff;
+    padding: 15px 20px;
+    margin-bottom: 30px;
+    border-radius: 12px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    text-align: center;
+  }
+  
+  .hashtag-info p {
+    font-size: 1.1rem;
+    margin: 5px 0;
+    color: #555;
+  }

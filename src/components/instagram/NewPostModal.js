@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { publishPost } from "../../services/instagram/instagramService"; // Adjust the path as needed
-
+import "./NewPostModal.css";
 const NewPostModal = ({ onClose, onPostSuccess, fetchInstagramData }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);

@@ -42,15 +42,15 @@ export const fetchStories = async (userId, accessToken) => {
     }),
   });
 
-  console.log("Raw response:", response); // Logs the Response object
+  console.log("Raw response:", response); 
 
   if (!response.ok) {
     const errorText = await response.text();
     throw new Error(`HTTP error! Status: ${response.status}, Response: ${errorText}`);
   }
 
-  const data = await response.json(); // Parse the JSON
-  console.log("Parsed stories data:", data); // Log the actual stories data
-  return data; // Return the parsed data to the caller
+  const data = await response.json(); 
+  console.log("Parsed stories data:", data);
+  return data; 
 };
 
