@@ -4,7 +4,7 @@ import HashtagInfo from "../../components/instagram/HashtagInfo";
 import Tabs from "../../components/instagram/HashtagTabs";
 import MediaCard from "../../components/instagram/HashtagMediaCard";
 import MediaModal from "../../components/instagram/HashtagMediaModal";
-import RecentSearchesSection from "../../components/instagram/HashtagRecentSearches"; // New import
+import RecentSearchesSection from "../../components/instagram/HashtagRecentSearches";
 import {
   searchHashtag,
   getRecentMedia,
@@ -150,6 +150,7 @@ const HashtagManager = () => {
       <RecentSearchesSection
         recentSearches={recentSearches}
         onSearchClick={handleRecentSearchClick}
+        isLoading={isLoading}
       />
 
       {error && <div className="error-message">{error}</div>}
@@ -161,7 +162,10 @@ const HashtagManager = () => {
 
       <div className="tab-content">
         {isLoading ? (
-          <div className="loader">Loading...</div>
+       <div className="loader">
+       <div className="spinner"></div>
+       <span>Loading...</span>
+     </div>
         ) : activeTab === "recent" ? (
           recentMedia.length > 0 ? (
             <div className="media-grid">

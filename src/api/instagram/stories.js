@@ -13,12 +13,13 @@ export const publishStory = async (storyData) => {
 
   // Fetch story insights
 export const fetchStoryInsights = async (userId, mediaId, accessToken) => {
-  const response = await fetch("http://localhost:8000/api/story-insights", {
+  const response = await fetch("https://localhost:7099/api/Post/get-media-insights", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       user_id: userId,
       media_id: mediaId,
+      media_type: "STORY",
       access_token: accessToken,
     }),
   });

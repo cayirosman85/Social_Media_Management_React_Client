@@ -1,7 +1,20 @@
 import React from "react";
 import "./HashtagRecentSearches.css";
 
-const RecentSearchesSection = ({ recentSearches, onSearchClick }) => {
+const RecentSearchesSection = ({ recentSearches, onSearchClick, isLoading }) => {
+  if (isLoading) {
+    return (
+      <div className="recent-searches">
+        <div className="loader-container">
+          <div className="loader">
+            <div className="spinner"></div>
+            <span>Loading...</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (!recentSearches.length) return null;
 
   return (

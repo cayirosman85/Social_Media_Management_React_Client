@@ -1,4 +1,3 @@
-// Profile.js
 import React, { useState, useEffect } from "react";
 import ProfileHeader from "../../components/instagram/ProfileHeader.js";
 import TabNavigation from "../../components/instagram/TabNavigation.js";
@@ -8,7 +7,7 @@ import InstagramStory from "../../components/instagram/InstagramStory.js";
 import CarouselSlider from "../../components/instagram/CarouselSlider.js";
 import NewStoryModal from "../../components/instagram/NewStoryModal.js";
 import InsightsModal from "../../components/instagram/InsightsModal.js";
-import InstagramPostDetails from "../../components/instagram/InstagramPostDetails.js"; // Add this import
+import InstagramPostDetails from "../../components/instagram/InstagramPostDetails.js";
 import {
   fetchInstagramData,
   toggleCommentVisibility,
@@ -77,8 +76,12 @@ const ProfileManager = () => {
         "EAAZAde8LZA8zIBO4O8QsOQmyMMMShi79cCZBMRJZCjbSbXG7Y3ZAQ4OGvJN1vi8LYLeNx6K9pbxpFuU2saC3lWWt43za1ggpCu9YONtmCuwucaWVgtYYqRcG2oMtuHPhxq6x4n3ImiE3TzXf4IzMHxMtuDbwNfT52ZA6yjkwWabhrLZCrb7zqWzdkjZBApQJmNntUgZDZD",
         mediaType
       );
-      setInsightsData((prev) => ({ ...prev, [postId]: data.insights || [] }));
-      setSelectedPostId(postId);
+      // Store the insights.data array directly
+      setInsightsData((prev) => ({
+        ...prev,
+        [postId]: data?.insights?.insights || [],
+      }));
+      setSelectedPostId(postId); // Open the modal by setting selectedPostId
     } catch (error) {
       console.error("Error fetching insights:", error);
       alert(`Error fetching insights: ${error.message}`);
@@ -89,14 +92,14 @@ const ProfileManager = () => {
 
   const toggleInsights = (postId, mediaType) => {
     if (insightsData[postId]) {
-      setSelectedPostId(postId);
+      setSelectedPostId(postId); // Open modal if data exists
     } else {
-      fetchInsights(postId, mediaType);
+      fetchInsights(postId, mediaType); // Fetch and open modal
     }
   };
 
   const closeInsightsModal = () => {
-    setSelectedPostId(null);
+    setSelectedPostId(null); // Close the modal
   };
 
   const handleToggleCommentVisibility = async (commentId, hide) => {

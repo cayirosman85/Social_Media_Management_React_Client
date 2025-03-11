@@ -33,6 +33,7 @@ import {
   LivePhoto,
   Mountain,
   Login,
+  Eye,
 } from "tabler-icons-react";
 import { useSidebar } from "../../context/SidebarContext";
 
@@ -68,6 +69,11 @@ const menuItems = [
         text: "Ads",
         icon: <Tv size={22} />,
         path: "/ads",
+      },
+      {
+        text: "Insights",
+        icon: <Eye size={22} />,
+        path: "/insights",
       },
       {
         text: "Schedule",

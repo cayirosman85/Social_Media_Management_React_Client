@@ -1,6 +1,5 @@
-// InstagramPostDetails.js
 import React from "react";
-import CarouselSlider from "./CarouselSlider.js"; // Adjust path as needed
+import CarouselSlider from "./CarouselSlider.js";
 import "./InstagramPostDetails.css";
 
 const InstagramPostDetails = ({
@@ -37,7 +36,7 @@ const InstagramPostDetails = ({
         <div className="modal-body">
           <div className="modal-image">
             {post.media_type === "IMAGE" ? (
-              <img src={post.media_url} alt="Post" className="modal-img" />
+              <img src={post.media_url} alt="Post" className="modal-img" loading="lazy" />
             ) : post.media_type === "VIDEO" ? (
               <video
                 src={post.media_url}
@@ -48,14 +47,17 @@ const InstagramPostDetails = ({
               />
             ) : post.media_type === "CAROUSEL_ALBUM" ? (
               <CarouselSlider media={post} />
-            ) : null}
+            ) : (
+              <div className="media-placeholder">No media available</div>
+            )}
           </div>
           <div className="post-details-section">
             <div className="post-header">
               <img
                 src={instagramData.business_discovery.profile_picture_url}
-                alt="Profile"
+                alt={`${instagramData.business_discovery.username}'s profile`}
                 className="post-profile-img"
+                loading="lazy"
               />
               <span className="post-username">
                 @{instagramData.business_discovery.username}
@@ -78,18 +80,21 @@ const InstagramPostDetails = ({
                           src={`https://picsum.photos/seed/${comment?.username || "default"}/32/32`}
                           alt={`${comment?.username || "User"}'s avatar`}
                           className="comment-avatar"
+                          loading="lazy"
                         />
                         <div className="comment-content">
-                          <span className="comment-username">
-                            {comment?.username || "Anonymous"}
-                          </span>
-                          <span className="comment-text">{comment?.text || "No text"}</span>
-                          <div className="comment-meta">
+                          <div className="comment-header">
+                            <span className="comment-username">
+                              {comment?.username || "Anonymous"}
+                            </span>
                             <span className="comment-timestamp">
                               {comment?.timestamp
                                 ? new Date(comment.timestamp).toLocaleString()
                                 : "Unknown time"}
                             </span>
+                          </div>
+                          <p className="comment-text">{comment?.text || "No text"}</p>
+                          <div className="comment-actions">
                             <button
                               onClick={() =>
                                 onToggleCommentVisibility(
@@ -118,7 +123,7 @@ const InstagramPostDetails = ({
                             <div className="reply-input-container">
                               <form
                                 onSubmit={(e) => handleCreateReply(e, comment.id)}
-                                style={{ display: "flex", width: "100%", marginTop: "8px" }}
+                                className="reply-form"
                               >
                                 <input
                                   type="text"
@@ -148,21 +153,20 @@ const InstagramPostDetails = ({
                                 src={`https://picsum.photos/seed/${reply?.username || "default"}/24/24`}
                                 alt={`${reply?.username || "User"}'s avatar`}
                                 className="reply-avatar"
+                                loading="lazy"
                               />
                               <div className="reply-content">
-                                <span className="comment-username">
-                                  {reply?.username || "Anonymous"}
-                                </span>
-                                <span className="comment-text">
-                                  {reply?.text || "No text"}
-                                </span>
-                                <div className="reply-meta">
+                                <div className="reply-header">
+                                  <span className="comment-username">
+                                    {reply?.username || "Anonymous"}
+                                  </span>
                                   <span className="comment-timestamp">
                                     {reply?.timestamp
                                       ? new Date(reply.timestamp).toLocaleString()
                                       : "Unknown time"}
                                   </span>
                                 </div>
+                                <p className="comment-text">{reply?.text || "No text"}</p>
                               </div>
                             </div>
                           ))}
@@ -173,29 +177,25 @@ const InstagramPostDetails = ({
               ) : (
                 <p className="no-comments">No comments yet. Start the conversation.</p>
               )}
-              <div className="comment-input-container">
-                <span className="emoji-icon">😊</span>
-                <form
-                  onSubmit={handleCreateComment}
-                  style={{ display: "flex", width: "100%" }}
+            </div>
+            <div className="comment-input-container">
+              <form onSubmit={handleCreateComment} className="comment-form">
+                <input
+                  type="text"
+                  placeholder="Add a comment..."
+                  className="comment-input"
+                  value={newComment}
+                  onChange={(e) => setNewComment(e.target.value)}
+                  disabled={isLoading}
+                />
+                <button
+                  type="submit"
+                  className="comment-btn"
+                  disabled={isLoading || !newComment.trim()}
                 >
-                  <input
-                    type="text"
-                    placeholder="Add a comment..."
-                    className="comment-input"
-                    value={newComment}
-                    onChange={(e) => setNewComment(e.target.value)}
-                    disabled={isLoading}
-                  />
-                  <button
-                    type="submit"
-                    className="comment-btn"
-                    disabled={isLoading || !newComment.trim()}
-                  >
-                    {isLoading ? "Posting..." : "Post"}
-                  </button>
-                </form>
-              </div>
+                  {isLoading ? "Posting..." : "Post"}
+                </button>
+              </form>
             </div>
             <div className="post-additional-actions">
               <a
@@ -206,9 +206,9 @@ const InstagramPostDetails = ({
                   onToggleInsights(post.id, post.media_type);
                 }}
               >
-                View insights
+                View Insights
               </a>
-              <button className="boost-btn">Boost post</button>
+              <button className="boost-btn">Boost Post</button>
             </div>
           </div>
         </div>

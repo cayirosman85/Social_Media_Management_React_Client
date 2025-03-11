@@ -12,6 +12,8 @@ import {
 import Navbar from "./components/navbar/navbar.js";
 import Profile from "./pages/instagram/ProfileManager.js";
 import PostsManager from "./pages/instagram/PostsManager.js";
+import InsightManager from "./pages/instagram/InsightManager.js";
+
 import StoriesManager from "./pages/instagram/StoriesManager.js";
 import HashtagManager from "./pages/instagram/HashtagManager.js";
 import FacebookLogin from "./pages/instagram/FacebookLogin.js";
@@ -168,6 +170,15 @@ function AppRoutes() {
             </ProtectedRoute>
           }
         />
+    <Route
+          path="/insights"
+          element={
+            <ProtectedRoute>
+              <InsightManager />
+            </ProtectedRoute>
+          }
+        />
+
 
         {/* Instagram Management Routes */}
         <Route

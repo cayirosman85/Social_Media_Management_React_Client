@@ -1,7 +1,7 @@
-// PostItem.js
 import React from "react";
 import CarouselSlider from "./CarouselSlider"; // Adjust path as needed
-import "./PostItem.css"; // New CSS import
+import { FaHeart, FaComment, FaShare, FaEye } from "react-icons/fa"; // For icons
+import "./PostItem.css";
 
 const PostItem = ({
   post,
@@ -20,6 +20,22 @@ const PostItem = ({
 }) => {
   return (
     <div className="post-item">
+      {/* Post Header */}
+      <div className="post-header">
+        <div className="post-user">
+          <img
+            src={`https://picsum.photos/seed/${post?.username || "default"}/40/40`}
+            alt={`${post?.username || "User"}'s avatar`}
+            className="post-avatar"
+          />
+          <span className="post-username">{post?.username || "Anonymous"}</span>
+        </div>
+        <span className="post-timestamp">
+          {new Date(post.timestamp).toLocaleDateString()}
+        </span>
+      </div>
+
+      {/* Post Media */}
       <div className="post-media">
         {post.media_type === "IMAGE" ? (
           <img src={post.media_url} alt="Post" />
@@ -35,14 +51,27 @@ const PostItem = ({
         ) : null}
       </div>
 
+      {/* Post Actions (Likes, Comments, Share) */}
+      <div className="post-actions-bar">
+        <button className="action-btn">
+          <FaHeart /> {post.like_count || 0}
+        </button>
+        <button className="action-btn">
+          <FaComment /> {post.comments_count || 0}
+        </button>
+        <button className="action-btn">
+          <FaShare />
+        </button>
+        <button className="action-btn insights-btn" onClick={() => onToggleInsights(post.id, post.media_type)}>
+          <FaEye /> View Insights
+        </button>
+      </div>
+
+      {/* Post Caption */}
       <div className="post-details-section">
         <p className="post-caption">{post.caption || "No caption available"}</p>
-        <p className="post-meta">
-          <strong>{post.like_count || 0} likes</strong>
-          <br />
-          <span>{new Date(post.timestamp).toLocaleString()}</span>
-        </p>
 
+        {/* Comments Section */}
         <div className="comments-section">
           {post?.comments?.data && post.comments.data.length > 0 ? (
             post.comments.data
@@ -68,11 +97,7 @@ const PostItem = ({
                         </span>
                         <button
                           onClick={() =>
-                            onToggleCommentVisibility(
-                              post.id,
-                              comment.id,
-                              comment?.hidden || false
-                            )
+                            onToggleCommentVisibility(post.id, comment.id, comment?.hidden || false)
                           }
                           className="comment-action-btn"
                         >
@@ -151,7 +176,7 @@ const PostItem = ({
                 </div>
               ))
           ) : (
-            <p className="no-comments">No comments yet. Start the conversation.</p>
+            <p className="no-comments">Be the first to comment!</p>
           )}
           <form
             onSubmit={(e) => onCreateComment(e, post.id)}
@@ -181,18 +206,9 @@ const PostItem = ({
           </form>
         </div>
 
+        {/* Post Actions (Boost Post) */}
         <div className="post-actions">
-          <a
-            href="#"
-            onClick={(e) => {
-              e.preventDefault();
-              onToggleInsights(post.id, post.media_type);
-            }}
-            className="view-insights"
-          >
-            View insights
-          </a>
-          <button className="boost-btn">Boost post</button>
+          <button className="boost-btn">Boost Post</button>
         </div>
       </div>
     </div>

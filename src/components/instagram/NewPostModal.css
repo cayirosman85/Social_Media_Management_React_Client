@@ -1,107 +1,231 @@
-/* NewPostModal.css */
+/* Modal Styles */
 .new-post-modal {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: rgba(0, 0, 0, 0.75);
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    z-index: 1000;
-  }
-  
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.85);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+  backdrop-filter: blur(5px);
+  animation: fadeIn 0.3s ease-in-out;
+}
+
+/* Modal Content */
+.new-post-modal-content {
+  background: white;
+  width: 90%;
+  max-width: 600px;
+  border-radius: 12px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+}
+
+/* Modal Header */
+.new-post-modal-header {
+  padding: 16px 20px;
+  border-bottom: 1px solid #dbdbdb;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #fafafa;
+}
+
+.new-post-modal-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #262626;
+}
+
+.new-post-modal-close {
+  font-size: 24px;
+  color: #262626;
+  cursor: pointer;
+  transition: color 0.2s ease;
+}
+
+.new-post-modal-close:hover {
+  color: #666;
+}
+
+/* Modal Form */
+.new-post-modal-form {
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+/* Form Fields */
+.new-post-modal-field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.new-post-modal-label {
+  font-size: 14px;
+  font-weight: 500;
+  color: #262626;
+}
+
+.new-post-modal-input,
+.new-post-modal-file {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid #dbdbdb;
+  border-radius: 6px;
+  font-size: 14px;
+  color: #262626;
+  background: #fafafa;
+  transition: border-color 0.2s ease, background-color 0.2s ease;
+}
+
+.new-post-modal-input:focus,
+.new-post-modal-file:focus {
+  outline: none;
+  border-color: #0095f6;
+}
+
+.new-post-modal-input::placeholder {
+  color: #8e8e8e;
+}
+
+.new-post-modal-input[type="text"],
+.new-post-modal-input[type="textarea"] {
+  resize: vertical;
+  min-height: 100px;
+}
+
+/* Disabled State for Inputs */
+.new-post-modal-input:disabled,
+.new-post-modal-file:disabled {
+  background: #e0e0e0;
+  color: #8e8e8e;
+  border-color: #dbdbdb;
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.new-post-modal-note {
+  color: #666;
+  font-size: 12px;
+  margin-top: 4px;
+}
+
+/* Media Preview Section */
+.new-post-modal-preview {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  padding: 10px 0;
+  border: 1px solid #dbdbdb;
+  border-radius: 6px;
+  background: #fafafa;
+}
+
+.new-post-modal-preview-item {
+  flex: 0 0 auto;
+  width: 100px;
+  height: 100px;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.new-post-modal-preview-media {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* Error Message */
+.new-post-modal-error {
+  color: #ed4956;
+  font-size: 14px;
+  text-align: center;
+}
+
+/* Submit Button */
+.new-post-modal-submit {
+  background: #0095f6;
+  color: white;
+  padding: 10px 16px;
+  border: none;
+  border-radius: 6px;
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+  width: 100%;
+  transition: background 0.2s ease, opacity 0.2s ease;
+}
+
+.new-post-modal-submit:hover {
+  background: #007bb5;
+}
+
+.new-post-modal-submit:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+  background: #b2dffc; /* Lighter blue to indicate disabled state */
+}
+
+/* Responsive Adjustments */
+@media (max-width: 480px) {
   .new-post-modal-content {
-    background: white;
-    width: 90%;
-    max-width: 500px;
-    border-radius: 12px;
-    overflow: hidden;
-    display: flex;
-    flex-direction: column;
-    box-sizing: border-box;
+    width: 95%;
+    max-width: 400px;
   }
-  
+
   .new-post-modal-header {
-    padding: 20px;
-    border-bottom: 1px solid #dbdbdb;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
+    padding: 12px 16px;
   }
-  
-  .new-post-modal-title {
-    font-size: 16px;
-    font-weight: 600;
-    color: #262626;
-  }
-  
-  .new-post-modal-close {
-    font-size: 24px;
-    color: #262626;
-    cursor: pointer;
-  }
-  
+
   .new-post-modal-form {
-    padding: 20px;
+    padding: 16px;
   }
-  
-  .new-post-modal-field {
-    margin-bottom: 15px;
-  }
-  
-  .new-post-modal-label {
-    display: block;
-    margin-bottom: 5px;
+
+  .new-post-modal-title {
     font-size: 14px;
-    color: #262626;
   }
-  
+
+  .new-post-modal-close {
+    font-size: 20px;
+  }
+
+  .new-post-modal-label {
+    font-size: 13px;
+  }
+
   .new-post-modal-input,
   .new-post-modal-file {
-    width: 100%;
     padding: 8px;
-    border: 1px solid #dbdbdb;
-    border-radius: 4px;
-    font-size: 14px;
+    font-size: 13px;
   }
-  
-  .new-post-modal-textarea {
-    width: 100%;
-    padding: 8px;
-    border: 1px solid #dbdbdb;
-    border-radius: 4px;
-    font-size: 14px;
-    min-height: 100px;
-    resize: vertical;
-  }
-  
-  .new-post-modal-note {
-    color: #666;
-    font-size: 12px;
-  }
-  
-  .new-post-modal-error {
-    color: red;
-    margin-bottom: 15px;
-  }
-  
+
   .new-post-modal-submit {
-    background: #0095f6;
-    color: white;
-    padding: 8px 16px;
-    border: none;
-    border-radius: 4px;
-    font-weight: 600;
-    font-size: 14px;
-    cursor: pointer;
-    width: 100%;
+    padding: 8px 14px;
+    font-size: 13px;
+  }
+
+  .new-post-modal-preview-item {
+    width: 80px;
+    height: 80px;
+  }
+}
+
+/* Animation for Modal Fade-In */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
     opacity: 1;
-    transition: opacity 0.2s ease;
   }
-  
-  .new-post-modal-submit:disabled {
-    opacity: 0.7;
-    cursor: not-allowed;
-  }
+}

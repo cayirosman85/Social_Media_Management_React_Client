@@ -101,10 +101,23 @@ export const fetchInstagramData = async (userId, username, accessToken) => {
 
 
 export const getMediaInsights = async (userId, mediaId, accessToken, mediaType) => {
-  const response = await fetch("http://localhost:8000/api/get-media-insights", {
+  const response = await fetch("https://localhost:7099/api/Post/get-media-insights", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ user_id: userId, media_id: mediaId, access_token: accessToken, media_type: mediaType }),
+  });
+
+  if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to fetch media insights: ${errorText}`);
+  }
+  return response.json();
+};
+export const getProfileInsights = async (userId, accessToken, mediaType) => {
+  const response = await fetch("https://localhost:7099/api/User/insights", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ user_id: userId, access_token: accessToken }),
   });
 
   if (!response.ok) {

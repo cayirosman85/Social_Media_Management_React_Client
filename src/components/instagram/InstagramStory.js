@@ -1,11 +1,13 @@
 import React, { useState, useEffect, useRef } from "react";
 import { fetchStoryInsights } from "../../services/instagram/instagramService";
 import InsightsModal from "../../components/instagram/InsightsModal";
-import { FaChartBar, FaPlay, FaPause } from "react-icons/fa"; // Existing icons
+import { FaChartBar, FaPlay, FaPause } from "react-icons/fa";
 import "./InstagramStory.css";
+
 const InstagramStory = ({ stories, initialIndex, onClose, instagramData }) => {
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
   const [insights, setInsights] = useState(null);
+  const [errorMessage, setErrorMessage] = useState(null); // New state for error message
   const [isPaused, setIsPaused] = useState(false);
   const [isInsightsModalOpen, setIsInsightsModalOpen] = useState(false);
   const STORY_DURATION = 5000;
@@ -67,7 +69,9 @@ const InstagramStory = ({ stories, initialIndex, onClose, instagramData }) => {
 
       if (response.success) {
         console.log("Story insights from server:", response.insights);
-        setInsights(response.insights);
+        const insightsData = response.insights?.insights?.data || [];
+        setInsights(insightsData);
+        setErrorMessage(null); // Clear any previous error
         setIsInsightsModalOpen(true);
         setIsPaused(true);
       } else {
@@ -75,12 +79,17 @@ const InstagramStory = ({ stories, initialIndex, onClose, instagramData }) => {
       }
     } catch (error) {
       console.error("Error fetching insights:", error.message);
+      setInsights([]); // Set empty array for no data
+      setErrorMessage(error.message); // Store error message
+      setIsInsightsModalOpen(true); // Open modal to show error
+      setIsPaused(true);
     }
   };
 
   const closeInsightsModal = () => {
     setIsInsightsModalOpen(false);
     setInsights(null);
+    setErrorMessage(null); // Clear error message
     setIsPaused(false);
   };
 
@@ -161,7 +170,7 @@ const InstagramStory = ({ stories, initialIndex, onClose, instagramData }) => {
             alignItems: "center",
             justifyContent: "center",
           }}
-          disabled={currentIndex === 0} // Disable if at the first story
+          disabled={currentIndex === 0}
         >
           ❮
         </button>
@@ -202,7 +211,7 @@ const InstagramStory = ({ stories, initialIndex, onClose, instagramData }) => {
             alignItems: "center",
             justifyContent: "center",
           }}
-          disabled={currentIndex === stories.length - 1} // Disable if at the last story
+          disabled={currentIndex === stories.length - 1}
         >
           ❯
         </button>
@@ -219,10 +228,13 @@ const InstagramStory = ({ stories, initialIndex, onClose, instagramData }) => {
           ))}
         </div>
 
+        {/* Insights Modal */}
+        {console.log("Rendering InsightsModal with isOpen:", isInsightsModalOpen, "insights:", insights, "error:", errorMessage)}
         <InsightsModal
           isOpen={isInsightsModalOpen}
           onClose={closeInsightsModal}
           insights={insights}
+          errorMessage={errorMessage} // Pass error message to modal
           postId={stories[currentIndex]?.id}
           mediaType={currentStory.media_type}
         />

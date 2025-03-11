@@ -102,7 +102,12 @@ const PostsManager = () => {
         instagramData.accessToken,
         mediaType
       );
-      setInsightsData((prev) => ({ ...prev, [postId]: data.insights || [] }));
+  
+      console.log("Fetched data:", data); // Log the full response
+      const insights = data?.insights?.insights || { data: [] }; // Ensure fallback if insights are missing
+      console.log("Extracted insights:", insights);
+  
+      setInsightsData((prev) => ({ ...prev, [postId]: insights }));
       setSelectedPostId(postId);
     } catch (error) {
       console.error("Error fetching insights:", error);
@@ -111,7 +116,6 @@ const PostsManager = () => {
       setIsLoading(false);
     }
   };
-
   const toggleInsights = (postId, mediaType) => {
     if (insightsData[postId]) {
       setSelectedPostId(postId);
@@ -365,22 +369,23 @@ const PostsManager = () => {
   return (
     <div className="posts-manager">
       <div className="posts-header">
-        <h2>Posts</h2>
+        <h2 className="posts-title">Posts</h2>
         <button
           onClick={() => setShowNewPostModal(true)}
           className="new-post-btn"
         >
-          <FaPlus /> Post
+          <FaPlus /> New Post
         </button>
       </div>
 
       <div ref={postsContainerRef} className="posts-content">
-        {isLoading ? (
-          <div className="loading">
+        {isLoading && (
+          <div className="loading-overlay">
             <div className="spinner"></div>
             <p>Loading posts...</p>
           </div>
-        ) : posts.length === 0 ? (
+        )}
+        {!isLoading && posts.length === 0 ? (
           <div className="no-posts">
             <svg
               width="48"
@@ -410,7 +415,7 @@ const PostsManager = () => {
               {posts.map((post) => (
                 <PostItem
                   key={post.id}
-                  post={post}
+                  post={{ ...post, username: instagramData.business_discovery.username }}
                   isLoading={isLoading}
                   newComments={newComments}
                   setNewComments={setNewComments}

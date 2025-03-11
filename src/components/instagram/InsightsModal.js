@@ -1,66 +1,41 @@
 import React from "react";
 import "./InsightsModal.css";
-const InsightsModal = ({ isOpen, onClose, insights, postId, mediaType }) => {
+
+const InsightsModal = ({ isOpen, onClose, insights, postId, mediaType, errorMessage, isLoading }) => {
   if (!isOpen) return null;
 
+  // Extract the data array from the insights object
+  const insightData = insights?.data || [];
+
   return (
-    <div
-      style={{
-        position: "fixed",
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        backgroundColor: "rgba(0, 0, 0, 0.5)",
-        display: "flex",
-        justifyContent: "center",
-        alignItems: "center",
-        zIndex: 1000,
-      }}
-      onClick={onClose} // Close when clicking outside
-    >
-      <div
-        style={{
-          backgroundColor: "#fff",
-          padding: "20px",
-          borderRadius: "8px",
-          width: "400px",
-          maxHeight: "80vh",
-          overflowY: "auto",
-          position: "relative",
-        }}
-        onClick={(e) => e.stopPropagation()} // Prevent closing when clicking inside
-      >
-        <button
-          onClick={onClose}
-          style={{
-            position: "absolute",
-            top: "10px",
-            right: "10px",
-            background: "none",
-            border: "none",
-            fontSize: "20px",
-            cursor: "pointer",
-          }}
-        >
+    <div className="insights-modal" onClick={onClose}>
+      <div className="insights-modal-content" onClick={(e) => e.stopPropagation()}>
+        <button className="insights-modal-close" onClick={onClose}>
           ×
         </button>
-        <h3>Insights for Post {postId}</h3>
-        {insights && insights.length > 0 ? (
-          <ul style={{ listStyle: "none", padding: "0" }}>
-            {insights.map((insight, index) => (
-              <li key={index} style={{ marginBottom: "10px" }}>
-                <strong>{insight.title || "Unknown"}:</strong>{" "}
-                {insight.values[0]?.value || 0}
-                <br />
-                <small style={{ color: "#8e8e8e" }}>
-                  {insight.description || "No description"}
+        <div className="insights-modal-header">
+          <h3 className="insights-modal-title">Insights</h3>
+        </div>
+        {isLoading ? (
+          <div className="insights-modal-loading">Loading...</div>
+        ) : errorMessage ? (
+          <p className="insights-modal-error">{errorMessage}</p>
+        ) : insightData.length > 0 ? (
+          <ul className="insights-modal-list">
+            {insightData.map((insight, index) => (
+              <li key={index} className="insights-modal-item">
+                <strong>{insight.title || insight.name || "Unknown"}:</strong>{" "}
+                <span className="insights-modal-value">
+                  {insight.values[0]?.value || 0} (Latest: {insight.values[1]?.value || 0})
+                </span>
+                <small className="insights-modal-description">
+                  {insight.description || "No description available"}
                 </small>
               </li>
             ))}
           </ul>
         ) : (
-          <p>No insights available.</p>
+          <p className="insights-modal-empty">No insights available for this post.</p>
         )}
       </div>
     </div>
