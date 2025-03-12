@@ -39,21 +39,22 @@ const PostsManager = () => {
   const fetchPosts = async (cursor = null, direction = "after", append = false) => {
     setIsLoading(true);
     let scrollPosition = 0;
-
+  
     if (append && postsContainerRef.current) {
       scrollPosition = postsContainerRef.current.scrollTop;
     }
-
+  
     try {
       const data = await getUserPosts(
         instagramData.business_discovery.id,
         instagramData.business_discovery.username,
         instagramData.accessToken,
-        5,
-        cursor
+        5, // Limit
+        cursor, // Pass the cursor
+        direction // Pass the direction
       );
       const mediaItems = data?.business_discovery?.media?.data || [];
-
+  
       if (append) {
         setPosts((prevPosts) => {
           const existingIds = new Set(prevPosts.map((post) => post.id));
@@ -63,12 +64,13 @@ const PostsManager = () => {
       } else {
         setPosts(mediaItems);
       }
-
+  
+      // Update paging with cursors from the response
       setPaging({
-        after: data?.paging?.cursors?.after || null,
-        before: data?.paging?.cursors?.before || null,
+        after: data?.business_discovery?.media?.paging?.cursors?.after || null,
+        before: data?.business_discovery?.media?.paging?.cursors?.before || null,
       });
-
+  
       if (append && postsContainerRef.current) {
         requestAnimationFrame(() => {
           postsContainerRef.current.scrollTop = scrollPosition;
@@ -80,7 +82,6 @@ const PostsManager = () => {
       setIsLoading(false);
     }
   };
-
   useEffect(() => {
     fetchPosts(null, "after", false);
   }, []);

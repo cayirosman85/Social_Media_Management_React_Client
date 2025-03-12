@@ -67,11 +67,22 @@ export const publishPost = async (postData) => {
     return response.json();
   };
 
-  export const getUserPosts = async (userId, username, accessToken, limit = 5, after = null) => {
+  export const getUserPosts = async (userId, username, accessToken, limit = 5, cursor = null, direction = "after") => {
+    const payload = {
+      UserId: userId, // Match server-side PascalCase
+      Username: username,
+      AccessToken: accessToken,
+      Limit: limit,
+      After: direction === "after" ? cursor : null, // Only send After for "after" direction
+      Before: direction === "before" ? cursor : null, // Only send Before for "before" direction
+    };
+  
+    console.log("Sending payload to server:", payload); // Debug log
+  
     const response = await fetch("https://localhost:7099/api/User/user-posts", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ user_id: userId, username, access_token: accessToken}),
+      body: JSON.stringify(payload),
     });
   
     if (!response.ok) {
@@ -79,9 +90,10 @@ export const publishPost = async (postData) => {
       throw new Error(`Failed to fetch user posts: ${errorText}`);
     }
   
-    return response.json();
+    const data = await response.json();
+    console.log("Server response:", data); // Debug log
+    return data;
   };
-
   // Fetch Instagram user data
 export const fetchInstagramData = async (userId, username, accessToken) => {
   
