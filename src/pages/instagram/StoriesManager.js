@@ -19,8 +19,9 @@ const StoriesManager = ({ instagramData }) => {
         const userId = instagramData?.user_id || "17841473036355290";
         const accessToken =
           instagramData?.access_token ||
-          "EAAZAde8LZA8zIBO6PGvN672KLJ8x0dBFwrlXnicLFSwhMXSBVepQZBMlVJlAcM1Ul8mfcDqBx0QggGCE1LruXvApOiyNidYdC0hlLsuoz8m33FD3PDkDFqyzfSEVCO55gL3ZB3lQe1Q9AKq1omGkZCvES7Q9j5qv0g4tAem52QzFr0fBwMr4mjUUWB0y1GHjjpwZDZD";
+          "EAAbhc9KLJNMBO4X3dBHvojZA0U3EN63o0PEYfZAOHuSroJ7nZCtnoQB2ZBQhThKyivkEvQ059cA6KmzvIkjZCOjrZB8QuBAWUVo4Xgnh4UaJLJwYEgsigvBwRunsj7mHpheqh7Ks4G96M1frt38mWeJEKefxTGDZAF1zLRWmDZArOZBNwOV3wJaa2R7yG5fNyZC90GQp7l5GYXpIf1xqmf83D0ZBKJA61u2oLZBGSIFW3IZA1";
 
+     
         const response = await fetchStories(userId, accessToken);
         console.log("Raw response:", response); // Logs the response object
         setStories(response.data || []); // Use response.data directly
@@ -131,7 +132,7 @@ const StoriesManager = ({ instagramData }) => {
 
         const uploadFormData = new FormData();
         uploadFormData.append("mediaFile", mediaFile);
-        const uploadResponse = await fetch("http://localhost:8000/api/upload", {
+        const uploadResponse = await fetch("https://localhost:7099/api/upload", {
           method: "POST",
           body: uploadFormData,
         });

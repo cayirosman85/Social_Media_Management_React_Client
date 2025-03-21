@@ -1,5 +1,5 @@
 export const publishStory = async (storyData) => {
-    const response = await fetch("http://localhost:8000/api/publish-story", {
+    const response = await fetch("https://localhost:7099/api/Post/publish-story", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(storyData),

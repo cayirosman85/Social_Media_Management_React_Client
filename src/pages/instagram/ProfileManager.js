@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import ProfileHeader from "../../components/instagram/ProfileHeader.js";
 import TabNavigation from "../../components/instagram/TabNavigation.js";
 import InstagramPost from "../../components/instagram/InstagramPost.js";
@@ -15,6 +15,7 @@ import {
   createComment,
   createReply,
   getMediaInsights,
+  getUserPosts, // Import the paginated posts service
 } from "../../services/instagram/instagramService.js";
 import "./ProfileManager.css";
 
@@ -26,6 +27,8 @@ const ProfileManager = () => {
   const [showNewStoryModal, setShowNewStoryModal] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [instagramData, setInstagramData] = useState(null);
+  const [posts, setPosts] = useState([]); // Separate state for posts
+  const [paging, setPaging] = useState({ after: null, before: null }); // Pagination cursors
   const [error, setError] = useState(null);
   const [newComment, setNewComment] = useState("");
   const [newReply, setNewReply] = useState("");
@@ -33,18 +36,23 @@ const ProfileManager = () => {
   const [insightsData, setInsightsData] = useState({});
   const [selectedPostId, setSelectedPostId] = useState(null);
 
+  const postsContainerRef = useRef(null);
+
+  const userId = "17841473036355290";
+  const username = "osmancayir73";
+  const accessToken =
+    "EAAbhc9KLJNMBO4X3dBHvojZA0U3EN63o0PEYfZAOHuSroJ7nZCtnoQB2ZBQhThKyivkEvQ059cA6KmzvIkjZCOjrZB8QuBAWUVo4Xgnh4UaJLJwYEgsigvBwRunsj7mHpheqh7Ks4G96M1frt38mWeJEKefxTGDZAF1zLRWmDZArOZBNwOV3wJaa2R7yG5fNyZC90GQp7l5GYXpIf1xqmf83D0ZBKJA61u2oLZBGSIFW3IZA1";
+
   useEffect(() => {
-    loadInstagramData();
+    loadProfileData();
+    fetchPosts(null, "after", false); // Initial posts load
   }, []);
 
-  const loadInstagramData = async () => {
+  // Load profile data (excluding posts)
+  const loadProfileData = async () => {
     setIsLoading(true);
     try {
-      const data = await fetchInstagramData(
-        "17841473036355290",
-        "osmancayir73",
-        "EAAZAde8LZA8zIBO4O8QsOQmyMMMShi79cCZBMRJZCjbSbXG7Y3ZAQ4OGvJN1vi8LYLeNx6K9pbxpFuU2saC3lWWt43za1ggpCu9YONtmCuwucaWVgtYYqRcG2oMtuHPhxq6x4n3ImiE3TzXf4IzMHxMtuDbwNfT52ZA6yjkwWabhrLZCrb7zqWzdkjZBApQJmNntUgZDZD"
-      );
+      const data = await fetchInstagramData(userId, username, accessToken);
       setInstagramData(data);
     } catch (err) {
       setError(err.message);
@@ -53,8 +61,57 @@ const ProfileManager = () => {
     }
   };
 
+  // Fetch paginated posts
+  const fetchPosts = async (cursor = null, direction = "after", append = false) => {
+    setIsLoading(true);
+    let scrollPosition = 0;
+  
+    if (append && postsContainerRef.current) {
+      scrollPosition = postsContainerRef.current.scrollTop;
+    }
+  
+    try {
+      const data = await getUserPosts(userId, username, accessToken, 5, cursor, direction);
+      const mediaItems = data?.business_discovery?.media?.data || [];
+  
+      if (append) {
+        setPosts((prevPosts) => {
+          const existingIds = new Set(prevPosts.map((post) => post.id));
+          const filteredNewPosts = mediaItems.filter((post) => !existingIds.has(post.id));
+          return [...prevPosts, ...filteredNewPosts];
+        });
+      } else {
+        setPosts(mediaItems);
+      }
+  
+      setPaging({
+        after: data?.business_discovery?.media?.paging?.cursors?.after || null,
+        before: data?.business_discovery?.media?.paging?.cursors?.before || null,
+      });
+  
+      if (append && postsContainerRef.current) {
+        requestAnimationFrame(() => {
+          postsContainerRef.current.scrollTop = scrollPosition;
+        });
+      }
+    } catch (error) {
+      console.error("Error fetching posts:", error);
+      setError(error.message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  const handleNextPage = () => {
+    if (paging.after) fetchPosts(paging.after, "after", true);
+  };
+
+  const handlePrevPage = () => {
+    if (paging.before) fetchPosts(paging.before, "before", false);
+  };
+
   const handlePostSuccess = (updatedData) => {
     setInstagramData(updatedData);
+    fetchPosts(null, "after", false); // Refresh posts after new post
     setShowNewPostModal(false);
   };
 
@@ -70,18 +127,12 @@ const ProfileManager = () => {
   const fetchInsights = async (postId, mediaType) => {
     setIsLoading(true);
     try {
-      const data = await getMediaInsights(
-        "17841473036355290",
-        postId,
-        "EAAZAde8LZA8zIBO4O8QsOQmyMMMShi79cCZBMRJZCjbSbXG7Y3ZAQ4OGvJN1vi8LYLeNx6K9pbxpFuU2saC3lWWt43za1ggpCu9YONtmCuwucaWVgtYYqRcG2oMtuHPhxq6x4n3ImiE3TzXf4IzMHxMtuDbwNfT52ZA6yjkwWabhrLZCrb7zqWzdkjZBApQJmNntUgZDZD",
-        mediaType
-      );
-      // Store the insights.data array directly
+      const data = await getMediaInsights(userId, postId, accessToken, mediaType);
       setInsightsData((prev) => ({
         ...prev,
         [postId]: data?.insights?.insights || [],
       }));
-      setSelectedPostId(postId); // Open the modal by setting selectedPostId
+      setSelectedPostId(postId);
     } catch (error) {
       console.error("Error fetching insights:", error);
       alert(`Error fetching insights: ${error.message}`);
@@ -92,25 +143,20 @@ const ProfileManager = () => {
 
   const toggleInsights = (postId, mediaType) => {
     if (insightsData[postId]) {
-      setSelectedPostId(postId); // Open modal if data exists
+      setSelectedPostId(postId);
     } else {
-      fetchInsights(postId, mediaType); // Fetch and open modal
+      fetchInsights(postId, mediaType);
     }
   };
 
   const closeInsightsModal = () => {
-    setSelectedPostId(null); // Close the modal
+    setSelectedPostId(null);
   };
 
   const handleToggleCommentVisibility = async (commentId, hide) => {
     setIsLoading(true);
     try {
-      const response = await toggleCommentVisibility(
-        "17841473036355290",
-        commentId,
-        "EAAZAde8LZA8zIBO4O8QsOQmyMMMShi79cCZBMRJZCjbSbXG7Y3ZAQ4OGvJN1vi8LYLeNx6K9pbxpFuU2saC3lWWt43za1ggpCu9YONtmCuwucaWVgtYYqRcG2oMtuHPhxq6x4n3ImiE3TzXf4IzMHxMtuDbwNfT52ZA6yjkwWabhrLZCrb7zqWzdkjZBApQJmNntUgZDZD",
-        !hide
-      );
+      const response = await toggleCommentVisibility(userId, commentId, accessToken, !hide);
       if (response.success) {
         const updatedComments = selectedPost.comments.data.map((comment) =>
           comment.id === commentId ? { ...comment, hidden: !hide } : comment
@@ -132,11 +178,7 @@ const ProfileManager = () => {
   const handleDeleteComment = async (commentId) => {
     setIsLoading(true);
     try {
-      const response = await deleteComment(
-        "17841473036355290",
-        commentId,
-        "EAAZAde8LZA8zIBO4O8QsOQmyMMMShi79cCZBMRJZCjbSbXG7Y3ZAQ4OGvJN1vi8LYLeNx6K9pbxpFuU2saC3lWWt43za1ggpCu9YONtmCuwucaWVgtYYqRcG2oMtuHPhxq6x4n3ImiE3TzXf4IzMHxMtuDbwNfT52ZA6yjkwWabhrLZCrb7zqWzdkjZBApQJmNntUgZDZD"
-      );
+      const response = await deleteComment(userId, commentId, accessToken);
       if (response.success) {
         const updatedComments = selectedPost.comments.data.filter(
           (comment) => comment.id !== commentId
@@ -162,12 +204,7 @@ const ProfileManager = () => {
 
     setIsLoading(true);
     try {
-      const response = await createComment(
-        "17841473036355290",
-        selectedPost.id,
-        "EAAZAde8LZA8zIBO4O8QsOQmyMMMShi79cCZBMRJZCjbSbXG7Y3ZAQ4OGvJN1vi8LYLeNx6K9pbxpFuU2saC3lWWt43za1ggpCu9YONtmCuwucaWVgtYYqRcG2oMtuHPhxq6x4n3ImiE3TzXf4IzMHxMtuDbwNfT52ZA6yjkwWabhrLZCrb7zqWzdkjZBApQJmNntUgZDZD",
-        newComment
-      );
+      const response = await createComment(userId, selectedPost.id, accessToken, newComment);
       if (response.success) {
         const newCommentObj = {
           id: response.commentId || `temp-${Date.now()}`,
@@ -201,12 +238,7 @@ const ProfileManager = () => {
 
     setIsLoading(true);
     try {
-      const response = await createReply(
-        "17841473036355290",
-        commentId,
-        "EAAZAde8LZA8zIBO4O8QsOQmyMMMShi79cCZBMRJZCjbSbXG7Y3ZAQ4OGvJN1vi8LYLeNx6K9pbxpFuU2saC3lWWt43za1ggpCu9YONtmCuwucaWVgtYYqRcG2oMtuHPhxq6x4n3ImiE3TzXf4IzMHxMtuDbwNfT52ZA6yjkwWabhrLZCrb7zqWzdkjZBApQJmNntUgZDZD",
-        newReply
-      );
+      const response = await createReply(userId, commentId, accessToken, newReply);
       if (response.success) {
         const newReplyObj = {
           id: response.replyId || `temp-reply-${Date.now()}`,
@@ -401,9 +433,9 @@ const ProfileManager = () => {
           <TabNavigation activeTab={activeTab} onTabClick={handleTabClick} />
           <div className="content">
             {activeTab === "POSTS" && (
-              <div className="media-feed">
+              <div className="media-feed" ref={postsContainerRef}>
                 <div className="media-grid">
-                  {instagramData.business_discovery.media.data.map((media) => (
+                  {posts.map((media) => (
                     <InstagramPost
                       key={media.id}
                       post={media}
@@ -414,12 +446,28 @@ const ProfileManager = () => {
                     />
                   ))}
                 </div>
+                <div className="pagination">
+                  <button
+                    onClick={handlePrevPage}
+                    disabled={!paging.before || isLoading}
+                    className="pagination-btn"
+                  >
+                    Previous
+                  </button>
+                  <button
+                    onClick={handleNextPage}
+                    disabled={!paging.after || isLoading}
+                    className="pagination-btn"
+                  >
+                    Load More
+                  </button>
+                </div>
               </div>
             )}
             {activeTab === "REELS" && (
               <div className="media-feed">
                 <div className="media-grid">
-                  {instagramData.business_discovery.media.data
+                  {posts
                     .filter(
                       (media) =>
                         media.media_type === "VIDEO" &&
@@ -496,9 +544,7 @@ const ProfileManager = () => {
               onClose={closeInsightsModal}
               insights={insightsData[selectedPostId]}
               postId={selectedPostId}
-              mediaType={instagramData.business_discovery.media.data.find(
-                (post) => post.id === selectedPostId
-              )?.media_type}
+              mediaType={posts.find((post) => post.id === selectedPostId)?.media_type}
             />
           )}
         </>

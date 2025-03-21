@@ -33,7 +33,7 @@ const PostsManager = () => {
       id: "17841473036355290",
       username: "osmancayir73",
     },
-    accessToken: "EAAZAde8LZA8zIBO4O8QsOQmyMMMShi79cCZBMRJZCjbSbXG7Y3ZAQ4OGvJN1vi8LYLeNx6K9pbxpFuU2saC3lWWt43za1ggpCu9YONtmCuwucaWVgtYYqRcG2oMtuHPhxq6x4n3ImiE3TzXf4IzMHxMtuDbwNfT52ZA6yjkwWabhrLZCrb7zqWzdkjZBApQJmNntUgZDZD",
+    accessToken: "EAAbhc9KLJNMBO4X3dBHvojZA0U3EN63o0PEYfZAOHuSroJ7nZCtnoQB2ZBQhThKyivkEvQ059cA6KmzvIkjZCOjrZB8QuBAWUVo4Xgnh4UaJLJwYEgsigvBwRunsj7mHpheqh7Ks4G96M1frt38mWeJEKefxTGDZAF1zLRWmDZArOZBNwOV3wJaa2R7yG5fNyZC90GQp7l5GYXpIf1xqmf83D0ZBKJA61u2oLZBGSIFW3IZA1",
   };
 
   const fetchPosts = async (cursor = null, direction = "after", append = false) => {
@@ -168,7 +168,7 @@ const PostsManager = () => {
 
           const uploadFormData = new FormData();
           uploadFormData.append("mediaFile", mediaFile);
-          const uploadResponse = await fetch("http://localhost:8000/api/upload", {
+          const uploadResponse = await fetch("https://localhost:7099/api/upload", {
             method: "POST",
             body: uploadFormData,
           });

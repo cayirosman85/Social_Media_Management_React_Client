@@ -23,7 +23,7 @@ const InsightManager = () => {
         setState(prev => ({ ...prev, isLoading: true }));
         const data = await getProfileInsights(
           "17841473036355290", // Instagram Business Account ID
-          "EAAZAde8LZA8zIBO4O8QsOQmyMMMShi79cCZBMRJZCjbSbXG7Y3ZAQ4OGvJN1vi8LYLeNx6K9pbxpFuU2saC3lWWt43za1ggpCu9YONtmCuwucaWVgtYYqRcG2oMtuHPhxq6x4n3ImiE3TzXf4IzMHxMtuDbwNfT52ZA6yjkwWabhrLZCrb7zqWzdkjZBApQJmNntUgZDZD" // Access Token
+          "EAAbhc9KLJNMBO4X3dBHvojZA0U3EN63o0PEYfZAOHuSroJ7nZCtnoQB2ZBQhThKyivkEvQ059cA6KmzvIkjZCOjrZB8QuBAWUVo4Xgnh4UaJLJwYEgsigvBwRunsj7mHpheqh7Ks4G96M1frt38mWeJEKefxTGDZAF1zLRWmDZArOZBNwOV3wJaa2R7yG5fNyZC90GQp7l5GYXpIf1xqmf83D0ZBKJA61u2oLZBGSIFW3IZA1" // Access Token
         );
         
         setState(prev => ({

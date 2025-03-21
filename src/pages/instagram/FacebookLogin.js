@@ -7,7 +7,7 @@ const LoginPage = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    fetch("http://localhost:8000/api/login/url")
+    fetch("https://localhost:7099/api/login/url")
       .then((response) => response.json())
       .then((data) => {
         if (data.login_url) {

@@ -95,23 +95,31 @@ export const publishPost = async (postData) => {
     return data;
   };
   // Fetch Instagram user data
-export const fetchInstagramData = async (userId, username, accessToken) => {
+  export const fetchInstagramData = async (userId, username, accessToken) => {
+    const payload = {
+      UserId: userId,
+      Username: username,
+      AccessToken: accessToken,
+      ExcludeMedia: true, // Boolean for ProfileRequest model
+    };
   
-
-  const response = await fetch("https://localhost:7099/api/User/get-profile", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ user_id: userId, username, access_token: accessToken}),
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`HTTP error! Status: ${response.status}, Response: ${errorText}`);
-  }
-  return response.json();
-};
-
-
+    console.log("Sending payload to get-profile:", payload); // Debug log
+  
+    const response = await fetch("https://localhost:7099/api/User/get-profile", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+  
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`HTTP error! Status: ${response.status}, Response: ${errorText}`);
+    }
+  
+    const data = await response.json();
+    console.log("Get-profile response:", data); // Debug log
+    return data;
+  };
 export const getMediaInsights = async (userId, mediaId, accessToken, mediaType) => {
   const response = await fetch("https://localhost:7099/api/Post/get-media-insights", {
       method: "POST",
