@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from "react";
 import { getProfileInsights } from "../../services/instagram/instagramService.js";
 import "./InsightManager.css";
-
+import ls from "local-storage";
 /**
  * InsightManager Component
  * Displays Instagram profile insights with loading states and error handling
@@ -22,8 +22,9 @@ const InsightManager = () => {
       try {
         setState(prev => ({ ...prev, isLoading: true }));
         const data = await getProfileInsights(
-          "17841473036355290", // Instagram Business Account ID
-          "EAAbhc9KLJNMBO4X3dBHvojZA0U3EN63o0PEYfZAOHuSroJ7nZCtnoQB2ZBQhThKyivkEvQ059cA6KmzvIkjZCOjrZB8QuBAWUVo4Xgnh4UaJLJwYEgsigvBwRunsj7mHpheqh7Ks4G96M1frt38mWeJEKefxTGDZAF1zLRWmDZArOZBNwOV3wJaa2R7yG5fNyZC90GQp7l5GYXpIf1xqmf83D0ZBKJA61u2oLZBGSIFW3IZA1" // Access Token
+          ls.get("userId"),
+          ls.get("facebookAccessToken"),
+       
         );
         
         setState(prev => ({

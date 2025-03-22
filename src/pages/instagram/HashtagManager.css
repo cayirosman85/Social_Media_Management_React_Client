@@ -55,6 +55,8 @@
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
   gap: 25px;
+  position: relative; /* Ensure the grid contains its children */
+  width: 100%;
 }
 
 /* Button to fetch recent searches */
@@ -77,4 +79,5 @@
 /* Tab Content */
 .tab-content {
   margin-top: 20px;
+  position: relative; /* Ensure the tab content contains its children */
 }

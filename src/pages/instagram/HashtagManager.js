@@ -12,6 +12,7 @@ import {
   getRecentSearchHashtags,
 } from "../../services/instagram/instagramService";
 import "./HashtagManager.css";
+import ls from "local-storage";
 
 const HashtagManager = () => {
   const [hashtagName, setHashtagName] = useState("");
@@ -24,13 +25,15 @@ const HashtagManager = () => {
   const [selectedMedia, setSelectedMedia] = useState(null);
   const [recentSearches, setRecentSearches] = useState([]);
 
+    
+                
   const instagramData = {
     business_discovery: {
-      id: "17841473036355290",
-      username: "osmancayir73",
+      id:ls.get("userId"),
+      username:ls.get("username"),
     },
     accessToken:
-      "EAAbhc9KLJNMBO4X3dBHvojZA0U3EN63o0PEYfZAOHuSroJ7nZCtnoQB2ZBQhThKyivkEvQ059cA6KmzvIkjZCOjrZB8QuBAWUVo4Xgnh4UaJLJwYEgsigvBwRunsj7mHpheqh7Ks4G96M1frt38mWeJEKefxTGDZAF1zLRWmDZArOZBNwOV3wJaa2R7yG5fNyZC90GQp7l5GYXpIf1xqmf83D0ZBKJA61u2oLZBGSIFW3IZA1",
+    ls.get("facebookAccessToken"),
   };
 
   const handleSearch = async () => {

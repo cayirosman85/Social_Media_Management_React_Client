@@ -1,16 +1,38 @@
+// instagramService.js
 export const publishPost = async (postData) => {
+  console.log("Publishing post with data:", postData);
+  try {
     const response = await fetch("https://localhost:7099/api/Post/publish-post", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+      },
       body: JSON.stringify(postData),
     });
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(errorText);
+
+    console.log("Response status:", response.status); // Log status code
+    console.log("Response headers:", response.headers.get("Content-Type")); // Log content type
+
+    const text = await response.text(); // Get raw response first
+    console.log("Raw response:", text);
+
+    let data;
+    try {
+      data = JSON.parse(text); // Attempt to parse as JSON
+    } catch (parseError) {
+      throw new Error(`Failed to parse response as JSON: ${text}`);
     }
-    return response.json();
-  };
-  
+
+    if (!response.ok) {
+      throw new Error(data.error || `HTTP error! Status: ${response.status}`);
+    }
+
+    return data;
+  } catch (error) {
+    console.error("publishPost error:", error);
+    throw error;
+  }
+};
   export const toggleCommentVisibility = async (userId, commentId, accessToken, hide) => {
     const response = await fetch("https://localhost:7099/api/Post/comment-visibility", {
         method: "POST",

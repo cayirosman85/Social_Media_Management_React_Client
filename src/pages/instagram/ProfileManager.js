@@ -18,6 +18,7 @@ import {
   getUserPosts, // Import the paginated posts service
 } from "../../services/instagram/instagramService.js";
 import "./ProfileManager.css";
+import localStorage from "local-storage";
 
 const ProfileManager = () => {
   const [activeTab, setActiveTab] = useState("POSTS");
@@ -38,10 +39,11 @@ const ProfileManager = () => {
 
   const postsContainerRef = useRef(null);
 
-  const userId = "17841473036355290";
-  const username = "osmancayir73";
-  const accessToken =
-    "EAAbhc9KLJNMBO4X3dBHvojZA0U3EN63o0PEYfZAOHuSroJ7nZCtnoQB2ZBQhThKyivkEvQ059cA6KmzvIkjZCOjrZB8QuBAWUVo4Xgnh4UaJLJwYEgsigvBwRunsj7mHpheqh7Ks4G96M1frt38mWeJEKefxTGDZAF1zLRWmDZArOZBNwOV3wJaa2R7yG5fNyZC90GQp7l5GYXpIf1xqmf83D0ZBKJA61u2oLZBGSIFW3IZA1";
+
+
+  const userId = localStorage.get("userId");
+  const username = localStorage.get("username");
+  const accessToken = localStorage.get("facebookAccessToken");
 
   useEffect(() => {
     loadProfileData();

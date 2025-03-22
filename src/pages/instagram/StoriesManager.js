@@ -3,6 +3,7 @@ import InstagramStory from "../../components/instagram/InstagramStory";
 import NewStoryModal from "../../components/instagram/NewStoryModal";
 import { fetchStories, publishStory } from "../../services/instagram/instagramService";
 import { FaPlus } from "react-icons/fa";
+import ls from "local-storage";
 
 const StoriesManager = ({ instagramData }) => {
   const [stories, setStories] = useState([]);
@@ -16,11 +17,9 @@ const StoriesManager = ({ instagramData }) => {
       console.log("Starting to load stories, setting isLoading to true");
       setIsLoading(true);
       try {
-        const userId = instagramData?.user_id || "17841473036355290";
+        const userId = ls.get("userId");
         const accessToken =
-          instagramData?.access_token ||
-          "EAAbhc9KLJNMBO4X3dBHvojZA0U3EN63o0PEYfZAOHuSroJ7nZCtnoQB2ZBQhThKyivkEvQ059cA6KmzvIkjZCOjrZB8QuBAWUVo4Xgnh4UaJLJwYEgsigvBwRunsj7mHpheqh7Ks4G96M1frt38mWeJEKefxTGDZAF1zLRWmDZArOZBNwOV3wJaa2R7yG5fNyZC90GQp7l5GYXpIf1xqmf83D0ZBKJA61u2oLZBGSIFW3IZA1";
-
+         ls.get("facebookAccessToken");
      
         const response = await fetchStories(userId, accessToken);
         console.log("Raw response:", response); // Logs the response object

@@ -3,10 +3,10 @@
   "version": "1.0.42",
   "private": false,
   "dependencies": {
-    "@emotion/react": "^11.11.4",
-    "@emotion/styled": "^11.11.5",
-    "@mui/icons-material": "^5.16.1",
-    "@mui/material": "^5.16.4",
+    "@emotion/react": "^11.14.0",
+    "@emotion/styled": "^11.14.0",
+    "@mui/icons-material": "^5.17.1",
+    "@mui/material": "^5.17.1",
     "@mui/styles": "^5.16.0",
     "@mui/x-date-pickers": "^7.10.0",
     "@testing-library/jest-dom": "^5.17.0",
@@ -40,11 +40,12 @@
     "web-vitals": "^2.1.4"
   },
   "bin": "bin/create-rahat-react-template.js",
-  "author": "Mustafa Teker",
+  "author": "Osman Çayır",
   "repository": "https://github.com/MSTFTKR/react-rahat-sistem-template.git",
   "scripts": {
     "dev": "react-scripts start",
     "start": "serve -s build",
+    "start-https": "set HTTPS=true&&react-scripts start",
     "build": "react-scripts build",
     "test": "react-scripts test",
     "eject": "react-scripts eject"

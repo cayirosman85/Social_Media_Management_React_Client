@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import "./NewStoryModal.css"; // We'll align this with NewPostModal.css
+import ls from "local-storage";
 
 const NewStoryModal = ({ onClose, onStorySuccess, fetchInstagramData }) => {
   const [isLoading, setIsLoading] = useState(false);
@@ -56,11 +57,13 @@ const NewStoryModal = ({ onClose, onStorySuccess, fetchInstagramData }) => {
       }
 
       let storyData = {
-        user_id: "17841473036355290",
+        user_id:ls.get("userId"),
         access_token:
-          "EAAZAde8LZA8zIBO6PGvN672KLJ8x0dBFwrlXnicLFSwhMXSBVepQZBMlVJlAcM1Ul8mfcDqBx0QggGCE1LruXvApOiyNidYdC0hlLsuoz8m33FD3PDkDFqyzfSEVCO55gL3ZB3lQe1Q9AKq1omGkZCvES7Q9j5qv0g4tAem52QzFr0fBwMr4mjUUWB0y1GHjjpwZDZD",
+        ls.get("facebookAccessToken"),
       };
 
+
+           
       if (hasFiles) {
         const file = mediaFiles[0];
         const fileExtension = file.name.split(".").pop().toLowerCase();
@@ -163,9 +166,9 @@ const NewStoryModal = ({ onClose, onStorySuccess, fetchInstagramData }) => {
       if (publishData.success) {
         if (fetchInstagramData) {
           const updatedData = await fetchInstagramData(
-            "17841473036355290",
-            "osmancayir73",
-            "EAAbhc9KLJNMBO4X3dBHvojZA0U3EN63o0PEYfZAOHuSroJ7nZCtnoQB2ZBQhThKyivkEvQ059cA6KmzvIkjZCOjrZB8QuBAWUVo4Xgnh4UaJLJwYEgsigvBwRunsj7mHpheqh7Ks4G96M1frt38mWeJEKefxTGDZAF1zLRWmDZArOZBNwOV3wJaa2R7yG5fNyZC90GQp7l5GYXpIf1xqmf83D0ZBKJA61u2oLZBGSIFW3IZA1"
+           ls.get("userId"),
+           ls.get("username"),
+           ls.get("facebookAccessToken")
           );
           onStorySuccess(updatedData);
         }
