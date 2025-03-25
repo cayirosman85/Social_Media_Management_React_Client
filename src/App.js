@@ -28,6 +28,10 @@ import ProfilePage from "./pages/profilePage/userProfile.js";
 import AdminPage from "./pages/adminPage/adminPage.js";
 import AdminUsers from "./pages/adminPage/adminUsers.js";
 import AdminSettings from "./pages/adminPage/adminProfilePage.js";
+
+import AuthCallback from './pages/youtube/authCallback.js'; // Import the new callback page
+import YoutubeProfile from './pages/youtube/profile.js'; // We'll create this next
+
 import "./App.css";
 import { jwtDecode } from "jwt-decode";
 import { cookies } from "./utils/cookie";
@@ -130,7 +134,8 @@ function AppRoutes() {
       <Route path="/login" element={<Login />} />
       <Route path="/forgot-password" element={<ForgotPassword />} />
       <Route path="/register" element={<Register />} />
-
+      <Route path="/auth-callback" element={<AuthCallback />} /> 
+     
       {/* Protected Routes with Layout (Global Sidebar) */}
       <Route
         path="/"
@@ -180,6 +185,14 @@ function AppRoutes() {
         />
 
 
+    <Route
+          path="/youtube-profile"
+          element={
+            <ProtectedRoute>
+              <YoutubeProfile />
+            </ProtectedRoute>
+          }
+        />
         {/* Instagram Management Routes */}
         <Route
           path="/Profile"

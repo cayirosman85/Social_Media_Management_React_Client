@@ -56,7 +56,7 @@ const menuItems = [
     text: 'Youtube',
     icon: <YouTube size={22} />,
     subItems: [
-      { text: 'Profile', icon: <Person size={22} />, path: '/Profile' },
+      { text: 'Profile', icon: <Person size={22} />, path: '/youtube-profile' },
       { text: 'Posts', icon: <InsertChart size={22} />, path: '/posts' },
       { text: 'Shorts', icon: <BrandYoutube size={22} />, path: '/shorts' },
       { text: 'Ads', icon: <Tv size={22} />, path: '/ads' },
@@ -87,59 +87,6 @@ const Sidebar = () => {
     window.location.href = 'https://localhost:7099/api/GoogleAuth/login';
   };
 
-  // Handle the callback from the server (after token exchange)
-  React.useEffect(() => {
-    const query = new URLSearchParams(location.search);
-    const accessToken = query.get('access_token');
-    const refreshToken = query.get('refresh_token');
-    const expiresIn = query.get('expires_in');
-
-    if (accessToken) {
-      console.log('Access token received:', accessToken);
-      localStorage.set('youtubeAccessToken', accessToken);
-      if (refreshToken) localStorage.set('youtubeRefreshToken', refreshToken);
-      if (expiresIn) localStorage.set('youtubeTokenExpiresIn', expiresIn);
-      fetchYoutubeData(accessToken);
-    }
-  }, [location]);
-
-  // Fetch YouTube Data
-  const fetchYoutubeData = async (accessToken) => {
-    setLoading(true);
-    setError(null);
-    try {
-      console.log('Fetching YouTube data with token:', accessToken);
-      const response = await fetch(
-        'https://www.googleapis.com/youtube/v3/channels?part=snippet,statistics&mine=true',
-        {
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-          },
-        }
-      );
-      const data = await response.json();
-      if (data.error) {
-        throw new Error(data.error.message);
-      }
-      if (data.items && data.items.length > 0) {
-        const channel = data.items[0];
-        localStorage.set('youtubeChannelId', channel.id);
-        localStorage.set('youtubeUsername', channel.snippet.title);
-        navigate('/Profile');
-      } else {
-        throw new Error('No YouTube channels found.');
-      }
-    } catch (error) {
-      console.error('Error fetching YouTube data:', error);
-      setError('Failed to connect to YouTube. Please log in again.');
-      localStorage.remove('youtubeAccessToken');
-      localStorage.remove('youtubeChannelId');
-      localStorage.remove('youtubeUsername');
-      navigate('/YoutubeLogin');
-    } finally {
-      setLoading(false);
-    }
-  };
 
   // Facebook Token Validation
   const validateFacebookToken = async (accessToken) => {
