@@ -31,7 +31,7 @@ import AdminSettings from "./pages/adminPage/adminProfilePage.js";
 import "./App.css";
 import { jwtDecode } from "jwt-decode";
 import { cookies } from "./utils/cookie";
-import Sidebar from "./components/sidebars/sideBar.js";
+import Sidebar from "./components/sidebars/clientSideBar.js";
 import AdminSidebar from "./components/sidebars/adminSideBar.js";
 import { SidebarProvider } from "./context/SidebarContext";
 import { useSidebar } from "./context/SidebarContext";

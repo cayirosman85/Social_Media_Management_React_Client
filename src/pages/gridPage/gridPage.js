@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useCallback, useEffect } from "react";
 
-import Sidebar from "../../components/sidebars/sideBar";
+import Sidebar from "../../components/sidebars/clientSideBar";
 import Navbar from "../../components/navbar/navbar";
 import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
 import { AdapterMoment } from "@mui/x-date-pickers/AdapterMoment";

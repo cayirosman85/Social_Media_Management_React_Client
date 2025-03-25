@@ -11,7 +11,7 @@ import {
 } from "@mui/material";
 import WorkIcon from "@mui/icons-material/Work";
 import localStorage from "local-storage";
-import Sidebar from "../../components/sidebars/sideBar";
+import Sidebar from "../../components/sidebars/clientSideBar";
 import LocationOnIcon from "@mui/icons-material/LocationOn";
 import CalendarTodayIcon from "@mui/icons-material/CalendarToday";
 import BadgeOutlinedIcon from "@mui/icons-material/BadgeOutlined";
