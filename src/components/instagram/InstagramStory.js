@@ -3,6 +3,7 @@ import { fetchStoryInsights } from "../../services/instagram/instagramService";
 import InsightsModal from "../../components/instagram/InsightsModal";
 import { FaChartBar, FaPlay, FaPause } from "react-icons/fa";
 import "./InstagramStory.css";
+import ls from "local-storage";
 
 const InstagramStory = ({ stories, initialIndex, onClose, instagramData }) => {
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
@@ -62,9 +63,9 @@ const InstagramStory = ({ stories, initialIndex, onClose, instagramData }) => {
     e.stopPropagation();
     try {
       const response = await fetchStoryInsights(
-        "17841473036355290",
+        ls.get("userId"),
         stories[currentIndex].id,
-        "EAAbhc9KLJNMBO4X3dBHvojZA0U3EN63o0PEYfZAOHuSroJ7nZCtnoQB2ZBQhThKyivkEvQ059cA6KmzvIkjZCOjrZB8QuBAWUVo4Xgnh4UaJLJwYEgsigvBwRunsj7mHpheqh7Ks4G96M1frt38mWeJEKefxTGDZAF1zLRWmDZArOZBNwOV3wJaa2R7yG5fNyZC90GQp7l5GYXpIf1xqmf83D0ZBKJA61u2oLZBGSIFW3IZA1"
+         ls.get("facebookAccessToken"),
       );
 
       if (response.success) {

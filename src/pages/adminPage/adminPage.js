@@ -1,5 +1,5 @@
 import React, { useState, useCallback,useEffect } from "react";
-import AdminSidebar from "../../components/adminSideBar/adminSideBar";
+import AdminSidebar from "../../components/sidebars/adminSideBar";
 import { AgGridReact } from "ag-grid-react";
 import "ag-grid-community/styles/ag-grid.css";
 import "ag-grid-community/styles/ag-theme-quartz.css";

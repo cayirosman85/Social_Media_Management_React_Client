@@ -1,10 +1,10 @@
 import React from "react";
-import AdManager from "../../components/instagram/AdManager.js";
+import AdsPage from "../../components/instagram/AdsPage.js";
 
 const AdsManager = () => {
   return (
     <div className="ad-manager-container">
-      <AdManager />
+      <AdsPage />
     </div>
   );
 };

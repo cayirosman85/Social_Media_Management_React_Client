@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import Sidebar from "../../components/sideBar/sideBar";
+import Sidebar from "../../components/sidebars/sideBar";
 import Navbar from "../../components/navbar/navbar";
 import localStorage from "local-storage";
 import {

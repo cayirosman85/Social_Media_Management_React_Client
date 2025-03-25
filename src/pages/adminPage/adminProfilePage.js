@@ -10,7 +10,7 @@ import {
   Divider,
 } from "@mui/material";
 import WorkIcon from "@mui/icons-material/Work";
-import AdminSidebar from "../../components/adminSideBar/adminSideBar";
+import AdminSidebar from "../../components/sidebars/adminSideBar";
 import LocationOnIcon from "@mui/icons-material/LocationOn";
 import CalendarTodayIcon from "@mui/icons-material/CalendarToday";
 import BadgeOutlinedIcon from "@mui/icons-material/BadgeOutlined";

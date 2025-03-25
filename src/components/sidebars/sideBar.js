@@ -315,7 +315,7 @@ const Sidebar = () => {
                           appId={appId}
                           autoLoad={false}
                           fields="name,email,picture"
-                     scope="public_profile,email,pages_show_list,instagram_basic,instagram_manage_comments,instagram_content_publish,instagram_manage_insights,pages_manage_metadata,pages_read_engagement,pages_read_user_content,manage_fundraisers,read_insights,publish_video,leads_retrieval,whatsapp_business_management,instagram_manage_messages,whatsapp_business_messaging,instagram_branded_content_brand,instagram_branded_content_creator,instagram_branded_content_ads_brand,instagram_manage_upcoming_events"
+                     scope="public_profile,email,pages_show_list,instagram_basic,instagram_manage_comments,instagram_content_publish,instagram_manage_insights,pages_manage_metadata,pages_read_engagement,pages_read_user_content,manage_fundraisers,read_insights,publish_video,leads_retrieval,whatsapp_business_management,instagram_manage_messages,whatsapp_business_messaging,instagram_branded_content_brand,instagram_branded_content_creator,instagram_branded_content_ads_brand,instagram_manage_upcoming_events,ads_management,ads_read,business_management"
                           callback={responseFacebook}
                           cssClass="facebook-login-btn"
                           textButton="Login with Facebook"
