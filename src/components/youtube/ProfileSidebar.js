@@ -19,7 +19,6 @@ import {
   WatchLater as WatchLaterIcon,
   ThumbUp as LikedVideosIcon,
 } from '@mui/icons-material';
-
 const sidebarItems = [
   { text: 'Home', icon: <HomeIcon />, index: 0 },
   { text: 'Shorts', icon: <ShortsIcon />, index: 1 },
@@ -31,11 +30,15 @@ const sidebarItems = [
   { text: 'Watch later', icon: <WatchLaterIcon />, index: 6 },
   { text: 'Liked videos', icon: <LikedVideosIcon />, index: 7 },
 ];
-
 const ProfileSidebar = ({ subscriptions = [], onItemClick, onSubscriptionClick }) => {
   const [isHovered, setIsHovered] = useState(false);
   const sidebarWidth = isHovered ? '240px' : '56px';
-
+  // Deduplicate subscriptions based on channelId
+  const uniqueSubscriptions = Array.from(
+    new Map(
+      subscriptions.map((sub) => [sub.snippet.resourceId.channelId, sub])
+    ).values()
+  );
   return (
     <div
       style={{
@@ -66,105 +69,106 @@ const ProfileSidebar = ({ subscriptions = [], onItemClick, onSubscriptionClick }
       </div>
       <Divider />
 
-      {/* Sidebar Items */}
-      <List>
-        {sidebarItems.map((item, index) => {
-          if (item.header) {
-            return (
-              <Typography
-                key={index}
-                variant="overline"
-                style={{
-                  paddingLeft: '16px',
-                  paddingTop: '16px',
-                  paddingBottom: '8px',
-                  display: 'block',
-                  color: '#606060',
-                  fontWeight: 'bold',
-                  visibility: isHovered ? 'visible' : 'hidden',
-                }}
-              >
-                {item.text}
-              </Typography>
-            );
-          }
-          return (
-            <ListItem
-              button
-              key={item.text}
-              onClick={() => {
-                console.log(`Sidebar item clicked: ${item.text}, index: ${item.index}`);
-                onItemClick(item.index);
-              }}
-              style={{
-                padding: isHovered ? '4px 16px' : '4px 8px',
-              }}
-              sx={{ '&:hover': { backgroundColor: '#f2f2f2' } }}
-            >
-              <ListItemIcon
-                style={{
-                  minWidth: isHovered ? '40px' : '48px',
-                  color: '#000',
-                }}
-              >
-                {item.icon}
-              </ListItemIcon>
-              <ListItemText
-                primary={item.text}
-                primaryTypographyProps={{ fontSize: '14px', fontWeight: 'medium' }}
-                style={{ display: isHovered ? 'block' : 'none' }}
-              />
-            </ListItem>
-          );
-        })}
-      </List>
-      <Divider />
-
-      {/* Subscriptions Section */}
-      <Typography
-        variant="overline"
-        style={{
-          paddingLeft: '16px',
-          paddingTop: '16px',
-          paddingBottom: '8px',
-          display: 'block',
-          color: '#606060',
-          fontWeight: 'bold',
-          visibility: isHovered ? 'visible' : 'hidden',
-        }}
-      >
-        Subscriptions
-      </Typography>
-      <List>
-        {subscriptions.map((sub, index) => (
-          <ListItem
-            button
-            key={`${sub.snippet.resourceId.channelId}-${index}`} // Updated to ensure unique keys
-            onClick={() => {
-              console.log(`Subscription clicked: ${sub.snippet.title}, channelId: ${sub.snippet.resourceId.channelId}`);
-              onSubscriptionClick(sub.snippet.resourceId.channelId);
-            }}
+  {/* Sidebar Items */}
+  <List>
+    {sidebarItems.map((item, index) => {
+      if (item.header) {
+        return (
+          <Typography
+            key={index}
+            variant="overline"
             style={{
-              padding: isHovered ? '4px 16px' : '4px 8px',
+              paddingLeft: '16px',
+              paddingTop: '16px',
+              paddingBottom: '8px',
+              display: 'block',
+              color: '#606060',
+              fontWeight: 'bold',
+              visibility: isHovered ? 'visible' : 'hidden',
             }}
-            sx={{ '&:hover': { backgroundColor: '#f2f2f2' } }}
           >
-            <ListItemIcon style={{ minWidth: isHovered ? '40px' : '48px' }}>
-              <Avatar
-                src={sub.snippet.thumbnails?.default?.url || 'https://via.placeholder.com/24'}
-                style={{ width: '24px', height: '24px' }}
-              />
-            </ListItemIcon>
-            <ListItemText
-              primary={sub.snippet.title}
-              primaryTypographyProps={{ fontSize: '14px', fontWeight: 'medium' }}
-              style={{ display: isHovered ? 'block' : 'none' }}
-            />
-          </ListItem>
-        ))}
-      </List>
-    </div>
+            {item.text}
+          </Typography>
+        );
+      }
+      return (
+        <ListItem
+          button
+          key={item.text}
+          onClick={() => {
+            console.log(`Sidebar item clicked: ${item.text}, index: ${item.index}`);
+            onItemClick(item.index);
+          }}
+          style={{
+            padding: isHovered ? '4px 16px' : '4px 8px',
+          }}
+          sx={{ '&:hover': { backgroundColor: '#f2f2f2' } }}
+        >
+          <ListItemIcon
+            style={{
+              minWidth: isHovered ? '40px' : '48px',
+              color: '#000',
+            }}
+          >
+            {item.icon}
+          </ListItemIcon>
+          <ListItemText
+            primary={item.text}
+            primaryTypographyProps={{ fontSize: '14px', fontWeight: 'medium' }}
+            style={{ display: isHovered ? 'block' : 'none' }}
+          />
+        </ListItem>
+      );
+    })}
+  </List>
+  <Divider />
+
+  {/* Subscriptions Section */}
+  <Typography
+    variant="overline"
+    style={{
+      paddingLeft: '16px',
+      paddingTop: '16px',
+      paddingBottom: '8px',
+      display: 'block',
+      color: '#606060',
+      fontWeight: 'bold',
+      visibility: isHovered ? 'visible' : 'hidden',
+    }}
+  >
+    Subscriptions
+  </Typography>
+  <List>
+    {uniqueSubscriptions.map((sub, index) => (
+      <ListItem
+        button
+        key={`${sub.snippet.resourceId.channelId}-${index}`}
+        onClick={() => {
+          console.log(`Subscription clicked: ${sub.snippet.title}, channelId: ${sub.snippet.resourceId.channelId}`);
+          onSubscriptionClick(sub.snippet.resourceId.channelId);
+        }}
+        style={{
+          padding: isHovered ? '4px 16px' : '4px 8px',
+        }}
+        sx={{ '&:hover': { backgroundColor: '#f2f2f2' } }}
+      >
+        <ListItemIcon style={{ minWidth: isHovered ? '40px' : '48px' }}>
+          <Avatar
+            src={sub.snippet.thumbnails?.default?.url || 'https://via.placeholder.com/24'}
+            style={{ width: '24px', height: '24px' }}
+          />
+        </ListItemIcon>
+        <ListItemText
+          primary={sub.snippet.title}
+          primaryTypographyProps={{ fontSize: '14px', fontWeight: 'medium' }}
+          style={{ display: isHovered ? 'block' : 'none' }}
+        />
+      </ListItem>
+    ))}
+  </List>
+</div>
+
   );
 };
-
 export default ProfileSidebar;
+

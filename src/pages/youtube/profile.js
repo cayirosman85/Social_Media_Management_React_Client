@@ -216,7 +216,7 @@ const YoutubeProfile = () => {
         await fetchSubscriptionFeed();
 
         await fetchPaginatedData(
-          'https://www.googleapis.com/youtube/v3/videos?part=snippet,contentDetails,statistics&chart=mostPopular®ionCode=TR',
+          'https://www.googleapis.com/youtube/v3/videos?part=snippet,contentDetails,statistics&chart=mostPopular&regionCode=TR',
           setTrendingVideos,
           'youtubeTrending',
           'trendingVideos'
@@ -720,7 +720,7 @@ const YoutubeProfile = () => {
                 {pageTokens.trendingVideos && (
                   <Button
                     onClick={() => loadMore(
-                      'https://www.googleapis.com/youtube/v3/videos?part=snippet,contentDetails,statistics&chart=mostPopular®ionCode=TR',
+                      'https://www.googleapis.com/youtube/v3/videos?part=snippet,contentDetails,statistics&chart=mostPopular&regionCode=TR',
                       setTrendingVideos,
                       'trendingVideos'
                     )}
