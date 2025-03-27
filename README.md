@@ -62,3 +62,6 @@ Redirects for the admin page must start with the /admin extension.
 The token field in /api/auth/login is set to user by default. If the role is changed to a token with admin ("role":"admin"), it will redirect to the admin page when pressing login.
 
 Do not forget to convert the .env.example file to .env.
+
+
+ npm run start-https  
