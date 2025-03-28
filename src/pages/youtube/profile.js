@@ -116,12 +116,13 @@ const YoutubeProfile = () => {
       };
 
       try {
-        const cachedProfile = localStorage.get('youtubeProfile');
+        const cachedProfileRaw = localStorage.get('youtubeProfile');
         const cachedVideos = localStorage.get('youtubeVideos');
-        if (cachedProfile) setProfile(JSON.parse(cachedProfile));
+        let cachedProfile = cachedProfileRaw ? JSON.parse(cachedProfileRaw) : null;
+        if (cachedProfile && cachedProfile.snippet) setProfile(cachedProfile);
         if (cachedVideos) setVideos(JSON.parse(cachedVideos));
 
-        if (!cachedProfile) {
+        if (!cachedProfile || !cachedProfile.snippet) {
           const profileResponse = await fetch('https://localhost:7099/api/GoogleAuth/youtube/profile', {
             headers: {
               'X-Access-Token': accessToken,
@@ -136,6 +137,7 @@ const YoutubeProfile = () => {
           setVideos(profileData.videos || []);
           localStorage.set('youtubeProfile', JSON.stringify(profileData.channel));
           localStorage.set('youtubeVideos', JSON.stringify(profileData.videos || []));
+          cachedProfile = profileData.channel; // Update cachedProfile for later use
         }
 
         const fetchPaginatedData = async (url, setter, cacheKey, pageTokenKey) => {
@@ -144,20 +146,21 @@ const YoutubeProfile = () => {
             console.log(`${pageTokenKey} data fetched:`, data.items);
             if (pageTokenKey === 'subscriptions') {
               const uniqueItems = Array.from(
-                new Map(data.items.map(item => [item.snippet.resourceId.channelId, item])).values()
+                new Map(data.items.map((item) => [item.snippet.resourceId.channelId, item])).values()
               );
-              setter((prev) => [...prev, ...uniqueItems]);
-              const cachedData = JSON.parse(localStorage.get(cacheKey) || '[]');
-              localStorage.set(cacheKey, JSON.stringify([...cachedData, ...uniqueItems]));
+              setter(uniqueItems); // Set directly instead of appending
+              localStorage.set(cacheKey, JSON.stringify(uniqueItems));
             } else {
-              setter((prev) => [...prev, ...(data.items || [])]);
-              const cachedData = JSON.parse(localStorage.get(cacheKey) || '[]');
-              localStorage.set(cacheKey, JSON.stringify([...cachedData, ...(data.items || [])]));
+              setter(data.items || []);
+              localStorage.set(cacheKey, JSON.stringify(data.items || []));
             }
             setPageTokens((prev) => ({ ...prev, [pageTokenKey]: data.nextPageToken || null }));
           } catch (err) {
             console.error(`Failed to fetch ${pageTokenKey}:`, err.message);
-            setter((prev) => prev); // Keep existing data
+            if (err.message.includes('quota')) {
+              setError('YouTube API quota exceeded. Please try again later.');
+            }
+            setter([]); // Set empty array on error
           }
         };
 
@@ -185,45 +188,29 @@ const YoutubeProfile = () => {
             setHistory,
             'youtubeHistory',
             'history'
-          ).catch(() => setHistory([])), // Fallback for history
+          ).catch(() => setHistory([])),
           fetchPaginatedData(
             'https://www.googleapis.com/youtube/v3/playlistItems?part=snippet&playlistId=WL',
             setWatchLater,
             'youtubeWatchLater',
             'watchLater'
-          ).catch(() => setWatchLater([])), // Fallback for watch later
+          ).catch(() => setWatchLater([])),
           fetchPaginatedData(
             'https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&videoDuration=short&q=shorts',
             setShorts,
             'youtubeShorts',
             'shorts'
-          ).catch(() => setShorts([])), // Fallback for shorts
+          ).catch(() => setShorts([])),
+          fetchPaginatedData(
+            'https://www.googleapis.com/youtube/v3/videos?part=snippet,contentDetails,statistics&chart=mostPopular&RegionCode=TR',
+            setTrendingVideos,
+            'youtubeTrending',
+            'trendingVideos'
+          ),
         ]);
 
-        const fetchSubscriptionFeed = async () => {
-          const uniqueChannelIds = Array.from(
-            new Set(subscriptions.map((sub) => sub.snippet.resourceId.channelId))
-          ).join(',');
-          if (uniqueChannelIds) {
-            await fetchPaginatedData(
-              `https://www.googleapis.com/youtube/v3/search?part=snippet&channelId=${uniqueChannelIds}&type=video&order=date`,
-              setSubscriptionFeed,
-              'youtubeSubFeed',
-              'subscriptionFeed'
-            );
-          }
-        };
-        await fetchSubscriptionFeed();
-
-        await fetchPaginatedData(
-          'https://www.googleapis.com/youtube/v3/videos?part=snippet,contentDetails,statistics&chart=mostPopular&regionCode=TR',
-          setTrendingVideos,
-          'youtubeTrending',
-          'trendingVideos'
-        );
-
-        localStorage.set('youtubeChannelId', profile?.id || cachedProfile?.id);
-        localStorage.set('youtubeUsername', profile?.snippet.title || cachedProfile?.snippet.title);
+        localStorage.set('youtubeChannelId', cachedProfile?.id || '');
+        localStorage.set('youtubeUsername', cachedProfile?.snippet?.title || '');
       } catch (err) {
         console.error('Critical error in fetchProfile:', err.message);
         setError(`Failed to fetch YouTube data: ${err.message}. Please try again.`);
@@ -242,39 +229,103 @@ const YoutubeProfile = () => {
     fetchProfile();
   }, [navigate]);
 
+  // Separate useEffect for fetching subscription feed
   useEffect(() => {
-    console.log('Updated history state:', history);
-  }, [history]);
+    const fetchSubscriptionFeed = async () => {
+      const accessToken = localStorage.get('youtubeAccessToken');
+      if (!subscriptions.length) {
+        console.log('No subscriptions available yet.');
+        setSubscriptionFeed([]);
+        return;
+      }
 
-  useEffect(() => {
-    console.log('Updated subscriptionVideos state:', subscriptionVideos);
-  }, [subscriptionVideos]);
+      const uniqueChannelIds = Array.from(
+        new Set(subscriptions.map((sub) => sub.snippet.resourceId.channelId))
+      );
+
+      try {
+        const videoPromises = uniqueChannelIds.map(async (channelId) => {
+          const url = `https://www.googleapis.com/youtube/v3/search?part=snippet&channelId=${channelId}&type=video&order=date&maxResults=${itemsPerPage}`;
+          const response = await fetch(url, {
+            headers: { Authorization: `Bearer ${accessToken}` },
+          });
+          if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(`Failed to fetch videos for channel ${channelId}: ${errorData.error?.message}`);
+          }
+          const data = await response.json();
+          console.log(`Videos for channel ${channelId}:`, data.items);
+          return data.items || [];
+        });
+
+        const allVideos = (await Promise.all(videoPromises)).flat();
+        allVideos.sort((a, b) => new Date(b.snippet.publishedAt) - new Date(a.snippet.publishedAt));
+        setSubscriptionFeed(allVideos.slice(0, itemsPerPage));
+        setPageTokens((prev) => ({
+          ...prev,
+          subscriptionFeed: allVideos.length > itemsPerPage ? 'next' : null,
+        }));
+      } catch (err) {
+        console.error('Error fetching subscription feed:', err.message);
+        if (err.message.includes('quota')) {
+          setError('YouTube API quota exceeded. Subscription feed unavailable.');
+        } else {
+          setError(`Failed to load subscription feed: ${err.message}`);
+        }
+        setSubscriptionFeed([]);
+      }
+    };
+
+    fetchSubscriptionFeed();
+  }, [subscriptions]);
 
   const loadMore = async (url, setter, pageTokenKey) => {
     let accessToken = localStorage.get('youtubeAccessToken');
     try {
-      const response = await fetch(`${url}&maxResults=${itemsPerPage}&pageToken=${pageTokens[pageTokenKey]}`, {
-        headers: { Authorization: `Bearer ${accessToken}` },
-      });
-      if (!response.ok) {
-        if (response.status === 401) {
-          accessToken = await refreshAccessToken(localStorage.get('youtubeRefreshToken'));
-          if (!accessToken) return;
-          return loadMore(url, setter, pageTokenKey);
-        }
-        throw new Error('Failed to fetch more data');
-      }
-      const data = await response.json();
-      console.log(`Load more ${pageTokenKey}:`, data.items);
-      if (pageTokenKey === 'subscriptions') {
-        const uniqueItems = Array.from(
-          new Map(data.items.map(item => [item.snippet.resourceId.channelId, item])).values()
+      if (pageTokenKey === 'subscriptionFeed') {
+        const uniqueChannelIds = Array.from(
+          new Set(subscriptions.map((sub) => sub.snippet.resourceId.channelId))
         );
-        setter((prev) => [...prev, ...uniqueItems]);
+        const videoPromises = uniqueChannelIds.map(async (channelId) => {
+          const response = await fetch(
+            `https://www.googleapis.com/youtube/v3/search?part=snippet&channelId=${channelId}&type=video&order=date&maxResults=${itemsPerPage}`,
+            { headers: { Authorization: `Bearer ${accessToken}` } }
+          );
+          if (!response.ok) throw new Error('Failed to fetch more subscription videos');
+          const data = await response.json();
+          return data.items || [];
+        });
+        const allVideos = (await Promise.all(videoPromises)).flat();
+        allVideos.sort((a, b) => new Date(b.snippet.publishedAt) - new Date(a.snippet.publishedAt));
+        setter((prev) => [...prev, ...allVideos.slice(prev.length, prev.length + itemsPerPage)]);
+        setPageTokens((prev) => ({
+          ...prev,
+          subscriptionFeed: allVideos.length > prev.length + itemsPerPage ? 'next' : null,
+        }));
       } else {
-        setter((prev) => [...prev, ...(data.items || [])]);
+        const response = await fetch(`${url}&maxResults=${itemsPerPage}&pageToken=${pageTokens[pageTokenKey]}`, {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        });
+        if (!response.ok) {
+          if (response.status === 401) {
+            accessToken = await refreshAccessToken(localStorage.get('youtubeRefreshToken'));
+            if (!accessToken) return;
+            return loadMore(url, setter, pageTokenKey);
+          }
+          throw new Error('Failed to fetch more data');
+        }
+        const data = await response.json();
+        console.log(`Load more ${pageTokenKey}:`, data.items);
+        if (pageTokenKey === 'subscriptions') {
+          const uniqueItems = Array.from(
+            new Map(data.items.map((item) => [item.snippet.resourceId.channelId, item])).values()
+          );
+          setter((prev) => [...prev, ...uniqueItems]);
+        } else {
+          setter((prev) => [...prev, ...(data.items || [])]);
+        }
+        setPageTokens((prev) => ({ ...prev, [pageTokenKey]: data.nextPageToken || null }));
       }
-      setPageTokens((prev) => ({ ...prev, [pageTokenKey]: data.nextPageToken || null }));
     } catch (err) {
       console.error('Error loading more data:', err);
       setError(`Failed to load more data: ${err.message}`);
@@ -312,11 +363,10 @@ const YoutubeProfile = () => {
 
       const data = await response.json();
       console.log('Subscription videos fetched:', data.items);
-      setSubscriptionVideos((prev) => {
-        const newState = { ...prev, [channelId]: data.items || [] };
-        console.log('New subscriptionVideos state:', newState);
-        return newState;
-      });
+      setSubscriptionVideos((prev) => ({
+        ...prev,
+        [channelId]: data.items || [],
+      }));
       setPageTokens((prev) => ({ ...prev, [channelId]: data.nextPageToken || null }));
       setTabValue(9);
       setSearchResults([]);
@@ -546,7 +596,6 @@ const YoutubeProfile = () => {
               </Button>
             </div>
 
-            {console.log('Current tabValue:', tabValue)}
             <Tabs value={tabValue} onChange={(e, newValue) => setTabValue(newValue)} sx={{ marginBottom: '16px' }}>
               <Tab label="Home" />
               <Tab label="Shorts" />
@@ -592,11 +641,13 @@ const YoutubeProfile = () => {
                 </Grid>
                 {pageTokens.searchResults && (
                   <Button
-                    onClick={() => loadMore(
-                      `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(searchQuery)}&type=video&order=relevance`,
-                      setSearchResults,
-                      'searchResults'
-                    )}
+                    onClick={() =>
+                      loadMore(
+                        `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(searchQuery)}&type=video&order=relevance`,
+                        setSearchResults,
+                        'searchResults'
+                      )
+                    }
                   >
                     Load More
                   </Button>
@@ -629,7 +680,8 @@ const YoutubeProfile = () => {
                             <div style={{ flexGrow: 1 }}>
                               <Typography variant="body2" style={{ fontWeight: 'medium' }}>{video.snippet.title}</Typography>
                               <Typography variant="caption" style={{ color: 'rgba(0, 0, 0, 0.6)' }}>
-                                {video.statistics?.viewCount || '0'} views • {new Date(video.snippet.publishedAt).toLocaleDateString()}
+                                {video.statistics?.viewCount || '0'} views •{' '}
+                                {new Date(video.snippet.publishedAt).toLocaleDateString()}
                               </Typography>
                             </div>
                             <IconButton size="small">
@@ -637,8 +689,12 @@ const YoutubeProfile = () => {
                             </IconButton>
                           </CardContent>
                           <Box sx={{ padding: '8px', display: 'flex', gap: '8px' }}>
-                            <Button startIcon={<ThumbUp />} onClick={() => handleLikeVideo(video.id.id)}>Like</Button>
-                            <Button startIcon={<Comment />} onClick={() => fetchComments(video.id.id)}>Comments</Button>
+                            <Button startIcon={<ThumbUp />} onClick={() => handleLikeVideo(video.id.id)}>
+                              Like
+                            </Button>
+                            <Button startIcon={<Comment />} onClick={() => fetchComments(video.id.id)}>
+                              Comments
+                            </Button>
                           </Box>
                           {comments[video.id.id] && (
                             <Box sx={{ padding: '8px' }}>
@@ -674,11 +730,13 @@ const YoutubeProfile = () => {
                 )}
                 {pageTokens.videos && (
                   <Button
-                    onClick={() => loadMore(
-                      'https://www.googleapis.com/youtube/v3/videos?part=snippet,contentDetails,statistics&mine=true',
-                      setVideos,
-                      'videos'
-                    )}
+                    onClick={() =>
+                      loadMore(
+                        'https://www.googleapis.com/youtube/v3/videos?part=snippet,contentDetails,statistics&mine=true',
+                        setVideos,
+                        'videos'
+                      )
+                    }
                   >
                     Load More
                   </Button>
@@ -719,11 +777,13 @@ const YoutubeProfile = () => {
                 )}
                 {pageTokens.trendingVideos && (
                   <Button
-                    onClick={() => loadMore(
-                      'https://www.googleapis.com/youtube/v3/videos?part=snippet,contentDetails,statistics&chart=mostPopular&regionCode=TR',
-                      setTrendingVideos,
-                      'trendingVideos'
-                    )}
+                    onClick={() =>
+                      loadMore(
+                        'https://www.googleapis.com/youtube/v3/videos?part=snippet,contentDetails,statistics&chart=mostPopular&RegionCode=TR',
+                        setTrendingVideos,
+                        'trendingVideos'
+                      )
+                    }
                   >
                     Load More
                   </Button>
@@ -761,11 +821,13 @@ const YoutubeProfile = () => {
                 )}
                 {pageTokens.shorts && (
                   <Button
-                    onClick={() => loadMore(
-                      'https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&videoDuration=short&q=shorts',
-                      setShorts,
-                      'shorts'
-                    )}
+                    onClick={() =>
+                      loadMore(
+                        'https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&videoDuration=short&q=shorts',
+                        setShorts,
+                        'shorts'
+                      )
+                    }
                   >
                     Load More
                   </Button>
@@ -804,11 +866,13 @@ const YoutubeProfile = () => {
                 )}
                 {pageTokens.shorts && (
                   <Button
-                    onClick={() => loadMore(
-                      'https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&videoDuration=short&q=shorts',
-                      setShorts,
-                      'shorts'
-                    )}
+                    onClick={() =>
+                      loadMore(
+                        'https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&videoDuration=short&q=shorts',
+                        setShorts,
+                        'shorts'
+                      )
+                    }
                   >
                     Load More
                   </Button>
@@ -816,6 +880,7 @@ const YoutubeProfile = () => {
               </div>
             ) : tabValue === 2 ? (
               <div>
+                {error && <Typography variant="body1" color="error">{error}</Typography>}
                 {subscriptionFeed.length > 0 ? (
                   <Grid container spacing={2}>
                     {subscriptionFeed.map((video) => (
@@ -848,15 +913,7 @@ const YoutubeProfile = () => {
                   </Typography>
                 )}
                 {pageTokens.subscriptionFeed && (
-                  <Button
-                    onClick={() => loadMore(
-                      `https://www.googleapis.com/youtube/v3/search?part=snippet&channelId=${subscriptions.map(sub => sub.snippet.resourceId.channelId).join(',')}&type=video&order=date`,
-                      setSubscriptionFeed,
-                      'subscriptionFeed'
-                    )}
-                  >
-                    Load More
-                  </Button>
+                  <Button onClick={() => loadMore(null, setSubscriptionFeed, 'subscriptionFeed')}>Load More</Button>
                 )}
               </div>
             ) : tabValue === 3 ? (
@@ -870,7 +927,10 @@ const YoutubeProfile = () => {
                             <iframe
                               width="100%"
                               height="140"
-                              src={`https://www.youtube.com/embed/${item.contentDetails?.upload?.videoId || item.contentDetails?.playlistItem?.resourceId?.videoId}`}
+                              src={`https://www.youtube.com/embed/${
+                                item.contentDetails?.upload?.videoId ||
+                                item.contentDetails?.playlistItem?.resourceId?.videoId
+                              }`}
                               title={item.snippet.title}
                               frameBorder="0"
                               allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
@@ -892,11 +952,13 @@ const YoutubeProfile = () => {
                 )}
                 {pageTokens.history && (
                   <Button
-                    onClick={() => loadMore(
-                      'https://www.googleapis.com/youtube/v3/activities?part=snippet&mine=true',
-                      setHistory,
-                      'history'
-                    )}
+                    onClick={() =>
+                      loadMore(
+                        'https://www.googleapis.com/youtube/v3/activities?part=snippet&mine=true',
+                        setHistory,
+                        'history'
+                      )
+                    }
                   >
                     Load More
                   </Button>
@@ -935,11 +997,13 @@ const YoutubeProfile = () => {
                 )}
                 {pageTokens.playlists && (
                   <Button
-                    onClick={() => loadMore(
-                      'https://www.googleapis.com/youtube/v3/playlists?part=snippet,contentDetails&mine=true',
-                      setPlaylists,
-                      'playlists'
-                    )}
+                    onClick={() =>
+                      loadMore(
+                        'https://www.googleapis.com/youtube/v3/playlists?part=snippet,contentDetails&mine=true',
+                        setPlaylists,
+                        'playlists'
+                      )
+                    }
                   >
                     Load More
                   </Button>
@@ -967,7 +1031,8 @@ const YoutubeProfile = () => {
                           <CardContent>
                             <Typography variant="body2" style={{ fontWeight: 'medium' }}>{video.snippet.title}</Typography>
                             <Typography variant="caption" style={{ color: 'rgba(0, 0, 0, 0.6)' }}>
-                              {video.statistics?.viewCount || '0'} views • {new Date(video.snippet.publishedAt).toLocaleDateString()}
+                              {video.statistics?.viewCount || '0'} views •{' '}
+                              {new Date(video.snippet.publishedAt).toLocaleDateString()}
                             </Typography>
                           </CardContent>
                         </Card>
@@ -979,11 +1044,13 @@ const YoutubeProfile = () => {
                 )}
                 {pageTokens.videos && (
                   <Button
-                    onClick={() => loadMore(
-                      'https://www.googleapis.com/youtube/v3/videos?part=snippet,contentDetails,statistics&mine=true',
-                      setVideos,
-                      'videos'
-                    )}
+                    onClick={() =>
+                      loadMore(
+                        'https://www.googleapis.com/youtube/v3/videos?part=snippet,contentDetails,statistics&mine=true',
+                        setVideos,
+                        'videos'
+                      )
+                    }
                   >
                     Load More
                   </Button>
@@ -1024,11 +1091,13 @@ const YoutubeProfile = () => {
                 )}
                 {pageTokens.watchLater && (
                   <Button
-                    onClick={() => loadMore(
-                      'https://www.googleapis.com/youtube/v3/playlistItems?part=snippet&playlistId=WL',
-                      setWatchLater,
-                      'watchLater'
-                    )}
+                    onClick={() =>
+                      loadMore(
+                        'https://www.googleapis.com/youtube/v3/playlistItems?part=snippet&playlistId=WL',
+                        setWatchLater,
+                        'watchLater'
+                      )
+                    }
                   >
                     Load More
                   </Button>
@@ -1055,7 +1124,8 @@ const YoutubeProfile = () => {
                           <CardContent>
                             <Typography variant="body2" style={{ fontWeight: 'medium' }}>{video.snippet.title}</Typography>
                             <Typography variant="caption" style={{ color: 'rgba(0, 0, 0, 0.6)' }}>
-                              {video.statistics.viewCount || '0'} views • {new Date(video.snippet.publishedAt).toLocaleDateString()}
+                              {video.statistics.viewCount || '0'} views •{' '}
+                              {new Date(video.snippet.publishedAt).toLocaleDateString()}
                             </Typography>
                           </CardContent>
                         </Card>
@@ -1069,11 +1139,13 @@ const YoutubeProfile = () => {
                 )}
                 {pageTokens.likedVideos && (
                   <Button
-                    onClick={() => loadMore(
-                      'https://www.googleapis.com/youtube/v3/videos?part=snippet,contentDetails,statistics&myRating=like',
-                      setLikedVideos,
-                      'likedVideos'
-                    )}
+                    onClick={() =>
+                      loadMore(
+                        'https://www.googleapis.com/youtube/v3/videos?part=snippet,contentDetails,statistics&myRating=like',
+                        setLikedVideos,
+                        'likedVideos'
+                      )
+                    }
                   >
                     Load More
                   </Button>
@@ -1095,7 +1167,8 @@ const YoutubeProfile = () => {
                     <div key={channelId}>
                       <Typography variant="h6" style={{ marginBottom: '16px' }}>
                         Videos from{' '}
-                        {subscriptions.find((sub) => sub.snippet.resourceId.channelId === channelId)?.snippet.title || 'Unknown Channel'}
+                        {subscriptions.find((sub) => sub.snippet.resourceId.channelId === channelId)?.snippet.title ||
+                          'Unknown Channel'}
                       </Typography>
                       {videos.length > 0 ? (
                         <Grid container spacing={2}>
@@ -1116,7 +1189,8 @@ const YoutubeProfile = () => {
                                 <CardContent>
                                   <Typography variant="body2" style={{ fontWeight: 'medium' }}>{video.snippet.title}</Typography>
                                   <Typography variant="caption" style={{ color: 'rgba(0, 0, 0, 0.6)' }}>
-                                    {video.snippet.channelTitle} • {new Date(video.snippet.publishedAt).toLocaleDateString()}
+                                    {video.snippet.channelTitle} •{' '}
+                                    {new Date(video.snippet.publishedAt).toLocaleDateString()}
                                   </Typography>
                                 </CardContent>
                               </Card>
@@ -1130,11 +1204,17 @@ const YoutubeProfile = () => {
                       )}
                       {pageTokens[channelId] && (
                         <Button
-                          onClick={() => loadMore(
-                            `https://www.googleapis.com/youtube/v3/search?part=snippet&channelId=${channelId}&type=video&order=date`,
-                            (prev) => setSubscriptionVideos((state) => ({ ...state, [channelId]: [...state[channelId], ...(prev.items || [])] })),
-                            channelId
-                          )}
+                          onClick={() =>
+                            loadMore(
+                              `https://www.googleapis.com/youtube/v3/search?part=snippet&channelId=${channelId}&type=video&order=date`,
+                              (prev) =>
+                                setSubscriptionVideos((state) => ({
+                                  ...state,
+                                  [channelId]: [...state[channelId], ...(prev.items || [])],
+                                })),
+                              channelId
+                            )
+                          }
                         >
                           Load More
                         </Button>
