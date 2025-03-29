@@ -25,6 +25,7 @@ import {
   Visibility,
   Terrain,
   YouTube,
+  Facebook as FacebookIcon, // Added for Facebook icon
 } from '@mui/icons-material';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import largeLogo from '../../assets/images/linkedin-banner.jpg';
@@ -50,6 +51,16 @@ const menuItems = [
       { text: 'Insights', icon: <Visibility size={22} />, path: '/insights' },
       { text: 'Schedule', icon: <CalendarToday size={22} />, path: '/schedule' },
       { text: 'Login', icon: <Login size={22} />, path: '/FacebookLogin' },
+    ],
+  },
+  // New Facebook section added here
+  {
+    text: 'Facebook',
+    icon: <FacebookIcon size={22} />,
+    subItems: [
+      { text: 'Profile', icon: <Person size={22} />, path: '/FacebookProfile' },
+      { text: 'Posts', icon: <InsertChart size={22} />, path: '/FacebookPosts' },
+      { text: 'Login', icon: <Login size={22} />, path: '/FacebookLoginPage' }, // Unique path for clarity
     ],
   },
   {
@@ -86,7 +97,6 @@ const Sidebar = () => {
     // Redirect to the .NET server's login endpoint
     window.location.href = 'https://localhost:7099/api/GoogleAuth/login';
   };
-
 
   // Facebook Token Validation
   const validateFacebookToken = async (accessToken) => {
@@ -142,7 +152,7 @@ const Sidebar = () => {
     }
   };
 
-  // Facebook Login Response Handler
+  // Facebook Login Response Handler (Original for Instagram)
   const responseFacebook = async (response) => {
     console.log('Facebook Response from Sidebar:', response);
     if (response.accessToken) {
@@ -164,6 +174,31 @@ const Sidebar = () => {
       }
     } else {
       setError('No access token received from Facebook login.');
+    }
+  };
+
+  // New Facebook Login Response Handler
+  const responseFacebookPage = async (response) => {
+    console.log('Facebook Page Response from Sidebar:', response);
+    if (response.accessToken) {
+      setLoading(true);
+      setError(null);
+      const longLivedToken = await exchangeForLongLivedFacebookToken(response.accessToken);
+      if (longLivedToken) {
+        localStorage.set('facebookPageAccessToken', longLivedToken); // Separate key for Facebook Page
+        const isValid = await validateFacebookPageToken(longLivedToken);
+        if (isValid) {
+          fetchFacebookPageData(longLivedToken);
+        } else {
+          setError('Facebook Page token validation failed. Please check permissions and try again.');
+          setLoading(false);
+        }
+      } else {
+        setError('Failed to obtain a valid Facebook Page session. Please try again.');
+        setLoading(false);
+      }
+    } else {
+      setError('No access token received from Facebook Page login.');
     }
   };
 
@@ -213,6 +248,7 @@ const Sidebar = () => {
       const response = await fetch(
         `https://graph.facebook.com/v18.0/${instagramBusinessId}?fields=username,followers_count,media_count,follows_count,name,biography&access_token=${accessToken}&app_id=${facebookAppId}`
       );
+      
       const data = await response.json();
       if (data.error && data.error.code === 190) {
         setError('Your session has expired. Please log in again.');
@@ -227,6 +263,71 @@ const Sidebar = () => {
     } catch (error) {
       console.error('Error fetching Instagram user data:', error);
       setError('Failed to fetch Instagram user data. Please try again.');
+    }
+  };
+
+  // New Facebook Page Token Validation
+  const validateFacebookPageToken = async (accessToken) => {
+    try {
+      console.log('Validating Facebook Page access token:', accessToken);
+      const response = await fetch(
+        `https://graph.facebook.com/debug_token?input_token=${accessToken}&access_token=${facebookAppId}|${facebookAppSecret}`
+      );
+      const data = await response.json();
+      if (data.data && data.data.is_valid) {
+        const grantedScopes = data.data.scopes || [];
+        const requiredScopes = [
+          'pages_show_list',
+          'pages_manage_posts',
+          'pages_read_user_content',
+        ];
+        const missingScopes = requiredScopes.filter((scope) => !grantedScopes.includes(scope));
+        if (missingScopes.length > 0) {
+          throw new Error(`Missing permissions: ${missingScopes.join(', ')}. Please reauthorize the app.`);
+        }
+        return true;
+      }
+      return false;
+    } catch (error) {
+      console.error('Error validating Facebook Page token:', error);
+      setError(error.message || 'Error validating token. Please try again.');
+      return false;
+    }
+  };
+
+  // New Facebook Page Data Fetch
+  const fetchFacebookPageData = async (accessToken) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const pagesResponse = await fetch(
+        `https://graph.facebook.com/v18.0/me/accounts?access_token=${accessToken}&app_id=${facebookAppId}`
+      );
+      const pagesData = await pagesResponse.json();
+      if (pagesData.data && pagesData.data.length > 0) {
+        const pageId = pagesData.data[0].id;
+        const pageAccessToken = pagesData.data[0].access_token;
+        localStorage.set('facebookPageId', pageId);
+        localStorage.set('facebookPageAccessToken', pageAccessToken);
+
+        const pageResponse = await fetch(
+          `https://graph.facebook.com/v18.0/${pageId}?fields=name,about,fan_count,picture&access_token=${pageAccessToken}`
+        );
+        const pageData = await pageResponse.json();
+        localStorage.set('facebookPageName', pageData.name);
+        navigate('/FacebookProfile');
+      } else {
+        throw new Error('No Facebook Pages found for this user.');
+      }
+    } catch (error) {
+      console.error('Error fetching Facebook Page data:', error);
+      setError('Failed to connect to Facebook. Please log in again.');
+      localStorage.remove('facebookPageAccessToken');
+      localStorage.remove('facebookPageId');
+      localStorage.remove('facebookPageName');
+      navigate('/FacebookLoginPage');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -322,6 +423,26 @@ const Sidebar = () => {
                     >
                       <ListItemIcon>{subItem.icon}</ListItemIcon>
                       {(sidebarOpen || isHovered) && <ListItemText primary="Login with Google" />}
+                    </ListItem>
+                  );
+                }
+                // New Facebook Login button
+                if (subItem.text === 'Login' && item.text === 'Facebook') {
+                  return (
+                    <ListItem key={subItem.text} sx={{ pl: 4, m: 1, width: '95%' }}>
+                      <ListItemIcon>{subItem.icon}</ListItemIcon>
+                      {(sidebarOpen || isHovered) && (
+                        <FacebookLogin
+                          appId={facebookAppId}
+                          autoLoad={false}
+                          fields="name,email,picture"
+                          scope="pages_show_list,pages_manage_posts,pages_read_user_content"
+                          callback={responseFacebookPage}
+                          cssClass="facebook-login-btn"
+                          textButton="Login with Facebook"
+                          disabled={loading}
+                        />
+                      )}
                     </ListItem>
                   );
                 }

@@ -28,6 +28,7 @@ import ProfilePage from "./pages/profilePage/userProfile.js";
 import AdminPage from "./pages/adminPage/adminPage.js";
 import AdminUsers from "./pages/adminPage/adminUsers.js";
 import AdminSettings from "./pages/adminPage/adminProfilePage.js";
+import FacebookProfile from './pages/facebook/profile.js';
 
 import AuthCallback from './pages/youtube/authCallback.js'; // Import the new callback page
 import YoutubeProfile from './pages/youtube/profile.js'; // We'll create this next
@@ -202,6 +203,16 @@ function AppRoutes() {
             </ProtectedRoute>
           }
         />
+
+<Route
+          path="/FacebookProfile"
+          element={
+            <ProtectedRoute>
+              <FacebookProfile />
+            </ProtectedRoute>
+          }
+        />
+
 
         <Route
           path="/posts"
