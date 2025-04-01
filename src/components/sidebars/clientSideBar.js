@@ -280,7 +280,9 @@ const Sidebar = () => {
           'pages_show_list',
           'pages_manage_posts',
           'pages_read_user_content',
-        ];
+          'pages_manage_engagement',
+          'pages_manage_metadata',
+          ];
         const missingScopes = requiredScopes.filter((scope) => !grantedScopes.includes(scope));
         if (missingScopes.length > 0) {
           throw new Error(`Missing permissions: ${missingScopes.join(', ')}. Please reauthorize the app.`);
@@ -436,7 +438,8 @@ const Sidebar = () => {
                           appId={facebookAppId}
                           autoLoad={false}
                           fields="name,email,picture"
-                          scope="pages_show_list,pages_manage_posts,pages_read_user_content"
+                          scope="pages_show_list,pages_manage_posts,pages_read_user_content, pages_manage_engagement,
+          pages_manage_metadata"
                           callback={responseFacebookPage}
                           cssClass="facebook-login-btn"
                           textButton="Login with Facebook"
