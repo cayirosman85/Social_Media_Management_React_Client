@@ -33,7 +33,7 @@ const YoutubeProfile = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null); // For non-blocking errors
+  const [error, setError] = useState(null);
   const [tabValue, setTabValue] = useState(0);
   const [comments, setComments] = useState({});
   const [newComment, setNewComment] = useState('');
@@ -52,13 +52,23 @@ const YoutubeProfile = () => {
     searchResults: null,
   });
 
+  // Load YouTube iframe API and ensure it's ready
   useEffect(() => {
-    const tag = document.createElement('script');
-    tag.src = 'https://www.youtube.com/iframe_api';
-    const firstScriptTag = document.getElementsByTagName('script')[0];
-    firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
+    if (!window.YT) {
+      const tag = document.createElement('script');
+      tag.src = 'https://www.youtube.com/iframe_api';
+      const firstScriptTag = document.getElementsByTagName('script')[0];
+      firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
+
+      window.onYouTubeIframeAPIReady = () => {
+        console.log('YouTube Iframe API is ready');
+      };
+    } else {
+      console.log('YouTube Iframe API already loaded');
+    }
   }, []);
 
+  // Refresh access token
   const refreshAccessToken = async (refreshToken) => {
     try {
       const response = await fetch('https://localhost:7099/api/GoogleAuth/refresh-token', {
@@ -78,6 +88,7 @@ const YoutubeProfile = () => {
     }
   };
 
+  // Fetch video details
   const fetchVideoDetails = async (videoIds) => {
     let accessToken = localStorage.get('youtubeAccessToken');
     const refreshToken = localStorage.get('youtubeRefreshToken');
@@ -104,26 +115,30 @@ const YoutubeProfile = () => {
     }
   };
 
+  // Initialize history from localStorage
   useEffect(() => {
     const storedHistory = JSON.parse(localStorage.get('watchedVideos') || '[]');
     if (storedHistory.length > 0) {
       fetchVideoDetails(storedHistory).then((videoDetails) => {
-        setHistory(videoDetails);
+        setHistory(videoDetails.filter((v) => v));
+        console.log('Loaded history from localStorage:', videoDetails);
       });
     }
+    setLoading(false);
   }, []);
 
+  // Fetch profile and other data
   useEffect(() => {
     const fetchProfile = async () => {
       let accessToken = localStorage.get('youtubeAccessToken');
       const refreshToken = localStorage.get('youtubeRefreshToken');
-
+    
       if (!accessToken || !refreshToken) {
         setError('No authentication tokens found. Please log in again.');
         navigate('/YoutubeLogin');
         return;
       }
-
+    
       const fetchWithAuth = async (url, options = {}, pageTokenKey) => {
         const pageToken = pageTokens[pageTokenKey] || '';
         const fullUrl = `${url}&maxResults=${itemsPerPage}${pageToken ? `&pageToken=${pageToken}` : ''}`;
@@ -139,7 +154,7 @@ const YoutubeProfile = () => {
               return fetchWithAuth(url, options, pageTokenKey);
             }
             const data = await response.json();
-            throw new Error(data.error?.message || `Failed to fetch from ${url}`);
+            throw new Error(data.error?.message || `Failed to fetch from ${url} (Status: ${response.status})`);
           }
           return response.json();
         } catch (err) {
@@ -147,30 +162,40 @@ const YoutubeProfile = () => {
           throw err;
         }
       };
-
+    
       try {
         const cachedProfileRaw = localStorage.get('youtubeProfile');
         const cachedVideos = localStorage.get('youtubeVideos');
         let cachedProfile = cachedProfileRaw ? JSON.parse(cachedProfileRaw) : null;
         if (cachedProfile && cachedProfile.snippet) setProfile(cachedProfile);
         if (cachedVideos) setVideos(JSON.parse(cachedVideos));
-
+    
         if (!cachedProfile || !cachedProfile.snippet) {
+          console.log('Fetching profile from backend with token:', accessToken); // Debug log
           const profileResponse = await fetch('https://localhost:7099/api/GoogleAuth/youtube/profile', {
             headers: {
               'X-Access-Token': accessToken,
               'X-Refresh-Token': refreshToken,
             },
           });
+    
+          if (!profileResponse.ok) {
+            const errorText = await profileResponse.text(); // Get raw response for more detail
+            console.error('Profile fetch response:', profileResponse.status, errorText); // Debug log
+            throw new Error(
+              `Failed to fetch YouTube profile: ${profileResponse.status} - ${errorText || 'Unknown error'}`
+            );
+          }
+    
           const profileData = await profileResponse.json();
-          if (!profileResponse.ok) throw new Error(profileData.error || 'Failed to fetch YouTube profile');
+          console.log('Profile data received:', profileData); // Debug log
           setProfile(profileData.channel);
           setVideos(profileData.videos || []);
           localStorage.set('youtubeProfile', JSON.stringify(profileData.channel));
           localStorage.set('youtubeVideos', JSON.stringify(profileData.videos || []));
           cachedProfile = profileData.channel;
         }
-
+    
         const fetchPaginatedData = async (url, setter, cacheKey, pageTokenKey) => {
           try {
             const data = await fetchWithAuth(url, {}, pageTokenKey);
@@ -188,14 +213,14 @@ const YoutubeProfile = () => {
           } catch (err) {
             if (err.message.includes('quota')) {
               setError('YouTube API quota exceeded. Some data may be unavailable.');
-              setter([]); // Set empty array instead of failing
+              setter([]);
             } else {
               console.error(`Failed to fetch ${pageTokenKey}:`, err.message);
-              setter([]); // Fallback to empty array on other errors
+              setter([]);
             }
           }
         };
-
+    
         await Promise.all([
           fetchPaginatedData(
             'https://www.googleapis.com/youtube/v3/playlists?part=snippet,contentDetails&mine=true',
@@ -234,7 +259,7 @@ const YoutubeProfile = () => {
             'trendingVideos'
           ),
         ]);
-
+    
         localStorage.set('youtubeChannelId', cachedProfile?.id || '');
         localStorage.set('youtubeUsername', cachedProfile?.snippet?.title || '');
       } catch (err) {
@@ -252,13 +277,13 @@ const YoutubeProfile = () => {
           setError(`Failed to fetch YouTube data: ${err.message}. Showing cached or empty data.`);
         }
       } finally {
-        setLoading(false);
+        setLoading(false); // Ensure loading state is cleared even on error
       }
     };
-
     fetchProfile();
   }, [navigate]);
 
+  // Fetch subscription feed
   useEffect(() => {
     const fetchSubscriptionFeed = async () => {
       const accessToken = localStorage.get('youtubeAccessToken');
@@ -301,6 +326,7 @@ const YoutubeProfile = () => {
     fetchSubscriptionFeed();
   }, [subscriptions]);
 
+  // Load more data
   const loadMore = async (url, setter, pageTokenKey) => {
     let accessToken = localStorage.get('youtubeAccessToken');
     try {
@@ -526,16 +552,23 @@ const YoutubeProfile = () => {
     }
   };
 
+  // Handle video play to update history
   const handleVideoPlay = (videoId) => {
+    console.log('Video played:', videoId);
     const storedHistory = JSON.parse(localStorage.get('watchedVideos') || '[]');
     if (!storedHistory.includes(videoId)) {
       storedHistory.unshift(videoId);
-      localStorage.set('watchedVideos', JSON.stringify(storedHistory.slice(0, 50)));
+      const limitedHistory = storedHistory.slice(0, 50);
+      localStorage.set('watchedVideos', JSON.stringify(limitedHistory));
+      console.log('Updated localStorage:', limitedHistory);
       fetchVideoDetails([videoId]).then((videoDetails) => {
-        setHistory((prev) => {
-          const updatedHistory = [videoDetails[0], ...prev.filter((v) => v.id !== videoId)];
-          return updatedHistory.slice(0, 50);
-        });
+        if (videoDetails.length > 0) {
+          setHistory((prev) => {
+            const updatedHistory = [videoDetails[0], ...prev.filter((v) => v.id !== videoId)];
+            console.log('Updated history state:', updatedHistory);
+            return updatedHistory.slice(0, 50);
+          });
+        }
       });
     }
   };
@@ -548,7 +581,6 @@ const YoutubeProfile = () => {
     );
   }
 
-  // Render the page even if profile is null, using fallback values
   const snippet = profile?.snippet || { title: 'Your Channel', thumbnails: { high: { url: '' } } };
   const statistics = profile?.statistics || { subscriberCount: '0', videoCount: '0' };
 
@@ -674,15 +706,22 @@ const YoutubeProfile = () => {
                             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                             allowFullScreen
                             onLoad={() => {
-                              new window.YT.Player(`player-${video.id.videoId}`, {
-                                events: {
-                                  onStateChange: (event) => {
-                                    if (event.data === window.YT.PlayerState.PLAYING) {
-                                      handleVideoPlay(video.id.videoId);
-                                    }
+                              if (window.YT && window.YT.Player) {
+                                new window.YT.Player(`player-${video.id.videoId}`, {
+                                  events: {
+                                    onStateChange: (event) => {
+                                      if (event.data === window.YT.PlayerState.PLAYING) {
+                                        handleVideoPlay(video.id.videoId);
+                                      }
+                                    },
+                                    onError: (event) => {
+                                      console.error('YouTube Player Error:', event.data);
+                                    },
                                   },
-                                },
-                              });
+                                });
+                              } else {
+                                console.warn('YouTube API not loaded yet for video:', video.id.videoId);
+                              }
                             }}
                             id={`player-${video.id.videoId}`}
                           />
@@ -737,15 +776,22 @@ const YoutubeProfile = () => {
                               allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                               allowFullScreen
                               onLoad={() => {
-                                new window.YT.Player(`player-${video.id.id}`, {
-                                  events: {
-                                    onStateChange: (event) => {
-                                      if (event.data === window.YT.PlayerState.PLAYING) {
-                                        handleVideoPlay(video.id.id);
-                                      }
+                                if (window.YT && window.YT.Player) {
+                                  new window.YT.Player(`player-${video.id.id}`, {
+                                    events: {
+                                      onStateChange: (event) => {
+                                        if (event.data === window.YT.PlayerState.PLAYING) {
+                                          handleVideoPlay(video.id.id);
+                                        }
+                                      },
+                                      onError: (event) => {
+                                        console.error('YouTube Player Error:', event.data);
+                                      },
                                     },
-                                  },
-                                });
+                                  });
+                                } else {
+                                  console.warn('YouTube API not loaded yet for video:', video.id.id);
+                                }
                               }}
                               id={`player-${video.id.id}`}
                             />
@@ -836,15 +882,22 @@ const YoutubeProfile = () => {
                               allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                               allowFullScreen
                               onLoad={() => {
-                                new window.YT.Player(`player-${video.id}`, {
-                                  events: {
-                                    onStateChange: (event) => {
-                                      if (event.data === window.YT.PlayerState.PLAYING) {
-                                        handleVideoPlay(video.id);
-                                      }
+                                if (window.YT && window.YT.Player) {
+                                  new window.YT.Player(`player-${video.id}`, {
+                                    events: {
+                                      onStateChange: (event) => {
+                                        if (event.data === window.YT.PlayerState.PLAYING) {
+                                          handleVideoPlay(video.id);
+                                        }
+                                      },
+                                      onError: (event) => {
+                                        console.error('YouTube Player Error:', event.data);
+                                      },
                                     },
-                                  },
-                                });
+                                  });
+                                } else {
+                                  console.warn('YouTube API not loaded yet for video:', video.id);
+                                }
                               }}
                               id={`player-${video.id}`}
                             />
@@ -899,15 +952,22 @@ const YoutubeProfile = () => {
                               allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                               allowFullScreen
                               onLoad={() => {
-                                new window.YT.Player(`player-${video.id.videoId}`, {
-                                  events: {
-                                    onStateChange: (event) => {
-                                      if (event.data === window.YT.PlayerState.PLAYING) {
-                                        handleVideoPlay(video.id.videoId);
-                                      }
+                                if (window.YT && window.YT.Player) {
+                                  new window.YT.Player(`player-${video.id.videoId}`, {
+                                    events: {
+                                      onStateChange: (event) => {
+                                        if (event.data === window.YT.PlayerState.PLAYING) {
+                                          handleVideoPlay(video.id.videoId);
+                                        }
+                                      },
+                                      onError: (event) => {
+                                        console.error('YouTube Player Error:', event.data);
+                                      },
                                     },
-                                  },
-                                });
+                                  });
+                                } else {
+                                  console.warn('YouTube API not loaded yet for video:', video.id.videoId);
+                                }
                               }}
                               id={`player-${video.id.videoId}`}
                             />
@@ -960,15 +1020,22 @@ const YoutubeProfile = () => {
                               allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                               allowFullScreen
                               onLoad={() => {
-                                new window.YT.Player(`player-${video.id.videoId}`, {
-                                  events: {
-                                    onStateChange: (event) => {
-                                      if (event.data === window.YT.PlayerState.PLAYING) {
-                                        handleVideoPlay(video.id.videoId);
-                                      }
+                                if (window.YT && window.YT.Player) {
+                                  new window.YT.Player(`player-${video.id.videoId}`, {
+                                    events: {
+                                      onStateChange: (event) => {
+                                        if (event.data === window.YT.PlayerState.PLAYING) {
+                                          handleVideoPlay(video.id.videoId);
+                                        }
+                                      },
+                                      onError: (event) => {
+                                        console.error('YouTube Player Error:', event.data);
+                                      },
                                     },
-                                  },
-                                });
+                                  });
+                                } else {
+                                  console.warn('YouTube API not loaded yet for video:', video.id.videoId);
+                                }
                               }}
                               id={`player-${video.id.videoId}`}
                             />
@@ -1021,15 +1088,22 @@ const YoutubeProfile = () => {
                               allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                               allowFullScreen
                               onLoad={() => {
-                                new window.YT.Player(`player-${video.id.videoId}`, {
-                                  events: {
-                                    onStateChange: (event) => {
-                                      if (event.data === window.YT.PlayerState.PLAYING) {
-                                        handleVideoPlay(video.id.videoId);
-                                      }
+                                if (window.YT && window.YT.Player) {
+                                  new window.YT.Player(`player-${video.id.videoId}`, {
+                                    events: {
+                                      onStateChange: (event) => {
+                                        if (event.data === window.YT.PlayerState.PLAYING) {
+                                          handleVideoPlay(video.id.videoId);
+                                        }
+                                      },
+                                      onError: (event) => {
+                                        console.error('YouTube Player Error:', event.data);
+                                      },
                                     },
-                                  },
-                                });
+                                  });
+                                } else {
+                                  console.warn('YouTube API not loaded yet for video:', video.id.videoId);
+                                }
                               }}
                               id={`player-${video.id.videoId}`}
                             />
@@ -1074,15 +1148,22 @@ const YoutubeProfile = () => {
                               allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                               allowFullScreen
                               onLoad={() => {
-                                new window.YT.Player(`player-${video.id}`, {
-                                  events: {
-                                    onStateChange: (event) => {
-                                      if (event.data === window.YT.PlayerState.PLAYING) {
-                                        handleVideoPlay(video.id);
-                                      }
+                                if (window.YT && window.YT.Player) {
+                                  new window.YT.Player(`player-${video.id}`, {
+                                    events: {
+                                      onStateChange: (event) => {
+                                        if (event.data === window.YT.PlayerState.PLAYING) {
+                                          handleVideoPlay(video.id);
+                                        }
+                                      },
+                                      onError: (event) => {
+                                        console.error('YouTube Player Error:', event.data);
+                                      },
                                     },
-                                  },
-                                });
+                                  });
+                                } else {
+                                  console.warn('YouTube API not loaded yet for video:', video.id);
+                                }
                               }}
                               id={`player-${video.id}`}
                             />
@@ -1174,15 +1255,22 @@ const YoutubeProfile = () => {
                               allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                               allowFullScreen
                               onLoad={() => {
-                                new window.YT.Player(`player-${video.id.id}`, {
-                                  events: {
-                                    onStateChange: (event) => {
-                                      if (event.data === window.YT.PlayerState.PLAYING) {
-                                        handleVideoPlay(video.id.id);
-                                      }
+                                if (window.YT && window.YT.Player) {
+                                  new window.YT.Player(`player-${video.id.id}`, {
+                                    events: {
+                                      onStateChange: (event) => {
+                                        if (event.data === window.YT.PlayerState.PLAYING) {
+                                          handleVideoPlay(video.id.id);
+                                        }
+                                      },
+                                      onError: (event) => {
+                                        console.error('YouTube Player Error:', event.data);
+                                      },
                                     },
-                                  },
-                                });
+                                  });
+                                } else {
+                                  console.warn('YouTube API not loaded yet for video:', video.id.id);
+                                }
                               }}
                               id={`player-${video.id.id}`}
                             />
@@ -1236,15 +1324,22 @@ const YoutubeProfile = () => {
                               allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                               allowFullScreen
                               onLoad={() => {
-                                new window.YT.Player(`player-${item.snippet.resourceId.videoId}`, {
-                                  events: {
-                                    onStateChange: (event) => {
-                                      if (event.data === window.YT.PlayerState.PLAYING) {
-                                        handleVideoPlay(item.snippet.resourceId.videoId);
-                                      }
+                                if (window.YT && window.YT.Player) {
+                                  new window.YT.Player(`player-${item.snippet.resourceId.videoId}`, {
+                                    events: {
+                                      onStateChange: (event) => {
+                                        if (event.data === window.YT.PlayerState.PLAYING) {
+                                          handleVideoPlay(item.snippet.resourceId.videoId);
+                                        }
+                                      },
+                                      onError: (event) => {
+                                        console.error('YouTube Player Error:', event.data);
+                                      },
                                     },
-                                  },
-                                });
+                                  });
+                                } else {
+                                  console.warn('YouTube API not loaded yet for video:', item.snippet.resourceId.videoId);
+                                }
                               }}
                               id={`player-${item.snippet.resourceId.videoId}`}
                             />
@@ -1297,15 +1392,22 @@ const YoutubeProfile = () => {
                               allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                               allowFullScreen
                               onLoad={() => {
-                                new window.YT.Player(`player-${video.id}`, {
-                                  events: {
-                                    onStateChange: (event) => {
-                                      if (event.data === window.YT.PlayerState.PLAYING) {
-                                        handleVideoPlay(video.id);
-                                      }
+                                if (window.YT && window.YT.Player) {
+                                  new window.YT.Player(`player-${video.id}`, {
+                                    events: {
+                                      onStateChange: (event) => {
+                                        if (event.data === window.YT.PlayerState.PLAYING) {
+                                          handleVideoPlay(video.id);
+                                        }
+                                      },
+                                      onError: (event) => {
+                                        console.error('YouTube Player Error:', event.data);
+                                      },
                                     },
-                                  },
-                                });
+                                  });
+                                } else {
+                                  console.warn('YouTube API not loaded yet for video:', video.id);
+                                }
                               }}
                               id={`player-${video.id}`}
                             />
@@ -1373,15 +1475,22 @@ const YoutubeProfile = () => {
                                     allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                                     allowFullScreen
                                     onLoad={() => {
-                                      new window.YT.Player(`player-${video.id.videoId}`, {
-                                        events: {
-                                          onStateChange: (event) => {
-                                            if (event.data === window.YT.PlayerState.PLAYING) {
-                                              handleVideoPlay(video.id.videoId);
-                                            }
+                                      if (window.YT && window.YT.Player) {
+                                        new window.YT.Player(`player-${video.id.videoId}`, {
+                                          events: {
+                                            onStateChange: (event) => {
+                                              if (event.data === window.YT.PlayerState.PLAYING) {
+                                                handleVideoPlay(video.id.videoId);
+                                              }
+                                            },
+                                            onError: (event) => {
+                                              console.error('YouTube Player Error:', event.data);
+                                            },
                                           },
-                                        },
-                                      });
+                                        });
+                                      } else {
+                                        console.warn('YouTube API not loaded yet for video:', video.id.videoId);
+                                      }
                                     }}
                                     id={`player-${video.id.videoId}`}
                                   />
