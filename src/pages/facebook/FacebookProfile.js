@@ -6,6 +6,8 @@ const FacebookProfile = () => {
   const [pageData, setPageData] = useState(null);
   const [posts, setPosts] = useState([]);
   const [photos, setPhotos] = useState([]);
+  const [videos, setVideos] = useState([]);
+  const [reels, setReels] = useState([]);
   const [comments, setComments] = useState({});
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -24,7 +26,9 @@ const FacebookProfile = () => {
   const [likedComments, setLikedComments] = useState({});
   const [feelingActivity, setFeelingActivity] = useState("");
   const [taggedPeople, setTaggedPeople] = useState([]);
-
+  const [isLoadingReels, setIsLoadingReels] = useState(true);
+  const [isLoadingVideos, setIsLoadingVideos] = useState(true);
+  const [showMenu, setShowMenu] = useState({}); // New state for menu visibility
   const pageId = localStorage.get("facebookPageId");
   const accessToken = localStorage.get("facebookPageAccessToken");
 
@@ -37,13 +41,15 @@ const FacebookProfile = () => {
     fetchPageData();
     fetchPagePosts();
     fetchAllMedia();
+    fetchReels();
+    fetchVideos();
   }, [pageId, accessToken]);
 
   const fetchPageData = async () => {
     setIsLoading(true);
     try {
       const response = await fetch(
-        `https://graph.facebook.com/v18.0/${pageId}?fields=name,about,fan_count,picture,cover&access_token=${accessToken}`
+        `https://graph.facebook.com/v18.0/${pageId}?fields=name,about,description,fan_count,followers_count,picture,cover,category,phone,website,location,hours,founded,mission,products,verification_status,rating_count,link,username,is_published,engagement&access_token=${accessToken}`
       );
       const data = await response.json();
       if (!response.ok) throw new Error(data.error?.message || "Failed to fetch page data");
@@ -122,6 +128,38 @@ const FacebookProfile = () => {
       setError(err.message);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const fetchReels = async () => {
+    setIsLoading(true);
+    try {
+      const response = await fetch(
+        `https://graph.facebook.com/v18.0/${pageId}/video_reels?fields=id,source,thumbnail,created_time,title,description&access_token=${accessToken}&limit=10`
+      );
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error?.message || "Failed to fetch reels");
+      setReels(data.data || []);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const fetchVideos = async () => {
+    setIsLoadingVideos(true);
+    try {
+      const response = await fetch(
+        `https://graph.facebook.com/v18.0/${pageId}/videos?fields=id,source,thumbnail_url,created_time,title,description&access_token=${accessToken}&limit=10`
+      );
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error?.message || "Failed to fetch videos");
+      setVideos(data.data || []);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setIsLoadingVideos(false);
     }
   };
 
@@ -530,7 +568,7 @@ const FacebookProfile = () => {
             </div>
           </div>
           <div className="profile-tabs">
-            {["Posts", "About", "Mentions", "Reviews", "Followers", "Photos", "More"].map((tab) => (
+            {["Posts", "About", "Mentions", "Reviews", "Photos"].map((tab) => (
               <button
                 key={tab}
                 className={`tab ${activeTab === tab ? "active" : ""}`}
@@ -544,7 +582,7 @@ const FacebookProfile = () => {
             <div className="sidebar">
               <div className="sidebar-section">
                 <h3>Intro</h3>
-                <p>Page • Home Businesses</p>
+                <p>Page • {pageData.category || "Home Businesses"}</p>
                 <button className="promote-button">Promote Page</button>
                 <p>Not yet rated (0 Reviews)</p>
               </div>
@@ -552,7 +590,7 @@ const FacebookProfile = () => {
                 <h3>Photos</h3>
                 {photos.length > 0 ? (
                   <div className="photo-gallery">
-                    {photos.map((photo) => (
+                    {photos.slice(0, 2).map((photo) => (
                       <img
                         key={photo.id}
                         src={photo.images[0]?.source}
@@ -572,261 +610,466 @@ const FacebookProfile = () => {
             </div>
             <div className="main-content">
               {activeTab === "Posts" && (
-                <>
-                  <div className="new-post-section">
-                    <form onSubmit={handleCreatePost}>
-                      <div className="post-header">
-                        <img
-                          src={pageData.picture.data.url}
-                          alt="Page Profile"
-                          className="post-profile-picture"
-                        />
-                        <div className="post-header-info">
-                          <p className="post-author">{pageData.name}</p>
-                          <select className="privacy-select">
-                            <option value="public">Public</option>
-                            <option value="friends">Friends</option>
-                            <option value="only-me">Only Me</option>
-                          </select>
-                        </div>
-                      </div>
-                      <textarea
-                        value={newPostMessage}
-                        onChange={(e) => setNewPostMessage(e.target.value)}
-                        placeholder={`Write something to Osman Test...`}
-                        rows="3"
-                        className="post-textarea"
-                      />
-                      {feelingActivity && (
-                        <div className="feeling-activity">
-                          is {feelingActivity}
-                          <button
-                            type="button"
-                            onClick={() => setFeelingActivity("")}
-                            className="remove-feeling"
-                          >
-                            ×
-                          </button>
-                        </div>
-                      )}
-                      <div className="media-preview-section">
-                        {mediaFiles.length > 0 && (
-                          <div className="image-preview">
-                            {mediaFiles.map((file, index) => (
-                              <div key={index} className="media-preview-item">
-                                <img
-                                  src={URL.createObjectURL(file)}
-                                  alt="Preview"
-                                  className="preview-image"
-                                />
-                                {mediaUrls[index] && (
-                                  <a href={mediaUrls[index]} target="_blank" rel="noopener noreferrer">
-                                    {mediaUrls[index]}
-                                  </a>
-                                )}
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                        <div className="media-upload-section">
-                          <label className="media-upload-label">
-                            Add photos/videos
-                            <input
-                              type="file"
-                              accept="image/*,video/*"
-                              multiple
-                              onChange={(e) => setMediaFiles(Array.from(e.target.files))}
-                              style={{ display: "none" }}
-                            />
-                          </label>
-                          <button type="button" className="media-upload-button">
-                            Add
-                          </button>
-                        </div>
-                      </div>
-                      <div className="post-options">
-                        <button
-                          type="button"
-                          className="option-button"
-                          onClick={() => setMediaFiles([])} // Simplified for demo
-                        >
-                          <span className="icon photo-video-icon">📷</span> Photo/video
-                        </button>
-                        <button type="button" className="option-button">
-                          <span className="icon tag-people-icon">👤</span> Tag people
-                        </button>
-                        <button
-                          type="button"
-                          className="option-button"
-                          onClick={() => setFeelingActivity("celebrating friendship")} // Simplified for demo
-                        >
-                          <span className="icon feeling-activity-icon">😊</span> Feeling/activity
-                        </button>
-                      </div>
-                      <button type="submit" disabled={isLoading} className="post-button">
-                        {isLoading ? "Posting..." : "Post"}
-                      </button>
-                    </form>
+                <div className="posts-section">
+                  <div className="posts-header">
+                    <h2>Posts</h2>
+                   
                   </div>
-                  <div className="posts-section">
-                    <div className="posts-header">
-                      <h2>Posts</h2>
-                      <button className="filter-button">Filters</button>
-                    </div>
-                    {posts.length > 0 ? (
-                      <ul>
-                        {posts.map((post) => (
-                          <li key={post.id} className="post-item">
-                            <div className="post-header">
-                              <img
-                                src={pageData.picture.data.url}
-                                alt="Page Profile"
-                                className="post-profile-picture"
-                              />
-                              <div>
-                                <p className="post-author">{pageData.name}</p>
-                                <small>{new Date(post.created_time).toLocaleString()}</small>
-                              </div>
+                  {posts.length > 0 ? (
+                    <ul>
+                      {posts.map((post) => (
+                        <li key={post.id} className="post-item">
+                          <div className="post-header">
+                        
+                            <div className="post-header-left">
+                            <img
+                              src={pageData.picture.data.url}
+                              alt="Page Profile"
+                              className="post-profile-picture"
+                            />
+                           <div>
+                           <p className="post-author">{pageData.name}</p>
+                           <small>{new Date(post.created_time).toLocaleString()}</small>
+                           </div>
                             </div>
-                            {editPostText[post.id] ? (
-                              <form onSubmit={(e) => handleEditPost(post.id, e)}>
-                                <textarea
-                                  value={editPostText[post.id]}
-                                  onChange={(e) =>
-                                    setEditPostText(prev => ({ ...prev, [post.id]: e.target.value }))
-                                  }
-                                  rows="3"
-                                  className="edit-post-textarea"
-                                />
-                                <input
-                                  type="file"
-                                  accept="image/*"
-                                  multiple
-                                  onChange={(e) =>
-                                    setEditPostMediaFiles(prev => ({
-                                      ...prev,
-                                      [post.id]: Array.from(e.target.files),
-                                    }))
-                                  }
-                                />
-                                {editPostMediaFiles[post.id]?.length > 0 && (
-                                  <div className="image-preview">
-                                    {editPostMediaFiles[post.id].map((file, index) => (
-                                      <div key={index} className="media-preview-item">
+                            <div className="post-menu">
+                              <button
+                                className="menu-button"
+                                onClick={() =>
+                                  setShowMenu(prev => ({
+                                    ...prev,
+                                    [post.id]: !prev[post.id],
+                                  }))
+                                }
+                              >
+                                ⋮
+                              </button>
+                              {showMenu[post.id] && (
+                                <div className="menu-dropdown">
+                                  <button
+                                    className="menu-item"
+                                    onClick={() => {
+                                      setEditPostText(prev => ({
+                                        ...prev,
+                                        [post.id]: post.message,
+                                      }));
+                                      setShowMenu(prev => ({
+                                        ...prev,
+                                        [post.id]: false,
+                                      }));
+                                    }}
+                                  >
+                                    Edit
+                                  </button>
+                                  <button
+                                    className="menu-item"
+                                    onClick={() => {
+                                      handleDeletePost(post.id);
+                                      setShowMenu(prev => ({
+                                        ...prev,
+                                        [post.id]: false,
+                                      }));
+                                    }}
+                                  >
+                                    Delete
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                          {editPostText[post.id] ? (
+                            <form onSubmit={(e) => handleEditPost(post.id, e)}>
+                              <textarea
+                                value={editPostText[post.id]}
+                                onChange={(e) =>
+                                  setEditPostText(prev => ({
+                                    ...prev,
+                                    [post.id]: e.target.value,
+                                  }))
+                                }
+                                rows="3"
+                                className="edit-post-textarea"
+                              />
+                              <input
+                                type="file"
+                                accept="image/*,video/*"
+                                multiple
+                                onChange={(e) =>
+                                  setEditPostMediaFiles(prev => ({
+                                    ...prev,
+                                    [post.id]: Array.from(e.target.files),
+                                  }))
+                                }
+                              />
+                              {editPostMediaFiles[post.id]?.length > 0 && (
+                                <div className="image-preview">
+                                  {editPostMediaFiles[post.id].map((file, index) => (
+                                    <div key={index} className="media-preview-item">
+                                      {file.type.startsWith("image/") ? (
                                         <img
                                           src={URL.createObjectURL(file)}
                                           alt="Preview"
                                           className="preview-image"
                                         />
-                                      </div>
-                                    ))}
-                                  </div>
-                                )}
+                                      ) : (
+                                        <video
+                                          src={URL.createObjectURL(file)}
+                                          className="preview-video"
+                                          controls
+                                        >
+                                          Your browser does not support the video tag.
+                                        </video>
+                                      )}
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                              <input
+                                type="text"
+                                value={editPostMediaUrl[post.id] || ""}
+                                onChange={(e) =>
+                                  setEditPostMediaUrl(prev => ({
+                                    ...prev,
+                                    [post.id]: e.target.value,
+                                  }))
+                                }
+                                placeholder="Or enter a new media URL"
+                                className="manual-url-input"
+                              />
+                              <button type="submit" className="edit-post-submit-button">
+                                Save
+                              </button>
+                            </form>
+                          ) : (
+                            <>
+                              {post.message && <p>{post.message}</p>}
+                              {post.attachments?.data?.[0] && (
+                                <>
+                                  {post.attachments.data[0].type === "video_inline" ||
+                                  post.attachments.data[0].type === "video" ? (
+                                    <video
+                                      className="post-video"
+                                      poster={
+                                        post.attachments.data[0].media?.image?.src ||
+                                        "https://via.placeholder.com/300"
+                                      }
+                                      controls
+                                    >
+                                      <source
+                                        src={post.attachments.data[0].media?.source}
+                                        type="video/mp4"
+                                      />
+                                      Your browser does not support the video tag.
+                                    </video>
+                                  ) : post.attachments.data[0].media?.image ? (
+                                    <img
+                                      src={post.attachments.data[0].media.image.src}
+                                      alt="Post media"
+                                      className="post-image"
+                                      onError={(e) =>
+                                        (e.target.src = "https://via.placeholder.com/300")
+                                      }
+                                    />
+                                  ) : null}
+                                </>
+                              )}
+                            </>
+                          )}
+                          <div className="post-actions">
+                            <button
+                              className={`action-button ${likedPosts[post.id] ? "liked" : ""}`}
+                              onClick={() => handleLikePost(post.id)}
+                            >
+                              {likedPosts[post.id] ? "Unlike" : "Like"} (
+                              {post.likes?.summary?.total_count || 0})
+                            </button>
+                            <button
+                              className="action-button"
+                              onClick={() => fetchPostComments(post.id)}
+                            >
+                              Comment ({post.comments?.summary?.total_count || 0})
+                            </button>
+                            <button className="action-button boost-action">Boost</button>
+                          </div>
+                          <div className="comment-section">
+                            {comments[post.id] && (
+                              <div className="comments-list">
+                                {comments[post.id].map((comment) => (
+                                  <CommentItem
+                                    key={comment.id}
+                                    comment={comment}
+                                    postId={post.id}
+                                  />
+                                ))}
+                              </div>
+                            )}
+                            <form onSubmit={(e) => handleCommentSubmit(post.id, e)}>
+                              <div className="comment-input-wrapper">
+                                <img
+                                  src={pageData.picture.data.url}
+                                  alt="User Profile"
+                                  className="comment-profile-picture"
+                                />
                                 <input
                                   type="text"
-                                  value={editPostMediaUrl[post.id] || ""}
+                                  value={commentText[post.id] || ""}
                                   onChange={(e) =>
-                                    setEditPostMediaUrl(prev => ({
+                                    setCommentText(prev => ({
                                       ...prev,
                                       [post.id]: e.target.value,
                                     }))
                                   }
-                                  placeholder="Or enter a new media URL"
-                                  className="manual-url-input"
+                                  placeholder="Write a comment..."
+                                  className="comment-input"
                                 />
-                                <button type="submit" className="edit-post-submit-button">
-                                  Save
+                                <button type="submit" className="comment-submit-button">
+                                  ➤
                                 </button>
-                              </form>
-                            ) : (
-                              <>
-                                {post.message && <p>{post.message}</p>}
-                                {post.attachments?.data?.[0]?.media?.image && (
-                                  <img
-                                    src={post.attachments.data[0].media.image.src}
-                                    alt="Post media"
-                                    className="post-image"
-                                  />
-                                )}
-                              </>
-                            )}
-                            <div className="post-actions">
-                              <button
-                                className={`action-button ${likedPosts[post.id] ? "liked" : ""}`}
-                                onClick={() => handleLikePost(post.id)}
-                              >
-                                {likedPosts[post.id] ? "Unlike" : "Like"} ({post.likes?.summary?.total_count || 0})
-                              </button>
-                              <button
-                                className="action-button"
-                                onClick={() => fetchPostComments(post.id)}
-                              >
-                                Comment ({post.comments?.summary?.total_count || 0})
-                              </button>
-                              <button className="action-button">Share</button>
-                              <button
-                                className="action-button"
-                                onClick={() =>
-                                  setEditPostText(prev => ({
-                                    ...prev,
-                                    [post.id]: post.message,
-                                  }))
-                                }
-                              >
-                                Edit
-                              </button>
-                              <button
-                                className="action-button"
-                                onClick={() => handleDeletePost(post.id)}
-                              >
-                                Delete
-                              </button>
-                            </div>
-                            <div className="comment-section">
-                              {comments[post.id] && (
-                                <div className="comments-list">
-                                  {comments[post.id].map((comment) => (
-                                    <CommentItem key={comment.id} comment={comment} postId={post.id} />
-                                  ))}
-                                </div>
-                              )}
-                              <form onSubmit={(e) => handleCommentSubmit(post.id, e)}>
-                                <div className="comment-input-wrapper">
-                                  <img
-                                    src={pageData.picture.data.url}
-                                    alt="User Profile"
-                                    className="comment-profile-picture"
-                                  />
-                                  <input
-                                    type="text"
-                                    value={commentText[post.id] || ""}
-                                    onChange={(e) =>
-                                      setCommentText(prev => ({
-                                        ...prev,
-                                        [post.id]: e.target.value,
-                                      }))
-                                    }
-                                    placeholder="Write a comment..."
-                                    className="comment-input"
-                                  />
-                                  <button type="submit" className="comment-submit-button">
-                                    ➤
-                                  </button>
-                                </div>
-                              </form>
-                            </div>
-                            <button className="boost-button">
-                              Boost this post to get more reach for {pageData.name}
-                            </button>
-                            <button className="boost-now-button">Boost post</button>
-                          </li>
-                        ))}
-                      </ul>
-                    ) : (
-                      <p>No posts available.</p>
+                              </div>
+                            </form>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p>No posts available.</p>
+                  )}
+                </div>
+              )}
+              {activeTab === "About" && (
+                <div className="about-section">
+                  <div className="about-section-header">
+                    <h2>About</h2>
+                  </div>
+                  <div className="about-section-content">
+                    <h3>Contact Information</h3>
+                    {pageData.phone && (
+                      <div className="info-item">
+                        <span className="info-icon">📞</span>
+                        <p>Phone: {pageData.phone}</p>
+                      </div>
+                    )}
+                    {pageData.email && (
+                      <div className="info-item">
+                        <span className="info-icon">📧</span>
+                        <p>
+                          Email: <a href={`mailto:${pageData.email}`}>{pageData.email}</a>
+                        </p>
+                      </div>
+                    )}
+                    {pageData.website && (
+                      <div className="info-item">
+                        <span className="info-icon">🌐</span>
+                        <p>
+                          Website:{" "}
+                          <a href={pageData.website} target="_blank" rel="noopener noreferrer">
+                            {pageData.website}
+                          </a>
+                        </p>
+                      </div>
+                    )}
+                    {pageData.link && (
+                      <div className="info-item">
+                        <span className="info-icon">🔗</span>
+                        <p>
+                          Facebook:{" "}
+                          <a href={pageData.link} target="_blank" rel="noopener noreferrer">
+                            {pageData.username || pageData.link}
+                          </a>
+                        </p>
+                      </div>
+                    )}
+                    {!pageData.phone && !pageData.email && !pageData.website && !pageData.link && (
+                      <p>No contact information available.</p>
                     )}
                   </div>
-                </>
+                  {pageData.location && (
+                    <div className="about-section-content">
+                      <h3>Location</h3>
+                      <div className="info-item">
+                        <span className="info-icon">📍</span>
+                        <p>
+                          {pageData.location.street ? `${pageData.location.street}, ` : ""}
+                          {pageData.location.city ? `${pageData.location.city}, ` : ""}
+                          {pageData.location.state ? `${pageData.location.state}, ` : ""}
+                          {pageData.location.country ? `${pageData.location.country}` : ""}
+                          {pageData.location.zip ? ` ${pageData.location.zip}` : ""}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                  <div className="about-section-content">
+                    <h3>Business Details</h3>
+                    <div className="info-item">
+                      <span className="info-icon">🏷️</span>
+                      <p>Category: {pageData.category || "Home Businesses"}</p>
+                    </div>
+                    {pageData.description && (
+                      <div className="info-item">
+                        <span className="info-icon">📝</span>
+                        <p>Description: {pageData.description}</p>
+                      </div>
+                    )}
+                    {pageData.about && (
+                      <div className="info-item">
+                        <span className="info-icon">ℹ️</span>
+                        <p>About: {pageData.about}</p>
+                      </div>
+                    )}
+                    {pageData.founded && (
+                      <div className="info-item">
+                        <span className="info-icon">📅</span>
+                        <p>Founded: {pageData.founded}</p>
+                      </div>
+                    )}
+                    {pageData.mission && (
+                      <div className="info-item">
+                        <span className="info-icon">🎯</span>
+                        <p>Mission: {pageData.mission}</p>
+                      </div>
+                    )}
+                    {pageData.products && (
+                      <div className="info-item">
+                        <span className="info-icon">🛍️</span>
+                        <p>Products: {pageData.products}</p>
+                      </div>
+                    )}
+                  </div>
+                  {pageData.hours && (
+                    <div className="about-section-content">
+                      <h3>Operating Hours</h3>
+                      {Object.entries(pageData.hours).map(([day, hours]) => (
+                        <div key={day} className="info-item">
+                          <span className="info-icon">⏰</span>
+                          <p>{day.charAt(0).toUpperCase() + day.slice(1)}: {hours}</p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <div className="about-section-content">
+                    <h3>Engagement</h3>
+                    <div className="info-item">
+                      <span className="info-icon">👍</span>
+                      <p>Likes: {pageData.fan_count.toLocaleString()}</p>
+                    </div>
+                    {pageData.followers_count && (
+                      <div className="info-item">
+                        <span className="info-icon">👥</span>
+                        <p>Followers: {pageData.followers_count.toLocaleString()}</p>
+                      </div>
+                    )}
+                    {pageData.engagement && pageData.engagement.count && (
+                      <div className="info-item">
+                        <span className="info-icon">💬</span>
+                        <p>
+                          Engagement: {pageData.engagement.count.toLocaleString()} interactions
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                  <div className="about-section-content">
+                    <h3>Page Status</h3>
+                    {pageData.verification_status && (
+                      <div className="info-item">
+                        <span className="info-icon">✅</span>
+                        <p>
+                          Verification:{" "}
+                          {pageData.verification_status === "verified" ? "Verified" : "Not Verified"}
+                        </p>
+                      </div>
+                    )}
+                    <div className="info-item">
+                      <span className="info-icon">⭐</span>
+                      <p>
+                        Rating:{" "}
+                        {pageData.rating_count
+                          ? `${pageData.rating_count} reviews`
+                          : "Not yet rated (0 Reviews)"}
+                      </p>
+                    </div>
+                    <div className="info-item">
+                      <span className="info-icon">📢</span>
+                      <p>Status: {pageData.is_published ? "Published" : "Unpublished"}</p>
+                    </div>
+                  </div>
+                  <div className="about-section-content">
+                    <h3>Reels</h3>
+                    <p>{pageData.name}'s Reels</p>
+                    {isLoading ? (
+                      <p>Loading reels...</p>
+                    ) : reels.length > 0 ? (
+                      <div className="reels-gallery">
+                        {reels.slice(0, 3).map((reel) => (
+                          <div key={reel.id} className="reel-item">
+                            <div className="reel-wrapper">
+                              <video
+                                className="reel-video"
+                                poster={reel.thumbnail || "https://via.placeholder.com/150"}
+                                controls
+                              >
+                                <source src={reel.source} type="video/mp4" />
+                                Your browser does not support the video tag.
+                              </video>
+                            </div>
+                            <div className="reel-info">
+                              <p>{reel.description || reel.title || "Untitled Reel"}</p>
+                              <small>{new Date(reel.created_time).toLocaleString()}</small>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p>No reels available.</p>
+                    )}
+                  </div>
+                  <div className="about-section-content">
+                    <h3>Videos</h3>
+                    <p>{pageData.name}'s Videos</p>
+                    {isLoading ? (
+                      <p>Loading videos...</p>
+                    ) : videos.length > 0 ? (
+                      <div className="videos-gallery">
+                        {videos.slice(0, 3).map((video) => (
+                          <div key={video.id} className="video-item">
+                            <div className="video-wrapper">
+                              <video
+                                className="video-player"
+                                poster={video.thumbnail_url || "https://via.placeholder.com/150"}
+                                controls
+                              >
+                                <source src={video.source} type="video/mp4" />
+                                Your browser does not support the video tag.
+                              </video>
+                            </div>
+                            <div className="video-info">
+                              <p>{video.description || video.title || "Untitled Video"}</p>
+                              <small>{new Date(video.created_time).toLocaleString()}</small>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p>No videos available.</p>
+                    )}
+                  </div>
+                  <div className="about-section-content">
+                    <h3>Followers</h3>
+                    {pageData.followers_count ? (
+                      <div className="info-item">
+                        <span className="info-icon">👥</span>
+                        <p>
+                          {pageData.name} has {pageData.followers_count.toLocaleString()} followers.
+                        </p>
+                      </div>
+                    ) : (
+                      <p>{pageData.name}'s follower count is unavailable.</p>
+                    )}
+                    <p>
+                      Note: The list of individual followers is not accessible due to privacy
+                      restrictions.
+                    </p>
+                  </div>
+                </div>
               )}
               {activeTab === "Photos" && (
                 <div className="photos-section">
@@ -855,7 +1098,7 @@ const FacebookProfile = () => {
                   )}
                 </div>
               )}
-              {activeTab !== "Posts" && activeTab !== "Photos" && (
+              {activeTab !== "Posts" && activeTab !== "Photos" && activeTab !== "About" && (
                 <p>Content for {activeTab} tab coming soon...</p>
               )}
             </div>

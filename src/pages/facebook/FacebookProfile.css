@@ -4,7 +4,7 @@
   margin: 0 auto;
   padding: 20px;
   background: #f0f2f5;
-  font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
 }
 
 /* Loading and error states */
@@ -39,12 +39,15 @@
   margin: 0;
   font-size: 1.8em;
   color: #1c2526;
+  text-align: start !important;
 }
 
 .profile-info p {
   margin: 5px 0 0;
   color: #65676b;
   font-size: 0.9em;
+  text-align: start !important;
+
 }
 
 /* Profile tabs */
@@ -165,9 +168,20 @@
 
 .post-header {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
+  justify-content: space-between;
+  position: relative;
   margin-bottom: 10px;
 }
+.post-header-left
+{
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  position: relative;
+}
+
+
 
 .post-profile-picture {
   width: 40px;
@@ -188,6 +202,7 @@
 }
 
 .privacy-select {
+
   padding: 2px 5px;
   border: 1px solid #dadde1;
   border-radius: 5px;
@@ -244,6 +259,12 @@
   max-width: 100px;
   max-height: 100px;
   object-fit: cover;
+  border-radius: 5px;
+}
+
+.preview-video {
+  max-width: 100px;
+  max-height: 100px;
   border-radius: 5px;
 }
 
@@ -344,9 +365,6 @@
 }
 
 .posts-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
   margin-bottom: 20px;
 }
 
@@ -356,18 +374,6 @@
   color: #1c2526;
 }
 
-.filter-button {
-  background: none;
-  border: none;
-  color: #65676b;
-  font-size: 0.9em;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.filter-button:hover {
-  color: #1877f2;
-}
 
 .posts-section ul {
   list-style: none;
@@ -376,7 +382,7 @@
 
 .post-item {
   border-bottom: 1px solid #dadde1;
-  padding: 20px 0;
+  padding: 20px 10px;
 }
 
 .post-item:last-child {
@@ -388,13 +394,71 @@
   font-size: 0.8em;
 }
 
+.post-header p {
+text-align: start !important;
+}
+/* Three-dot menu styles */
+.post-menu {
+  position: relative;
+}
+
+.menu-button {
+  background: none;
+  border: none;
+  font-size: 1.5em;
+  color: #65676b;
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+}
+
+.menu-button:hover {
+  color: #1877f2;
+}
+
+.menu-dropdown {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  background: white;
+  border: 1px solid #dadde1;
+  border-radius: 5px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+  z-index: 10;
+  min-width: 100px;
+}
+
+.menu-item {
+  display: block;
+  width: 100%;
+  padding: 8px 12px;
+  background: none;
+  border: none;
+  text-align: left;
+  font-size: 0.9em;
+  color: #1c2526;
+  cursor: pointer;
+}
+
+.menu-item:hover {
+  background: #f0f2f5;
+}
+
 .post-item p {
   margin: 10px 0;
   color: #1c2526;
   font-size: 1em;
+  text-align: start !important;
 }
 
 .post-image {
+  max-width: 100%;
+  height: auto;
+  border-radius: 5px;
+  margin: 10px 0;
+}
+
+.post-video {
   max-width: 100%;
   height: auto;
   border-radius: 5px;
@@ -405,6 +469,8 @@
   display: flex;
   gap: 10px;
   margin: 10px 0;
+  justify-content: flex-start;
+  align-items: center;
 }
 
 .action-button {
@@ -422,6 +488,18 @@
 
 .action-button.liked {
   color: #1877f2;
+}
+
+.boost-action {
+  margin-left: auto;
+  background: #e4e6eb;
+  padding: 5px 10px;
+  border-radius: 5px;
+}
+
+.boost-action:hover {
+  background: #dadde1;
+  color: #1c2526;
 }
 
 .comment-section {
@@ -546,6 +624,15 @@
   margin-bottom: 10px;
 }
 
+.manual-url-input {
+  width: 100%;
+  padding: 8px;
+  border: 1px solid #dadde1;
+  border-radius: 5px;
+  font-size: 0.9em;
+  margin-bottom: 10px;
+}
+
 .edit-post-submit-button {
   padding: 8px 16px;
   background: #1877f2;
@@ -626,6 +713,174 @@
   margin-top: 5px;
 }
 
+/* About section */
+.about-section {
+  background: white;
+  padding: 20px;
+  border-radius: 10px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+  margin-bottom: 20px;
+}
+
+.about-section-header {
+  margin-bottom: 20px;
+}
+
+.about-section-header h2 {
+  margin: 0;
+  font-size: 1.5em;
+  color: #1c2526;
+  border-bottom: 2px solid #1877f2;
+  padding-bottom: 5px;
+  display: inline-block;
+}
+
+.about-section-content {
+  margin-bottom: 30px;
+}
+
+.about-section-content h3 {
+  margin: 0 0 15px;
+  font-size: 1.2em;
+  color: #1c2526;
+  border-bottom: 1px solid #dadde1;
+  padding-bottom: 5px;
+}
+
+.about-section-content p {
+  margin: 5px 0;
+  color: #65676b;
+  font-size: 0.9em;
+}
+
+.info-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.info-icon {
+  font-size: 1.2em;
+  min-width: 20px;
+  text-align: center;
+}
+
+.info-item a {
+  color: #1877f2;
+  text-decoration: none;
+}
+
+.info-item a:hover {
+  text-decoration: underline;
+}
+
+/* Ensure long text wraps nicely */
+.info-item p {
+  word-break: break-word;
+}
+
+/* Reels section */
+.reels-gallery {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 15px;
+}
+
+.reel-item {
+  text-align: center;
+}
+
+.reel-wrapper {
+  position: relative;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  transition: transform 0.2s ease;
+}
+
+.reel-wrapper:hover {
+  transform: scale(1.02);
+}
+
+.reel-video {
+  width: 100%;
+  height: 200px;
+  object-fit: cover;
+  border-radius: 8px;
+}
+
+.reel-info {
+  margin-top: 10px;
+}
+
+.reel-info p {
+  margin: 0;
+  font-size: 0.9em;
+  font-weight: 500;
+  color: #1c2526;
+}
+
+.reel-info small {
+  color: #65676b;
+  font-size: 0.8em;
+  display: block;
+  margin-top: 5px;
+}
+
+/* Remove the play-button since the video element has its own controls */
+.play-button {
+  display: none;
+}
+
+/* Videos section */
+.videos-gallery {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 15px;
+}
+
+.video-item {
+  text-align: center;
+}
+
+.video-wrapper {
+  position: relative;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  transition: transform 0.2s ease;
+}
+
+.video-wrapper:hover {
+  transform: scale(1.02);
+}
+
+.video-player {
+  width: 100%;
+  height: 200px;
+  object-fit: cover;
+  border-radius: 8px;
+}
+
+.video-info {
+  margin-top: 10px;
+}
+
+.video-info p {
+  margin: 0;
+  font-size: 0.9em;
+  font-weight: 500;
+  color: #1c2526;
+}
+
+.video-info small {
+  color: #65676b;
+  font-size: 0.8em;
+  display: block;
+  margin-top: 5px;
+}
+
 /* Responsive adjustments */
 @media (max-width: 768px) {
   .content-container {
@@ -641,6 +896,22 @@
   }
 
   .photo-image {
+    height: 150px;
+  }
+
+  .reels-gallery {
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  }
+
+  .reel-video {
+    height: 150px;
+  }
+
+  .videos-gallery {
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  }
+
+  .video-player {
     height: 150px;
   }
 }
