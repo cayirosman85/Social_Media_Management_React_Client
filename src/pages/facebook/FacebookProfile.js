@@ -24,13 +24,12 @@ const FacebookProfile = () => {
   const [editPostMediaUrl, setEditPostMediaUrl] = useState({});
   const [likedPosts, setLikedPosts] = useState({});
   const [likedComments, setLikedComments] = useState({});
-  const [feelingActivity, setFeelingActivity] = useState("");
-  const [taggedPeople, setTaggedPeople] = useState([]);
   const [isLoadingReels, setIsLoadingReels] = useState(true);
   const [isLoadingVideos, setIsLoadingVideos] = useState(true);
-  const [showMenu, setShowMenu] = useState({}); // New state for menu visibility
+  const [showMenu, setShowMenu] = useState({});
   const pageId = localStorage.get("facebookPageId");
   const accessToken = localStorage.get("facebookPageAccessToken");
+  const [privacy, setPrivacy] = useState("public");
 
   useEffect(() => {
     if (!pageId || !accessToken) {
@@ -44,6 +43,12 @@ const FacebookProfile = () => {
     fetchReels();
     fetchVideos();
   }, [pageId, accessToken]);
+
+  // Debugging for newPostMessage and mediaFiles
+  useEffect(() => {
+    console.log("newPostMessage:", newPostMessage);
+    console.log("mediaFiles:", mediaFiles);
+  }, [newPostMessage, mediaFiles]);
 
   const fetchPageData = async () => {
     setIsLoading(true);
@@ -101,7 +106,7 @@ const FacebookProfile = () => {
       const postsData = await postsResponse.json();
       if (!postsResponse.ok) throw new Error(postsData.error || "Failed to fetch posts");
 
-      const uploadedPhotos = (photosData.data || []).map(photo => ({
+      const uploadedPhotos = (photosData.data || []).map((photo) => ({
         id: photo.id,
         images: photo.images || [],
         name: photo.name || "Uploaded Photo",
@@ -109,10 +114,10 @@ const FacebookProfile = () => {
       }));
 
       const mediaFromPosts = (postsData.data || [])
-        .filter(post => post.attachments?.data?.length > 0)
-        .map(post => ({
+        .filter((post) => post.attachments?.data?.length > 0)
+        .map((post) => ({
           id: post.id,
-          images: post.attachments.data.map(attachment => ({
+          images: post.attachments.data.map((attachment) => ({
             source: attachment.media?.image?.src,
           })),
           name: post.message || "Post Media",
@@ -120,8 +125,8 @@ const FacebookProfile = () => {
         }));
 
       const allMedia = [...uploadedPhotos, ...mediaFromPosts]
-        .filter(photo => photo.images?.length > 0)
-        .filter((photo, index, self) => index === self.findIndex(p => p.id === photo.id));
+        .filter((photo) => photo.images?.length > 0)
+        .filter((photo, index, self) => index === self.findIndex((p) => p.id === photo.id));
 
       setPhotos(allMedia);
     } catch (err) {
@@ -172,7 +177,7 @@ const FacebookProfile = () => {
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Failed to fetch comments");
-      setComments(prev => ({ ...prev, [postId]: data.data || [] }));
+      setComments((prev) => ({ ...prev, [postId]: data.data || [] }));
     } catch (err) {
       setError(err.message);
     }
@@ -196,9 +201,18 @@ const FacebookProfile = () => {
     }
   };
 
+  const handleFileChange = (e) => {
+    const files = Array.from(e.target.files);
+    console.log("Selected files:", files); // Debugging
+    setMediaFiles(files);
+  };
+
   const handleCreatePost = async (e) => {
     e.preventDefault();
-    if (!newPostMessage.trim() && mediaFiles.length === 0 && !manualMediaUrl.trim()) return;
+    if (!newPostMessage.trim() && mediaFiles.length === 0) {
+      alert("Please add a message or media to post.");
+      return;
+    }
 
     setIsLoading(true);
     try {
@@ -213,8 +227,9 @@ const FacebookProfile = () => {
         body: JSON.stringify({
           page_id: pageId,
           access_token: accessToken,
-          message: newPostMessage + (feelingActivity ? ` is ${feelingActivity}` : ""),
-          photo_url: manualMediaUrl.trim() || uploadedMediaUrls[0],
+          message: newPostMessage,
+          photo_url: uploadedMediaUrls[0] || manualMediaUrl.trim() || null,
+          privacy: privacy,
         }),
       });
       const data = await response.json();
@@ -224,10 +239,9 @@ const FacebookProfile = () => {
         setMediaFiles([]);
         setMediaUrls([]);
         setManualMediaUrl("");
-        setFeelingActivity("");
-        setTaggedPeople([]);
         fetchPagePosts();
         fetchAllMedia();
+        setPrivacy("public");
         alert("Post created successfully!");
       }
     } catch (error) {
@@ -254,7 +268,7 @@ const FacebookProfile = () => {
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Failed to post comment");
       if (data.success) {
-        setCommentText(prev => ({ ...prev, [postId]: "" }));
+        setCommentText((prev) => ({ ...prev, [postId]: "" }));
         fetchPostComments(postId);
       }
     } catch (error) {
@@ -279,7 +293,7 @@ const FacebookProfile = () => {
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Failed to reply to comment");
       if (data.success) {
-        setReplyText(prev => ({ ...prev, [commentId]: "" }));
+        setReplyText((prev) => ({ ...prev, [commentId]: "" }));
         fetchPostComments(postId);
       }
     } catch (error) {
@@ -302,7 +316,7 @@ const FacebookProfile = () => {
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || `Failed to ${isLiked ? "unlike" : "like"} post`);
       if (data.success) {
-        setLikedPosts(prev => ({ ...prev, [postId]: !isLiked }));
+        setLikedPosts((prev) => ({ ...prev, [postId]: !isLiked }));
         fetchPagePosts();
       }
     } catch (error) {
@@ -325,7 +339,7 @@ const FacebookProfile = () => {
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || `Failed to ${isLiked ? "unlike" : "like"} comment`);
       if (data.success) {
-        setLikedComments(prev => ({ ...prev, [commentId]: !isLiked }));
+        setLikedComments((prev) => ({ ...prev, [commentId]: !isLiked }));
         fetchPostComments(postId);
       }
     } catch (error) {
@@ -372,7 +386,7 @@ const FacebookProfile = () => {
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Failed to edit comment");
       if (data.success) {
-        setEditText(prev => ({ ...prev, [commentId]: "" }));
+        setEditText((prev) => ({ ...prev, [commentId]: "" }));
         fetchPostComments(postId);
       }
     } catch (error) {
@@ -386,7 +400,8 @@ const FacebookProfile = () => {
 
     const isMediaUpdated = editPostMediaFiles[postId]?.length > 0 || editPostMediaUrl[postId]?.trim();
     if (isMediaUpdated) {
-      const confirmMessage = "Warning: Editing the media of a post is restricted by Facebook. The existing post will be deleted, and a new post will be created with the updated content. This will result in the loss of all likes, comments, and other engagement on the original post. Do you want to proceed?";
+      const confirmMessage =
+        "Warning: Editing the media of a post is restricted by Facebook. The existing post will be deleted, and a new post will be created with the updated content. This will result in the loss of all likes, comments, and other engagement on the original post. Do you want to proceed?";
       if (!window.confirm(confirmMessage)) return;
     }
 
@@ -397,7 +412,7 @@ const FacebookProfile = () => {
         uploadedMediaUrls = await handleMediaUpload(editPostMediaFiles[postId]);
       }
 
-      const photoUrl = editPostMediaUrl[postId]?.trim() || uploadedMediaUrls[0] || null;
+      const photoUrl = uploadedMediaUrls[0] || editPostMediaUrl[postId]?.trim() || null;
 
       const response = await fetch("https://localhost:7099/api/Facebook/edit-post", {
         method: "POST",
@@ -413,9 +428,9 @@ const FacebookProfile = () => {
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Failed to edit post");
       if (data.success) {
-        setEditPostText(prev => ({ ...prev, [postId]: "" }));
-        setEditPostMediaFiles(prev => ({ ...prev, [postId]: [] }));
-        setEditPostMediaUrl(prev => ({ ...prev, [postId]: "" }));
+        setEditPostText((prev) => ({ ...prev, [postId]: "" }));
+        setEditPostMediaFiles((prev) => ({ ...prev, [postId]: [] }));
+        setEditPostMediaUrl((prev) => ({ ...prev, [postId]: "" }));
         fetchPagePosts();
         fetchAllMedia();
       }
@@ -466,7 +481,7 @@ const FacebookProfile = () => {
                   type="text"
                   value={editText[comment.id]}
                   onChange={(e) =>
-                    setEditText(prev => ({ ...prev, [comment.id]: e.target.value }))
+                    setEditText((prev) => ({ ...prev, [comment.id]: e.target.value }))
                   }
                   className="comment-input"
                 />
@@ -488,7 +503,7 @@ const FacebookProfile = () => {
               <button
                 className="action-button"
                 onClick={() =>
-                  setReplyText(prev => ({
+                  setReplyText((prev) => ({
                     ...prev,
                     [comment.id]: prev[comment.id] ? "" : " ",
                   }))
@@ -499,7 +514,7 @@ const FacebookProfile = () => {
               <button
                 className="action-button"
                 onClick={() =>
-                  setEditText(prev => ({
+                  setEditText((prev) => ({
                     ...prev,
                     [comment.id]: comment.message,
                   }))
@@ -526,7 +541,7 @@ const FacebookProfile = () => {
                     type="text"
                     value={replyText[comment.id] || ""}
                     onChange={(e) =>
-                      setReplyText(prev => ({
+                      setReplyText((prev) => ({
                         ...prev,
                         [comment.id]: e.target.value,
                       }))
@@ -544,7 +559,7 @@ const FacebookProfile = () => {
         </div>
         {comment.comments?.data?.length > 0 && (
           <div className="replies">
-            {comment.comments.data.map(reply => (
+            {comment.comments.data.map((reply) => (
               <CommentItem key={reply.id} comment={reply} postId={postId} level={level + 1} />
             ))}
           </div>
@@ -611,32 +626,120 @@ const FacebookProfile = () => {
             <div className="main-content">
               {activeTab === "Posts" && (
                 <div className="posts-section">
+                  {/* Create Post Section */}
+                  <div className="new-post-section">
+                    <form onSubmit={handleCreatePost}>
+                      <div className="post-header">
+                        <img
+                          src={pageData.picture.data.url}
+                          alt="Page Profile"
+                          className="post-profile-picture"
+                        />
+                        <div className="post-header-info">
+                          <div className="post-author-wrapper">
+                            <p className="post-author">{pageData.name}</p>
+                            <select className="privacy-select">
+                              <option value="public">Public</option>
+                              <option value="friends">Friends</option>
+                              <option value="only_me">Only Me</option>
+                            </select>
+                          </div>
+                        </div>
+                      </div>
+                      <textarea
+                        value={newPostMessage}
+                        onChange={(e) => setNewPostMessage(e.target.value)}
+                        placeholder={`What's on your mind, ${pageData.name}?`}
+                        className="post-textarea"
+                        rows="3"
+                      />
+                      {mediaFiles.length > 0 && (
+                        <div className="image-preview">
+                          {mediaFiles.map((file, index) => (
+                            <div key={index} className="media-preview-item">
+                              {file.type.startsWith("image/") ? (
+                                <img
+                                  src={URL.createObjectURL(file)}
+                                  alt="Preview"
+                                  className="preview-image"
+                                />
+                              ) : (
+                                <video
+                                  src={URL.createObjectURL(file)}
+                                  className="preview-video"
+                                  controls
+                                >
+                                  Your browser does not support the video tag.
+                                </video>
+                              )}
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setMediaFiles((prev) => prev.filter((_, i) => i !== index))
+                                }
+                                className="remove-media-button"
+                              >
+                                Remove
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      <div className="media-upload-section">
+                        <label htmlFor="media-upload" className="media-upload-label">
+                          Add photos/videos
+                          <input
+                            id="media-upload"
+                            type="file"
+                            accept="image/*,video/*"
+                            multiple
+                            onChange={handleFileChange}
+                            style={{ display: "none" }}
+                          />
+                        </label>
+                        <input
+                          type="text"
+                          value={manualMediaUrl}
+                          onChange={(e) => setManualMediaUrl(e.target.value)}
+                          placeholder="Or enter a media URL (optional)"
+                          className="manual-url-input"
+                        />
+                      </div>
+                      <button
+                        type="submit"
+                        className="post-button"
+                        disabled={isLoading || (!newPostMessage.trim() && mediaFiles.length === 0 && !manualMediaUrl.trim())}
+                      >
+                        {isLoading ? "Posting..." : "Post"}
+                      </button>
+                    </form>
+                  </div>
+
+                  {/* Posts List */}
                   <div className="posts-header">
                     <h2>Posts</h2>
-                   
                   </div>
                   {posts.length > 0 ? (
                     <ul>
                       {posts.map((post) => (
                         <li key={post.id} className="post-item">
                           <div className="post-header">
-                        
                             <div className="post-header-left">
-                            <img
-                              src={pageData.picture.data.url}
-                              alt="Page Profile"
-                              className="post-profile-picture"
-                            />
-                           <div>
-                           <p className="post-author">{pageData.name}</p>
-                           <small>{new Date(post.created_time).toLocaleString()}</small>
-                           </div>
+                              <img
+                                src={pageData.picture.data.url}
+                                alt="Page Profile"
+                                className="post-profile-picture"
+                              />
+                              <div>
+                                <p className="post-author">{pageData.name}</p>
+                                <small>{new Date(post.created_time).toLocaleString()}</small>
+                              </div>
                             </div>
                             <div className="post-menu">
                               <button
                                 className="menu-button"
                                 onClick={() =>
-                                  setShowMenu(prev => ({
+                                  setShowMenu((prev) => ({
                                     ...prev,
                                     [post.id]: !prev[post.id],
                                   }))
@@ -649,11 +752,11 @@ const FacebookProfile = () => {
                                   <button
                                     className="menu-item"
                                     onClick={() => {
-                                      setEditPostText(prev => ({
+                                      setEditPostText((prev) => ({
                                         ...prev,
                                         [post.id]: post.message,
                                       }));
-                                      setShowMenu(prev => ({
+                                      setShowMenu((prev) => ({
                                         ...prev,
                                         [post.id]: false,
                                       }));
@@ -665,7 +768,7 @@ const FacebookProfile = () => {
                                     className="menu-item"
                                     onClick={() => {
                                       handleDeletePost(post.id);
-                                      setShowMenu(prev => ({
+                                      setShowMenu((prev) => ({
                                         ...prev,
                                         [post.id]: false,
                                       }));
@@ -682,7 +785,7 @@ const FacebookProfile = () => {
                               <textarea
                                 value={editPostText[post.id]}
                                 onChange={(e) =>
-                                  setEditPostText(prev => ({
+                                  setEditPostText((prev) => ({
                                     ...prev,
                                     [post.id]: e.target.value,
                                   }))
@@ -695,7 +798,7 @@ const FacebookProfile = () => {
                                 accept="image/*,video/*"
                                 multiple
                                 onChange={(e) =>
-                                  setEditPostMediaFiles(prev => ({
+                                  setEditPostMediaFiles((prev) => ({
                                     ...prev,
                                     [post.id]: Array.from(e.target.files),
                                   }))
@@ -728,7 +831,7 @@ const FacebookProfile = () => {
                                 type="text"
                                 value={editPostMediaUrl[post.id] || ""}
                                 onChange={(e) =>
-                                  setEditPostMediaUrl(prev => ({
+                                  setEditPostMediaUrl((prev) => ({
                                     ...prev,
                                     [post.id]: e.target.value,
                                   }))
@@ -814,7 +917,7 @@ const FacebookProfile = () => {
                                   type="text"
                                   value={commentText[post.id] || ""}
                                   onChange={(e) =>
-                                    setCommentText(prev => ({
+                                    setCommentText((prev) => ({
                                       ...prev,
                                       [post.id]: e.target.value,
                                     }))

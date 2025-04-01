@@ -1,6 +1,5 @@
 import { useState, useEffect } from "react";
 import Sidebar from "../../components/sidebars/clientSideBar";
-import Navbar from "../../components/navbar/navbar";
 import localStorage from "local-storage";
 import {
   Grid,

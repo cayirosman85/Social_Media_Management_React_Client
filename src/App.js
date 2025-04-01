@@ -74,7 +74,6 @@ const Layout = ({ errorModalMessage, setErrorModalMessage }) => {
         <Sidebar status={sidebarOpen} toggleSidebar={toggleSidebar} />
       )}
       <div style={{ flexGrow: 1, display: "flex", flexDirection: "column" }}>
-        <Navbar />
         <Outlet context={{ errorModalMessage, setErrorModalMessage }} /> {/* Pass state via context */}
       </div>
     </div>
