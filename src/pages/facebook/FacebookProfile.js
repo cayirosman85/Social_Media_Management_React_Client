@@ -16,6 +16,7 @@ const FacebookProfile = () => {
   const [commentText, setCommentText] = useState({});
   const [replyText, setReplyText] = useState({});
   const [editText, setEditText] = useState({});
+  const [editPostText, setEditPostText] = useState({}); // New state for editing posts
   const [likedPosts, setLikedPosts] = useState({});
   const [likedComments, setLikedComments] = useState({});
 
@@ -280,6 +281,55 @@ const FacebookProfile = () => {
     }
   };
 
+  // New handler for editing posts
+  const handleEditPost = async (postId, e) => {
+    e.preventDefault();
+    if (!editPostText[postId]?.trim()) return;
+
+    try {
+      const response = await fetch("https://localhost:7099/api/Facebook/edit-post", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          post_id: postId,
+          access_token: accessToken,
+          message: editPostText[postId],
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Failed to edit post");
+      if (data.success) {
+        setEditPostText(prev => ({ ...prev, [postId]: "" }));
+        fetchPagePosts();
+      }
+    } catch (error) {
+      setError(error.message);
+    }
+  };
+
+  // New handler for deleting posts
+  const handleDeletePost = async (postId) => {
+    if (!window.confirm("Are you sure you want to delete this post?")) return;
+
+    try {
+      const response = await fetch("https://localhost:7099/api/Facebook/delete-post", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          post_id: postId,
+          access_token: accessToken,
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Failed to delete post");
+      if (data.success) {
+        fetchPagePosts();
+      }
+    } catch (error) {
+      setError(error.message);
+    }
+  };
+
   // Recursive component to render comments and their replies
   const CommentItem = ({ comment, postId, level = 0 }) => {
     return (
@@ -493,13 +543,31 @@ const FacebookProfile = () => {
                                 <small>{new Date(post.created_time).toLocaleString()}</small>
                               </div>
                             </div>
-                            {post.message && <p>{post.message}</p>}
-                            {post.attachments?.data?.[0]?.media?.image && (
-                              <img
-                                src={post.attachments.data[0].media.image.src}
-                                alt="Post media"
-                                className="post-image"
-                              />
+                            {editPostText[post.id] ? (
+                              <form onSubmit={(e) => handleEditPost(post.id, e)}>
+                                <textarea
+                                  value={editPostText[post.id]}
+                                  onChange={(e) =>
+                                    setEditPostText(prev => ({ ...prev, [post.id]: e.target.value }))
+                                  }
+                                  rows="3"
+                                  className="edit-post-textarea"
+                                />
+                                <button type="submit" className="edit-post-submit-button">
+                                  Save
+                                </button>
+                              </form>
+                            ) : (
+                              <>
+                                {post.message && <p>{post.message}</p>}
+                                {post.attachments?.data?.[0]?.media?.image && (
+                                  <img
+                                    src={post.attachments.data[0].media.image.src}
+                                    alt="Post media"
+                                    className="post-image"
+                                  />
+                                )}
+                              </>
                             )}
                             <div className="post-actions">
                               <button
@@ -515,6 +583,23 @@ const FacebookProfile = () => {
                                 Comment ({post.comments?.summary?.total_count || 0})
                               </button>
                               <button className="action-button">Share</button>
+                              <button
+                                className="action-button"
+                                onClick={() =>
+                                  setEditPostText(prev => ({
+                                    ...prev,
+                                    [post.id]: post.message,
+                                  }))
+                                }
+                              >
+                                Edit
+                              </button>
+                              <button
+                                className="action-button"
+                                onClick={() => handleDeletePost(post.id)}
+                              >
+                                Delete
+                              </button>
                             </div>
                             <div className="comment-section">
                               {comments[post.id] && (

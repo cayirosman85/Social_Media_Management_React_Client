@@ -592,3 +592,29 @@ textarea:focus {
   background: #dadde1;
   border-radius: 2px;
 }
+
+/* Edit post form styling */
+.edit-post-textarea {
+  width: 100%;
+  margin-bottom: 10px;
+  padding: 10px;
+  border: 1px solid #ddd;
+  border-radius: 5px;
+  resize: vertical;
+  font-size: 1em;
+  color: #1c2526;
+}
+
+.edit-post-submit-button {
+  background-color: #1877f2;
+  color: white;
+  padding: 8px 16px;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 0.9em;
+}
+
+.edit-post-submit-button:hover {
+  background-color: #166fe5;
+}
