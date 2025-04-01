@@ -1,5 +1,3 @@
-/* FacebookProfile.css */
-
 /* General container styling */
 .facebook-profile-container {
   margin: 15px;
@@ -327,15 +325,35 @@
 
 .comments-list {
   margin: 10px 0;
-  max-height: 200px;
+  max-height: 400px;
   overflow-y: auto;
 }
 
 .comment {
-  display: flex;
-  align-items: flex-start;
+  position: relative;
   margin: 10px 0;
   text-align: start;
+}
+
+.comment-wrapper {
+  display: flex;
+  align-items: flex-start;
+}
+
+.comment.reply {
+  position: relative;
+  margin-left: 40px;
+}
+
+.comment.reply::before {
+  content: "";
+  position: absolute;
+  left: -20px;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: #dadde1;
+  border-radius: 2px;
 }
 
 .comment-content {
@@ -513,4 +531,64 @@ input:focus,
 textarea:focus {
   outline: none;
   box-shadow: 0 0 0 2px #1877f2;
+}
+
+/* Comment actions */
+.comment-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 5px;
+}
+
+.comment-actions .action-button {
+  background: none;
+  border: none;
+  color: #65676b;
+  cursor: pointer;
+  padding: 0;
+  font-size: 0.8em;
+}
+
+.comment-actions .action-button:hover {
+  color: #1877f2;
+}
+
+/* Liked state */
+.action-button.liked {
+  color: #1877f2;
+  font-weight: bold;
+}
+
+/* Edit input */
+.comment-content form {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.comment-content form .comment-input {
+  flex: 1;
+  padding: 5px;
+  border: 1px solid #ddd;
+  border-radius: 5px;
+}
+
+/* Nested replies styling */
+.replies {
+  position: relative;
+}
+
+.replies .comment {
+  margin-left: 40px;
+}
+
+.replies .comment::before {
+  content: "";
+  position: absolute;
+  left: -20px;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: #dadde1;
+  border-radius: 2px;
 }

@@ -1,4 +1,3 @@
-// FacebookProfile.jsx
 import React, { useState, useEffect } from "react";
 import localStorage from "local-storage";
 import "./FacebookProfile.css";
@@ -15,6 +14,10 @@ const FacebookProfile = () => {
   const [manualMediaUrl, setManualMediaUrl] = useState("");
   const [activeTab, setActiveTab] = useState("Posts");
   const [commentText, setCommentText] = useState({});
+  const [replyText, setReplyText] = useState({});
+  const [editText, setEditText] = useState({});
+  const [likedPosts, setLikedPosts] = useState({});
+  const [likedComments, setLikedComments] = useState({});
 
   const pageId = localStorage.get("facebookPageId");
   const accessToken = localStorage.get("facebookPageAccessToken");
@@ -145,7 +148,7 @@ const FacebookProfile = () => {
         body: JSON.stringify({
           post_id: postId,
           access_token: accessToken,
-          message: commentText[postId]
+          message: commentText[postId],
         }),
       });
       const data = await response.json();
@@ -157,6 +160,229 @@ const FacebookProfile = () => {
     } catch (error) {
       setError(error.message);
     }
+  };
+
+  const handleReplySubmit = async (commentId, postId, e) => {
+    e.preventDefault();
+    if (!replyText[commentId]?.trim()) return;
+
+    try {
+      const response = await fetch("https://localhost:7099/api/Facebook/reply-to-comment", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          comment_id: commentId,
+          access_token: accessToken,
+          message: replyText[commentId],
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Failed to reply to comment");
+      if (data.success) {
+        setReplyText(prev => ({ ...prev, [commentId]: "" }));
+        fetchPostComments(postId);
+      }
+    } catch (error) {
+      setError(error.message);
+    }
+  };
+
+  const handleLikePost = async (postId) => {
+    try {
+      const isLiked = likedPosts[postId];
+      const endpoint = isLiked ? "unlike-object" : "like-object";
+      const response = await fetch(`https://localhost:7099/api/Facebook/${endpoint}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          object_id: postId,
+          access_token: accessToken,
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || `Failed to ${isLiked ? "unlike" : "like"} post`);
+      if (data.success) {
+        setLikedPosts(prev => ({ ...prev, [postId]: !isLiked }));
+        fetchPagePosts();
+      }
+    } catch (error) {
+      setError(error.message);
+    }
+  };
+
+  const handleLikeComment = async (commentId, postId) => {
+    try {
+      const isLiked = likedComments[commentId];
+      const endpoint = isLiked ? "unlike-object" : "like-object";
+      const response = await fetch(`https://localhost:7099/api/Facebook/${endpoint}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          object_id: commentId,
+          access_token: accessToken,
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || `Failed to ${isLiked ? "unlike" : "like"} comment`);
+      if (data.success) {
+        setLikedComments(prev => ({ ...prev, [commentId]: !isLiked }));
+        fetchPostComments(postId);
+      }
+    } catch (error) {
+      setError(error.message);
+    }
+  };
+
+  const handleDeleteComment = async (commentId, postId) => {
+    if (!window.confirm("Are you sure you want to delete this comment?")) return;
+
+    try {
+      const response = await fetch("https://localhost:7099/api/Facebook/delete-comment", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          comment_id: commentId,
+          access_token: accessToken,
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Failed to delete comment");
+      if (data.success) {
+        fetchPostComments(postId);
+      }
+    } catch (error) {
+      setError(error.message);
+    }
+  };
+
+  const handleEditComment = async (commentId, postId, e) => {
+    e.preventDefault();
+    if (!editText[commentId]?.trim()) return;
+
+    try {
+      const response = await fetch("https://localhost:7099/api/Facebook/edit-comment", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          comment_id: commentId,
+          access_token: accessToken,
+          message: editText[commentId],
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Failed to edit comment");
+      if (data.success) {
+        setEditText(prev => ({ ...prev, [commentId]: "" }));
+        fetchPostComments(postId);
+      }
+    } catch (error) {
+      setError(error.message);
+    }
+  };
+
+  // Recursive component to render comments and their replies
+  const CommentItem = ({ comment, postId, level = 0 }) => {
+    return (
+      <div className={`comment ${level > 0 ? "reply" : ""}`} style={{ marginLeft: level * 20 }}>
+        <div className="comment-wrapper">
+          <img
+            src={comment.from?.picture?.data?.url || pageData.picture.data.url}
+            alt="Commenter"
+            className="comment-profile-picture"
+          />
+          <div className="comment-content">
+            <p className="comment-author">{comment.from?.name || pageData.name}</p>
+            {editText[comment.id] ? (
+              <form onSubmit={(e) => handleEditComment(comment.id, postId, e)}>
+                <input
+                  type="text"
+                  value={editText[comment.id]}
+                  onChange={(e) =>
+                    setEditText(prev => ({ ...prev, [comment.id]: e.target.value }))
+                  }
+                  className="comment-input"
+                />
+                <button type="submit" className="comment-submit-button">
+                  Save
+                </button>
+              </form>
+            ) : (
+              <p>{comment.message}</p>
+            )}
+            <small>{new Date(comment.created_time).toLocaleString()}</small>
+            <div className="comment-actions">
+              <button
+                className={`action-button ${likedComments[comment.id] ? "liked" : ""}`}
+                onClick={() => handleLikeComment(comment.id, postId)}
+              >
+                {likedComments[comment.id] ? "Unlike" : "Like"}
+              </button>
+              <button
+                className="action-button"
+                onClick={() =>
+                  setReplyText(prev => ({
+                    ...prev,
+                    [comment.id]: prev[comment.id] ? "" : " ",
+                  }))
+                }
+              >
+                Reply
+              </button>
+              <button
+                className="action-button"
+                onClick={() =>
+                  setEditText(prev => ({
+                    ...prev,
+                    [comment.id]: comment.message,
+                  }))
+                }
+              >
+                Edit
+              </button>
+              <button
+                className="action-button"
+                onClick={() => handleDeleteComment(comment.id, postId)}
+              >
+                Delete
+              </button>
+            </div>
+            {replyText[comment.id] && (
+              <form onSubmit={(e) => handleReplySubmit(comment.id, postId, e)}>
+                <div className="comment-input-wrapper">
+                  <img
+                    src={pageData.picture.data.url}
+                    alt="User Profile"
+                    className="comment-profile-picture"
+                  />
+                  <input
+                    type="text"
+                    value={replyText[comment.id] || ""}
+                    onChange={(e) =>
+                      setReplyText(prev => ({
+                        ...prev,
+                        [comment.id]: e.target.value,
+                      }))
+                    }
+                    placeholder={`Reply to ${comment.from?.name || pageData.name}`}
+                    className="comment-input"
+                  />
+                  <button type="submit" className="comment-submit-button">
+                    ➤
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
+        </div>
+        {comment.comments?.data?.length > 0 && (
+          <div className="replies">
+            {comment.comments.data.map(reply => (
+              <CommentItem key={reply.id} comment={reply} postId={postId} level={level + 1} />
+            ))}
+          </div>
+        )}
+      </div>
+    );
   };
 
   if (isLoading) return <div className="loading">Loading...</div>;
@@ -276,7 +502,12 @@ const FacebookProfile = () => {
                               />
                             )}
                             <div className="post-actions">
-                              <button className="action-button">Like</button>
+                              <button
+                                className={`action-button ${likedPosts[post.id] ? "liked" : ""}`}
+                                onClick={() => handleLikePost(post.id)}
+                              >
+                                {likedPosts[post.id] ? "Unlike" : "Like"} ({post.likes?.summary?.total_count || 0})
+                              </button>
                               <button
                                 className="action-button"
                                 onClick={() => fetchPostComments(post.id)}
@@ -289,18 +520,7 @@ const FacebookProfile = () => {
                               {comments[post.id] && (
                                 <div className="comments-list">
                                   {comments[post.id].map((comment) => (
-                                    <div key={comment.id} className="comment">
-                                      <img
-                                        src={comment.from?.picture?.data?.url || pageData.picture.data.url}
-                                        alt="Commenter"
-                                        className="comment-profile-picture"
-                                      />
-                                      <div className="comment-content">
-                                        <p className="comment-author">{comment.from?.name || pageData.name}</p>
-                                        <p>{comment.message}</p>
-                                        <small>{new Date(comment.created_time).toLocaleString()}</small>
-                                      </div>
-                                    </div>
+                                    <CommentItem key={comment.id} comment={comment} postId={post.id} />
                                   ))}
                                 </div>
                               )}
@@ -317,7 +537,7 @@ const FacebookProfile = () => {
                                     onChange={(e) =>
                                       setCommentText(prev => ({
                                         ...prev,
-                                        [post.id]: e.target.value
+                                        [post.id]: e.target.value,
                                       }))
                                     }
                                     placeholder="Write a comment..."
