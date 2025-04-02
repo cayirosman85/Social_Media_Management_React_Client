@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import localStorage from "local-storage";
+import { LoadScript, GoogleMap, Marker, Autocomplete } from "@react-google-maps/api"; // Add this import
 import "./FacebookProfile.css";
-
 const FacebookProfile = () => {
   const [pageData, setPageData] = useState(null);
   const [posts, setPosts] = useState([]);
@@ -31,9 +31,39 @@ const FacebookProfile = () => {
   const [isLoadingMentions, setIsLoadingMentions] = useState(true);
   const [isLoadingReviews, setIsLoadingReviews] = useState(true);
   const [showMenu, setShowMenu] = useState({});
-  const [isEditingAbout, setIsEditingAbout] = useState(false);
-  const [editedPageData, setEditedPageData] = useState({});
+  const [addressAutocomplete, setAddressAutocomplete] = useState(null);
 
+  const [isEditingAbout, setIsEditingAbout] = useState(false);
+  const [editedPageData, setEditedPageData] = useState({
+    about: "",
+    description: "",
+    phone: "",
+    website: "",
+    address: "",
+    addressLat: null,
+    addressLng: null,
+    addressCity: "", // New field for city
+    addressState: "", // New field for state
+    addressCountry: "", // New field for country
+    addressZip: "", // New field for zip code
+    email: "",
+    social_links: [],
+    hours: {},
+    price_range: "",
+    services: [],
+    languages: [],
+    founded: "",
+    privacy_policy: "",
+    impressum: "",
+    work: [],
+    education: [],
+    places_lived: [],
+    relationship_status: "",
+    family_members: [],
+    name_pronunciation: "",
+    other_names: [],
+    favorite_quotes: "",
+  });
   const pageId = localStorage.get("facebookPageId");
   const accessToken = localStorage.get("facebookPageAccessToken");
 
@@ -56,12 +86,44 @@ const FacebookProfile = () => {
     setIsLoading(true);
     try {
       const response = await fetch(
-        `https://graph.facebook.com/v18.0/${pageId}?fields=name,about,description,fan_count,followers_count,picture,cover,category,phone,website,location,hours,founded,mission,products,verification_status,rating_count,link,username,is_published,engagement&access_token=${accessToken}`
+        `https://graph.facebook.com/v18.0/${pageId}?fields=name,about,description,fan_count,followers_count,picture,cover,category,phone,website,location,hours,founded,mission,products,verification_status,rating_count,link,username,is_published,engagement,emails&access_token=${accessToken}`
       );
       const data = await response.json();
       if (!response.ok) throw new Error(data.error?.message || "Failed to fetch page data");
+  
+      const customData = localStorage.get("customPageData") || {};
+  
       setPageData(data);
-      setEditedPageData(data); // Initialize editable data
+      setEditedPageData({
+        about: data.about || "",
+        description: data.description || "",
+        phone: data.phone || "",
+        website: data.website || "",
+        address: data.location?.street || "",
+        addressLat: customData.addressLat || null,
+        addressLng: customData.addressLng || null,
+        addressCity: customData.addressCity || "", // Load city
+        addressState: customData.addressState || "", // Load state
+        addressCountry: customData.addressCountry || "", // Load country
+        addressZip: customData.addressZip || "", // Load zip code
+        email: data.emails?.[0] || "",
+        social_links: customData.social_links || [],
+        hours: data.hours || {},
+        price_range: customData.price_range || "",
+        services: data.services || [],
+        languages: data.languages || [],
+        founded: data.founded || "",
+        privacy_policy: customData.privacy_policy || "",
+        impressum: customData.impressum || "",
+        work: customData.work || [],
+        education: customData.education || [],
+        places_lived: customData.places_lived || [],
+        relationship_status: customData.relationship_status || "",
+        family_members: customData.family_members || [],
+        name_pronunciation: customData.name_pronunciation || "",
+        other_names: customData.other_names || [],
+        favorite_quotes: customData.favorite_quotes || "",
+      });
     } catch (err) {
       setError(err.message);
     } finally {
@@ -69,36 +131,89 @@ const FacebookProfile = () => {
     }
   };
 
+
   const updatePageData = async () => {
     setIsLoading(true);
     try {
+      console.log("Current editedPageData:", editedPageData);
+  
       const editableFields = {
         about: editedPageData.about || "",
         description: editedPageData.description || "",
         phone: editedPageData.phone || "",
         website: editedPageData.website || "",
-        // Add more fields like category, location.street, etc., if needed
+        emails: editedPageData.email ? [editedPageData.email] : [],
+        services: editedPageData.services || [],
+        languages: editedPageData.languages || [],
+        founded: editedPageData.founded || "",
+        ...(editedPageData.address && {
+          location: {
+            street: editedPageData.address || "",
+            city: editedPageData.addressCity || "",
+            state: editedPageData.addressState || "", // Explicitly include state, even if empty
+            country: editedPageData.addressCountry || "",
+            zip: editedPageData.addressZip || "",
+            latitude: editedPageData.addressLat || null,
+            longitude: editedPageData.addressLng || null,
+          },
+        }),
       };
-
+  
+      console.log("Payload being sent to Facebook Graph API:", editableFields);
+  
       const response = await fetch(
-        `https://graph.facebook.com/v18.0/${pageId}?access_token=${accessToken}`,
+        `https://graph.facebook.com/v20.0/${pageId}?access_token=${accessToken}`,
         {
-          method: "POST", // Use POST for updates per Graph API docs
+          method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(editableFields),
         }
       );
+  
       const data = await response.json();
-      if (!response.ok) throw new Error(data.error?.message || "Failed to update page data");
+  
+      if (!response.ok) {
+        console.error("Error in Facebook Graph API response:", data.error);
+        throw new Error(data.error?.message || "Failed to update page data");
+      }
+  
+      console.log("Page data updated successfully:", data);
+  
+      // Store service_area and other custom fields locally
+      const customData = {
+        addressLat: editedPageData.addressLat,
+        addressLng: editedPageData.addressLng,
+        addressCity: editedPageData.addressCity,
+        addressState: editedPageData.addressState,
+        addressCountry: editedPageData.addressCountry,
+        addressZip: editedPageData.addressZip,
+        social_links: editedPageData.social_links,
+        price_range: editedPageData.price_range,
+        privacy_policy: editedPageData.privacy_policy,
+        impressum: editedPageData.impressum,
+        work: editedPageData.work,
+        education: editedPageData.education,
+        places_lived: editedPageData.places_lived,
+        relationship_status: editedPageData.relationship_status,
+        family_members: editedPageData.family_members,
+        name_pronunciation: editedPageData.name_pronunciation,
+        other_names: editedPageData.other_names,
+        favorite_quotes: editedPageData.favorite_quotes,
+      };
+  
+      localStorage.set("customPageData", customData);
+  
       setPageData((prev) => ({ ...prev, ...editableFields }));
       setIsEditingAbout(false);
       alert("Page info updated successfully!");
     } catch (err) {
+      console.error("Detailed error in updatePageData:", err);
       setError(err.message);
     } finally {
       setIsLoading(false);
     }
   };
+
 
   const fetchPagePosts = async () => {
     setIsLoading(true);
@@ -985,227 +1100,720 @@ const FacebookProfile = () => {
                   )}
                 </div>
               )}
-              {activeTab === "About" && (
-                <div className="about-section">
-                  <div className="about-section-header">
-                    <h2>About</h2>
-                    <button
-                      className="edit-about-button"
-                      onClick={() => setIsEditingAbout(!isEditingAbout)}
-                    >
-                      {isEditingAbout ? "Cancel" : "Edit"}
-                    </button>
-                  </div>
-                  <div className="about-section-content">
-                    <h3>Contact Information</h3>
-                    {isEditingAbout ? (
-                      <>
-                        <div className="info-item">
-                          <span className="info-icon">📞</span>
-                          <input
-                            type="text"
-                            value={editedPageData.phone || ""}
-                            onChange={(e) =>
-                              setEditedPageData((prev) => ({ ...prev, phone: e.target.value }))
-                            }
-                            placeholder="Phone"
-                            className="edit-input"
-                          />
-                        </div>
-                        <div className="info-item">
-                          <span className="info-icon">🌐</span>
-                          <input
-                            type="text"
-                            value={editedPageData.website || ""}
-                            onChange={(e) =>
-                              setEditedPageData((prev) => ({ ...prev, website: e.target.value }))
-                            }
-                            placeholder="Website"
-                            className="edit-input"
-                          />
-                        </div>
-                        {isEditingAbout && (
-                          <button
-                            className="save-about-button"
-                            onClick={updatePageData}
-                            disabled={isLoading}
-                          >
-                            {isLoading ? "Saving..." : "Save"}
-                          </button>
-                        )}
-                      </>
-                    ) : (
-                      <>
-                        {pageData.phone && (
-                          <div className="info-item">
-                            <span className="info-icon">📞</span>
-                            <p>Phone: {pageData.phone}</p>
-                          </div>
-                        )}
-                        {pageData.website && (
-                          <div className="info-item">
-                            <span className="info-icon">🌐</span>
-                            <p>
-                              Website:{" "}
-                              <a href={pageData.website} target="_blank" rel="noopener noreferrer">
-                                {pageData.website}
-                              </a>
-                            </p>
-                          </div>
-                        )}
-                        {pageData.link && (
-                          <div className="info-item">
-                            <span className="info-icon">🔗</span>
-                            <p>
-                              Facebook:{" "}
-                              <a href={pageData.link} target="_blank" rel="noopener noreferrer">
-                                {pageData.username || pageData.link}
-                              </a>
-                            </p>
-                          </div>
-                        )}
-                        {!pageData.phone && !pageData.website && !pageData.link && (
-                          <p>No contact information available.</p>
-                        )}
-                      </>
-                    )}
-                  </div>
-                  {pageData.location && (
-                    <div className="about-section-content">
-                      <h3>Location</h3>
-                      <div className="info-item">
-                        <span className="info-icon">📍</span>
-                        <p>
-                          {pageData.location.street ? `${pageData.location.street}, ` : ""}
-                          {pageData.location.city ? `${pageData.location.city}, ` : ""}
-                          {pageData.location.state ? `${pageData.location.state}, ` : ""}
-                          {pageData.location.country ? `${pageData.location.country}` : ""}
-                          {pageData.location.zip ? ` ${pageData.location.zip}` : ""}
-                        </p>
-                      </div>
-                    </div>
+{activeTab === "About" && (
+  <LoadScript googleMapsApiKey="AIzaSyCAzRS_i_8GcmiGF5jhb9UuXdS1nn6kskA" libraries={["places"]}>
+    <div className="about-section">
+      <div className="about-section-header">
+        <h2>About {pageData.name}</h2>
+        {!isEditingAbout && (
+          <button className="edit-about-button" onClick={() => setIsEditingAbout(true)}>
+            Edit About
+          </button>
+        )}
+      </div>
+
+      {isEditingAbout ? (
+        <div className="edit-about-form">
+          <h3>Edit About Section</h3>
+          <div className="edit-section">
+            <h4>Overview</h4>
+            <label>
+              About:
+              <textarea
+                value={editedPageData.about}
+                onChange={(e) => setEditedPageData((prev) => ({ ...prev, about: e.target.value }))}
+                className="edit-textarea"
+              />
+            </label>
+            <label>
+              Description:
+              <textarea
+                value={editedPageData.description}
+                onChange={(e) =>
+                  setEditedPageData((prev) => ({ ...prev, description: e.target.value }))
+                }
+                className="edit-textarea"
+              />
+            </label>
+          </div>
+
+          <div className="edit-section">
+            <h4>Contact and Basic Info</h4>
+            <label>
+              Phone:
+              <input
+                type="text"
+                value={editedPageData.phone}
+                onChange={(e) => setEditedPageData((prev) => ({ ...prev, phone: e.target.value }))}
+                className="edit-input"
+              />
+            </label>
+            <label>
+              Website:
+              <input
+                type="text"
+                value={editedPageData.website}
+                onChange={(e) => setEditedPageData((prev) => ({ ...prev, website: e.target.value }))}
+                className="edit-input"
+              />
+            </label>
+            <label>
+              Address:
+              <div className="map-container">
+                <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                <Autocomplete
+  onLoad={(autocomplete) => {
+    setAddressAutocomplete(autocomplete);
+  }}
+  onPlaceChanged={() => {
+    if (addressAutocomplete) {
+      const place = addressAutocomplete.getPlace();
+      if (place.formatted_address && place.geometry) {
+        // Extract address components
+        const addressComponents = place.address_components || [];
+        let street = "";
+        let city = "";
+        let state = "";
+        let country = "";
+        let zip = "";
+
+        addressComponents.forEach((component) => {
+          const types = component.types;
+          // Street-level components
+          if (types.includes("street_number") || types.includes("route")) {
+            street += (street ? " " : "") + component.long_name;
+          } else if (types.includes("neighborhood") || types.includes("sublocality")) {
+            street += (street ? ", " : "") + component.long_name;
+          }
+          // City: For Turkey, use administrative_area_level_1 (province) as the city
+          else if (types.includes("administrative_area_level_1")) {
+            city = component.long_name; // e.g., "Kahramanmaraş"
+          }
+          // Country
+          else if (types.includes("country")) {
+            country = component.long_name;
+          }
+          // Postal code
+          else if (types.includes("postal_code")) {
+            zip = component.long_name;
+          }
+        });
+
+        // If street is empty, fall back to the first part of the formatted address
+        if (!street) {
+          const addressParts = place.formatted_address.split(",");
+          street = addressParts[0].trim(); // Take the first part as the street (e.g., "Ekmekçi")
+        }
+
+        // For Turkish addresses, ensure the province is treated as the city and state is empty
+        if (country === "Türkiye") {
+          state = ""; // No state for Turkey
+          if (!city) {
+            // Fallback: Extract the province from the formatted address
+            const addressParts = place.formatted_address.split(",");
+            const provincePart = addressParts.find((part) =>
+              part.includes("/")
+            );
+            if (provincePart) {
+              const provinceMatch = provincePart.match(/\/\s*(\S+)/);
+              if (provinceMatch) {
+                city = provinceMatch[1].trim(); // e.g., "Kahramanmaraş"
+              }
+            }
+          }
+        }
+
+        // Log the extracted components for debugging
+        console.log("Extracted address components:", {
+          street,
+          city,
+          state,
+          country,
+          zip,
+          lat: place.geometry.location.lat(),
+          lng: place.geometry.location.lng(),
+        });
+
+        setEditedPageData((prev) => ({
+          ...prev,
+          address: street, // Store the street portion (e.g., "Ekmekçi")
+          addressLat: place.geometry.location.lat(),
+          addressLng: place.geometry.location.lng(),
+          addressCity: city, // Store city (Kahramanmaraş)
+          addressState: state, // Store state (empty for Turkey)
+          addressCountry: country, // Store country
+          addressZip: zip, // Store zip code
+        }));
+      } else {
+        alert("Please select a valid location from the suggestions.");
+      }
+    }
+  }}
+>
+  <input
+    type="text"
+    value={editedPageData.address}
+    onChange={(e) =>
+      setEditedPageData((prev) => ({ ...prev, address: e.target.value }))
+    }
+    placeholder="Search for an address"
+    className="edit-input"
+  />
+</Autocomplete>
+                  {editedPageData.address && (
+         <button
+         type="button"
+         onClick={() =>
+           setEditedPageData((prev) => ({
+             ...prev,
+             address: "",
+             addressLat: null,
+             addressLng: null,
+             addressCity: "", // Reset city
+             addressState: "", // Reset state
+             addressCountry: "", // Reset country
+             addressZip: "", // Reset zip code
+           }))
+         }
+         style={{ padding: "8px", background: "#f0f2f5", border: "none", borderRadius: "4px" }}
+       >
+         Clear
+       </button>
                   )}
-                  <div className="about-section-content">
-                    <h3>Business Details</h3>
-                    <div className="info-item">
-                      <span className="info-icon">🏷️</span>
-                      <p>Category: {pageData.category || "Home Businesses"}</p>
-                    </div>
-                    {isEditingAbout ? (
-                      <>
-                        <div className="info-item">
-                          <span className="info-icon">ℹ️</span>
-                          <textarea
-                            value={editedPageData.about || ""}
-                            onChange={(e) =>
-                              setEditedPageData((prev) => ({ ...prev, about: e.target.value }))
-                            }
-                            placeholder="About"
-                            className="edit-textarea"
-                          />
-                        </div>
-                        <div className="info-item">
-                          <span className="info-icon">📝</span>
-                          <textarea
-                            value={editedPageData.description || ""}
-                            onChange={(e) =>
-                              setEditedPageData((prev) => ({
-                                ...prev,
-                                description: e.target.value,
-                              }))
-                            }
-                            placeholder="Description"
-                            className="edit-textarea"
-                          />
-                        </div>
-                      </>
-                    ) : (
-                      <>
-                        {pageData.about && (
-                          <div className="info-item">
-                            <span className="info-icon">ℹ️</span>
-                            <p>About: {pageData.about}</p>
-                          </div>
-                        )}
-                        {pageData.description && (
-                          <div className="info-item">
-                            <span className="info-icon">📝</span>
-                            <p>Description: {pageData.description}</p>
-                          </div>
-                        )}
-                      </>
-                    )}
-                    {pageData.founded && (
-                      <div className="info-item">
-                        <span className="info-icon">📅</span>
-                        <p>Founded: {pageData.founded}</p>
-                      </div>
-                    )}
-                    {pageData.mission && (
-                      <div className="info-item">
-                        <span className="info-icon">🎯</span>
-                        <p>Mission: {pageData.mission}</p>
-                      </div>
-                    )}
-                    {pageData.products && (
-                      <div className="info-item">
-                        <span className="info-icon">🛍️</span>
-                        <p>Products: {pageData.products}</p>
-                      </div>
-                    )}
-                  </div>
-                  {/* Other sections remain unchanged */}
-                  {pageData.hours && (
-                    <div className="about-section-content">
-                      <h3>Operating Hours</h3>
-                      {Object.entries(pageData.hours).map(([day, hours]) => (
-                        <div key={day} className="info-item">
-                          <span className="info-icon">⏰</span>
-                          <p>{day.charAt(0).toUpperCase() + day.slice(1)}: {hours}</p>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                  <div className="about-section-content">
-                    <h3>Engagement</h3>
-                    <div className="info-item">
-                      <span className="info-icon">👍</span>
-                      <p>Likes: {pageData.fan_count.toLocaleString()}</p>
-                    </div>
-                    {pageData.followers_count && (
-                      <div className="info-item">
-                        <span className="info-icon">👥</span>
-                        <p>Followers: {pageData.followers_count.toLocaleString()}</p>
-                      </div>
-                    )}
-                  </div>
-                  <div className="about-section-content">
-                    <h3>Page Status</h3>
-                    {pageData.verification_status && (
-                      <div className="info-item">
-                        <span className="info-icon">✅</span>
-                        <p>
-                          Verification:{" "}
-                          {pageData.verification_status === "verified" ? "Verified" : "Not Verified"}
-                        </p>
-                      </div>
-                    )}
-                    <div className="info-item">
-                      <span className="info-icon">⭐</span>
-                      <p>
-                        Rating:{" "}
-                        {pageData.rating_count
-                          ? `${pageData.rating_count} reviews`
-                          : "Not yet rated (0 Reviews)"}
-                      </p>
-                    </div>
-                    <div className="info-item">
-                      <span className="info-icon">📢</span>
-                      <p>Status: {pageData.is_published ? "Published" : "Unpublished"}</p>
-                    </div>
-                  </div>
                 </div>
-              )}
+                {editedPageData.addressLat && editedPageData.addressLng && (
+                  <GoogleMap
+                    mapContainerStyle={{ height: "200px", width: "100%" }}
+                    center={{
+                      lat: editedPageData.addressLat,
+                      lng: editedPageData.addressLng,
+                    }}
+                    zoom={15}
+                  >
+                    <Marker
+                      position={{
+                        lat: editedPageData.addressLat,
+                        lng: editedPageData.addressLng,
+                      }}
+                    />
+                  </GoogleMap>
+                )}
+              </div>
+            </label>
+        
+            <label>
+              Email:
+              <input
+                type="email"
+                value={editedPageData.email}
+                onChange={(e) => setEditedPageData((prev) => ({ ...prev, email: e.target.value }))}
+                className="edit-input"
+              />
+            </label>
+          
+            <label>
+              Social Links (comma-separated):
+              <input
+                type="text"
+                value={editedPageData.social_links.join(", ")}
+                onChange={(e) =>
+                  setEditedPageData((prev) => ({
+                    ...prev,
+                    social_links: e.target.value.split(",").map((link) => link.trim()),
+                  }))
+                }
+                className="edit-input"
+              />
+            </label>
+          </div>
+
+          <div className="edit-section">
+            <h4>Business Details</h4>
+            <label>
+              Price Range:
+              <input
+                type="text"
+                value={editedPageData.price_range}
+                onChange={(e) =>
+                  setEditedPageData((prev) => ({ ...prev, price_range: e.target.value }))
+                }
+                className="edit-input"
+              />
+            </label>
+            <label>
+              Services (comma-separated):
+              <input
+                type="text"
+                value={editedPageData.services.join(", ")}
+                onChange={(e) =>
+                  setEditedPageData((prev) => ({
+                    ...prev,
+                    services: e.target.value.split(",").map((service) => service.trim()),
+                  }))
+                }
+                className="edit-input"
+              />
+            </label>
+            <label>
+              Languages (comma-separated):
+              <input
+                type="text"
+                value={editedPageData.languages.join(", ")}
+                onChange={(e) =>
+                  setEditedPageData((prev) => ({
+                    ...prev,
+                    languages: e.target.value.split(",").map((lang) => lang.trim()),
+                  }))
+                }
+                className="edit-input"
+              />
+            </label>
+            <label>
+              Founded:
+              <input
+                type="text"
+                value={editedPageData.founded}
+                onChange={(e) => setEditedPageData((prev) => ({ ...prev, founded: e.target.value }))}
+                className="edit-input"
+              />
+            </label>
+          </div>
+
+          <div className="edit-section">
+            <h4>Privacy and Legal Info</h4>
+            <label>
+              Privacy Policy:
+              <textarea
+                value={editedPageData.privacy_policy}
+                onChange={(e) =>
+                  setEditedPageData((prev) => ({ ...prev, privacy_policy: e.target.value }))
+                }
+                className="edit-textarea"
+              />
+            </label>
+            <label>
+              Impressum:
+              <textarea
+                value={editedPageData.impressum}
+                onChange={(e) =>
+                  setEditedPageData((prev) => ({ ...prev, impressum: e.target.value }))
+                }
+                className="edit-textarea"
+              />
+            </label>
+          </div>
+
+          <div className="edit-section">
+            <h4>Work and Education</h4>
+            <label>
+              Work (comma-separated):
+              <input
+                type="text"
+                value={editedPageData.work.join(", ")}
+                onChange={(e) =>
+                  setEditedPageData((prev) => ({
+                    ...prev,
+                    work: e.target.value.split(",").map((item) => item.trim()),
+                  }))
+                }
+                className="edit-input"
+              />
+            </label>
+            <label>
+              Education (comma-separated):
+              <input
+                type="text"
+                value={editedPageData.education.join(", ")}
+                onChange={(e) =>
+                  setEditedPageData((prev) => ({
+                    ...prev,
+                    education: e.target.value.split(",").map((item) => item.trim()),
+                  }))
+                }
+                className="edit-input"
+              />
+            </label>
+          </div>
+
+          <div className="edit-section">
+            <h4>Places Lived</h4>
+            <label>
+              Places Lived (comma-separated):
+              <input
+                type="text"
+                value={editedPageData.places_lived.join(", ")}
+                onChange={(e) =>
+                  setEditedPageData((prev) => ({
+                    ...prev,
+                    places_lived: e.target.value.split(",").map((place) => place.trim()),
+                  }))
+                }
+                className="edit-input"
+              />
+            </label>
+          </div>
+
+          <div className="edit-section">
+            <h4>Family and Relationships</h4>
+            <label>
+              Relationship Status:
+              <input
+                type="text"
+                value={editedPageData.relationship_status}
+                onChange={(e) =>
+                  setEditedPageData((prev) => ({ ...prev, relationship_status: e.target.value }))
+                }
+                className="edit-input"
+              />
+            </label>
+            <label>
+              Family Members (comma-separated):
+              <input
+                type="text"
+                value={editedPageData.family_members.join(", ")}
+                onChange={(e) =>
+                  setEditedPageData((prev) => ({
+                    ...prev,
+                    family_members: e.target.value.split(",").map((member) => member.trim()),
+                  }))
+                }
+                className="edit-input"
+              />
+            </label>
+          </div>
+
+          <div className="edit-section">
+            <h4>Details About You</h4>
+            <label>
+              Name Pronunciation:
+              <input
+                type="text"
+                value={editedPageData.name_pronunciation}
+                onChange={(e) =>
+                  setEditedPageData((prev) => ({ ...prev, name_pronunciation: e.target.value }))
+                }
+                className="edit-input"
+              />
+            </label>
+            <label>
+              Other Names (comma-separated):
+              <input
+                type="text"
+                value={editedPageData.other_names.join(", ")}
+                onChange={(e) =>
+                  setEditedPageData((prev) => ({
+                    ...prev,
+                    other_names: e.target.value.split(",").map((name) => name.trim()),
+                  }))
+                }
+                className="edit-input"
+              />
+            </label>
+            <label>
+              Favorite Quotes:
+              <textarea
+                value={editedPageData.favorite_quotes}
+                onChange={(e) =>
+                  setEditedPageData((prev) => ({ ...prev, favorite_quotes: e.target.value }))
+                }
+                className="edit-textarea"
+              />
+            </label>
+          </div>
+
+          <div className="edit-actions">
+            <button className="save-about-button" onClick={updatePageData}>
+              Save
+            </button>
+            <button className="cancel-about-button" onClick={() => setIsEditingAbout(false)}>
+              Cancel
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="about-section-content">
+          <div className="info-section">
+            <h3>Overview</h3>
+            <p>{pageData.about || "No about info available."}</p>
+            <p>{pageData.description || "No description available."}</p>
+          </div>
+
+          <div className="info-section">
+            <h3>Followers</h3>
+            <p>{pageData.followers_count?.toLocaleString() || "0"} followers</p>
+          </div>
+
+          <div className="info-section">
+            <h3>Reels</h3>
+            {isLoadingReels ? (
+              <p>Loading reels...</p>
+            ) : reels.length === 0 ? (
+              <p>No reels available.</p>
+            ) : (
+              <div className="media-grid">
+                {reels.slice(0, 3).map((reel) => (
+                  <div key={reel.id} className="media-item">
+                    <video src={reel.source} poster={reel.thumbnail} controls className="media-video" />
+                    <p>{reel.title || "Untitled Reel"}</p>
+                  </div>
+                ))}
+                <button onClick={() => setActiveTab("Reels")}>See all reels</button>
+              </div>
+            )}
+          </div>
+
+          <div className="info-section">
+            <h3>Videos</h3>
+            {isLoadingVideos ? (
+              <p>Loading videos...</p>
+            ) : videos.length === 0 ? (
+              <p>No videos available.</p>
+            ) : (
+              <div className="media-grid">
+                {videos.slice(0, 3).map((video) => (
+                  <div key={video.id} className="media-item">
+                    <video
+                      src={video.source}
+                      poster={video.thumbnail_url}
+                      controls
+                      className="media-video"
+                    />
+                    <p>{video.title || "Untitled Video"}</p>
+                  </div>
+                ))}
+                <button onClick={() => setActiveTab("Videos")}>See all videos</button>
+              </div>
+            )}
+          </div>
+
+          <div className="info-section">
+            <h3>Contact and Basic Info</h3>
+            {pageData.phone && (
+              <div className="info-item">
+                <span className="info-icon">📞</span>
+                <p>{pageData.phone}</p>
+              </div>
+            )}
+            {pageData.website && (
+              <div className="info-item">
+                <span className="info-icon">🌐</span>
+                <a href={pageData.website} target="_blank" rel="noopener noreferrer">
+                  {pageData.website}
+                </a>
+              </div>
+            )}
+            {editedPageData.address && (
+              <div className="info-item">
+                <span className="info-icon">📍</span>
+                <div>
+                  <p>{editedPageData.address}</p>
+                  {editedPageData.addressLat && editedPageData.addressLng && (
+                    <GoogleMap
+                      mapContainerStyle={{ height: "200px", width: "100%" }}
+                      center={{
+                        lat: editedPageData.addressLat,
+                        lng: editedPageData.addressLng,
+                      }}
+                      zoom={15}
+                    >
+                      <Marker
+                        position={{
+                          lat: editedPageData.addressLat,
+                          lng: editedPageData.addressLng,
+                        }}
+                      />
+                    </GoogleMap>
+                  )}
+                </div>
+              </div>
+            )}
+            {editedPageData.email && (
+              <div className="info-item">
+                <span className="info-icon">✉️</span>
+                <p>{editedPageData.email}</p>
+              </div>
+            )}
+        
+            {editedPageData.social_links.length > 0 && (
+              <div className="info-item">
+                <span className="info-icon">🔗</span>
+                <div>
+                  <p>Social Links:</p>
+                  <ul>
+                    {editedPageData.social_links.map((link, index) => (
+                      <li key={index}>
+                        <a href={link} target="_blank" rel="noopener noreferrer">
+                          {link}
+                        </a>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="info-section">
+            <h3>Business Details</h3>
+            {editedPageData.price_range && (
+              <div className="info-item">
+                <span className="info-icon">💰</span>
+                <p>{editedPageData.price_range}</p>
+              </div>
+            )}
+            {editedPageData.services.length > 0 && (
+              <div className="info-item">
+                <span className="info-icon">🛠️</span>
+                <div>
+                  <p>Services:</p>
+                  <ul>
+                    {editedPageData.services.map((service, index) => (
+                      <li key={index}>{service}</li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            )}
+            {editedPageData.languages.length > 0 && (
+              <div className="info-item">
+                <span className="info-icon">🌍</span>
+                <div>
+                  <p>Languages:</p>
+                  <ul>
+                    {editedPageData.languages.map((language, index) => (
+                      <li key={index}>{language}</li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            )}
+            {editedPageData.founded && (
+              <div className="info-item">
+                <span className="info-icon">📅</span>
+                <p>Founded: {editedPageData.founded}</p>
+              </div>
+            )}
+          </div>
+
+          <div className="info-section">
+            <h3>Privacy and Legal Info</h3>
+            {editedPageData.privacy_policy && (
+              <div className="info-item">
+                <span className="info-icon">🔒</span>
+                <p>{editedPageData.privacy_policy}</p>
+              </div>
+            )}
+            {editedPageData.impressum && (
+              <div className="info-item">
+                <span className="info-icon">📜</span>
+                <p>{editedPageData.impressum}</p>
+              </div>
+            )}
+          </div>
+
+          <div className="info-section">
+            <h3>Work and Education</h3>
+            {editedPageData.work.length > 0 && (
+              <div className="info-item">
+                <span className="info-icon">💼</span>
+                <div>
+                  <p>Work:</p>
+                  <ul>
+                    {editedPageData.work.map((job, index) => (
+                      <li key={index}>{job}</li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            )}
+            {editedPageData.education.length > 0 && (
+              <div className="info-item">
+                <span className="info-icon">🎓</span>
+                <div>
+                  <p>Education:</p>
+                  <ul>
+                    {editedPageData.education.map((edu, index) => (
+                      <li key={index}>{edu}</li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="info-section">
+            <h3>Places Lived</h3>
+            {editedPageData.places_lived.length > 0 && (
+              <div className="info-item">
+                <span className="info-icon">🏠</span>
+                <div>
+                  <ul>
+                    {editedPageData.places_lived.map((place, index) => (
+                      <li key={index}>{place}</li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="info-section">
+            <h3>Family and Relationships</h3>
+            {editedPageData.relationship_status && (
+              <div className="info-item">
+                <span className="info-icon">❤️</span>
+                <p>{editedPageData.relationship_status}</p>
+              </div>
+            )}
+            {editedPageData.family_members.length > 0 && (
+              <div className="info-item">
+                <span className="info-icon">👨‍👩‍👧</span>
+                <div>
+                  <p>Family Members:</p>
+                  <ul>
+                    {editedPageData.family_members.map((member, index) => (
+                      <li key={index}>{member}</li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="info-section">
+            <h3>Details About You</h3>
+            {editedPageData.name_pronunciation && (
+              <div className="info-item">
+                <span className="info-icon">🗣️</span>
+                <p>{editedPageData.name_pronunciation}</p>
+              </div>
+            )}
+            {editedPageData.other_names.length > 0 && (
+              <div className="info-item">
+                <span className="info-icon">📛</span>
+                <div>
+                  <p>Other Names:</p>
+                  <ul>
+                    {editedPageData.other_names.map((name, index) => (
+                      <li key={index}>{name}</li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            )}
+            {editedPageData.favorite_quotes && (
+              <div className="info-item">
+                <span className="info-icon">💬</span>
+                <p>{editedPageData.favorite_quotes}</p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  </LoadScript>
+)}
+
               {activeTab === "Mentions" && (
                 <div className="mentions-section">
                   <h2>Mentions</h2>

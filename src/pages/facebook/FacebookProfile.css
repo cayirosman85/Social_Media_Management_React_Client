@@ -681,23 +681,37 @@
   margin-bottom: 30px;
 }
 
-.about-section-content h3 {
+.info-section {
+  margin-bottom: 20px;
+  padding-bottom: 15px;
+  border-bottom: 1px solid #dadde1;
+}
+
+.info-section:last-child {
+  border-bottom: none;
+}
+
+.info-section h3 {
   margin: 0 0 15px;
   font-size: 1.2em;
   color: #1c2526;
-  border-bottom: 1px solid #dadde1;
   padding-bottom: 5px;
 }
 
-.about-section-content p {
+.info-section p {
   margin: 5px 0;
   color: #65676b;
   font-size: 0.9em;
 }
-
+.map-container {
+  margin-top: 10px;
+  margin-bottom: 20px;
+  width: 100%;
+  height: 200px; /* Ensure the container has a height */
+}
 .info-item {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 10px;
   margin-bottom: 10px;
 }
@@ -717,10 +731,53 @@
   text-decoration: underline;
 }
 
-/* Edit inputs for About section */
-.edit-input {
-  flex: 1;
+.info-item ul {
+  margin: 0;
+  padding-left: 20px;
+  color: #65676b;
+  font-size: 0.9em;
+}
+
+/* Edit form */
+.edit-about-form {
+  padding: 15px;
+  background: #f0f2f5;
+  border-radius: 8px;
+}
+
+.edit-about-form h3 {
+  margin: 0 0 15px;
+  font-size: 1.3em;
+  color: #1c2526;
+}
+
+.edit-section {
+  margin-bottom: 20px;
+  padding: 15px;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.edit-section h4 {
+  margin: 0 0 10px;
+  font-size: 1.1em;
+  color: #1c2526;
+}
+
+.edit-section label {
+  display: block;
+  margin-bottom: 10px;
+  font-size: 0.9em;
+  color: #65676b;
+}
+
+.edit-input,
+.edit-textarea {
+  display: block;
+  width: 100%;
   padding: 8px;
+  margin-top: 5px;
   border: 1px solid #dadde1;
   border-radius: 5px;
   font-size: 0.9em;
@@ -728,35 +785,67 @@
 }
 
 .edit-textarea {
-  flex: 1;
-  padding: 8px;
-  border: 1px solid #dadde1;
+  resize: vertical;
+  min-height: 80px;
+}
+
+.edit-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+.save-about-button,
+.cancel-about-button {
+  padding: 8px 16px;
+  border: none;
   border-radius: 5px;
   font-size: 0.9em;
-  resize: vertical;
-  min-height: 60px;
-  color: #1c2526;
+  font-weight: 600;
+  cursor: pointer;
 }
 
 .save-about-button {
   background: #1877f2;
-  border: none;
-  padding: 8px 16px;
-  border-radius: 5px;
-  font-size: 0.9em;
-  font-weight: 600;
   color: white;
-  cursor: pointer;
-  margin-top: 10px;
 }
 
 .save-about-button:hover {
   background: #166fe5;
 }
 
-.save-about-button:disabled {
-  background: #b0c4de;
-  cursor: not-allowed;
+.cancel-about-button {
+  background: #e4e6eb;
+  color: #1c2526;
+}
+
+.cancel-about-button:hover {
+  background: #dadde1;
+}
+
+/* Media grid for reels and videos */
+.media-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.media-item {
+  text-align: center;
+}
+
+.media-video {
+  width: 100%;
+  height: 100px;
+  object-fit: cover;
+  border-radius: 5px;
+}
+
+.media-item p {
+  margin: 5px 0;
+  font-size: 0.85em;
+  color: #65676b;
 }
 
 /* Mentions section */
@@ -856,5 +945,29 @@
   .manual-url-input {
     margin-left: 0;
     width: 100%;
+  }
+
+  .about-section-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .edit-actions {
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .save-about-button,
+  .cancel-about-button {
+    width: 100%;
+  }
+
+  .media-grid {
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  }
+
+  .media-video {
+    height: 80px;
   }
 }
