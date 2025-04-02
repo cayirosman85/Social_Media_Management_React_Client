@@ -282,6 +282,7 @@ const Sidebar = () => {
           'pages_read_user_content',
           'pages_manage_engagement',
           'pages_manage_metadata',
+          'pages_read_engagement',
           ];
         const missingScopes = requiredScopes.filter((scope) => !grantedScopes.includes(scope));
         if (missingScopes.length > 0) {
@@ -439,7 +440,9 @@ const Sidebar = () => {
                           autoLoad={false}
                           fields="name,email,picture"
                           scope="pages_show_list,pages_manage_posts,pages_read_user_content, pages_manage_engagement,
-          pages_manage_metadata"
+          pages_manage_metadata,pages_read_engagement
+
+"
                           callback={responseFacebookPage}
                           cssClass="facebook-login-btn"
                           textButton="Login with Facebook"

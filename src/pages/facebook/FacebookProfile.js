@@ -8,6 +8,8 @@ const FacebookProfile = () => {
   const [photos, setPhotos] = useState([]);
   const [videos, setVideos] = useState([]);
   const [reels, setReels] = useState([]);
+  const [mentions, setMentions] = useState([]);
+  const [reviews, setReviews] = useState([]);
   const [comments, setComments] = useState({});
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -26,10 +28,14 @@ const FacebookProfile = () => {
   const [likedComments, setLikedComments] = useState({});
   const [isLoadingReels, setIsLoadingReels] = useState(true);
   const [isLoadingVideos, setIsLoadingVideos] = useState(true);
+  const [isLoadingMentions, setIsLoadingMentions] = useState(true);
+  const [isLoadingReviews, setIsLoadingReviews] = useState(true);
   const [showMenu, setShowMenu] = useState({});
+  const [isEditingAbout, setIsEditingAbout] = useState(false);
+  const [editedPageData, setEditedPageData] = useState({});
+
   const pageId = localStorage.get("facebookPageId");
   const accessToken = localStorage.get("facebookPageAccessToken");
-  const [privacy, setPrivacy] = useState("public");
 
   useEffect(() => {
     if (!pageId || !accessToken) {
@@ -42,13 +48,9 @@ const FacebookProfile = () => {
     fetchAllMedia();
     fetchReels();
     fetchVideos();
+    fetchMentions();
+    fetchReviews();
   }, [pageId, accessToken]);
-
-  // Debugging for newPostMessage and mediaFiles
-  useEffect(() => {
-    console.log("newPostMessage:", newPostMessage);
-    console.log("mediaFiles:", mediaFiles);
-  }, [newPostMessage, mediaFiles]);
 
   const fetchPageData = async () => {
     setIsLoading(true);
@@ -59,6 +61,38 @@ const FacebookProfile = () => {
       const data = await response.json();
       if (!response.ok) throw new Error(data.error?.message || "Failed to fetch page data");
       setPageData(data);
+      setEditedPageData(data); // Initialize editable data
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const updatePageData = async () => {
+    setIsLoading(true);
+    try {
+      const editableFields = {
+        about: editedPageData.about || "",
+        description: editedPageData.description || "",
+        phone: editedPageData.phone || "",
+        website: editedPageData.website || "",
+        // Add more fields like category, location.street, etc., if needed
+      };
+
+      const response = await fetch(
+        `https://graph.facebook.com/v18.0/${pageId}?access_token=${accessToken}`,
+        {
+          method: "POST", // Use POST for updates per Graph API docs
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(editableFields),
+        }
+      );
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error?.message || "Failed to update page data");
+      setPageData((prev) => ({ ...prev, ...editableFields }));
+      setIsEditingAbout(false);
+      alert("Page info updated successfully!");
     } catch (err) {
       setError(err.message);
     } finally {
@@ -168,6 +202,40 @@ const FacebookProfile = () => {
     }
   };
 
+  const fetchMentions = async () => {
+    setIsLoadingMentions(true);
+    try {
+      const response = await fetch(
+        `https://graph.facebook.com/v18.0/${pageId}/tagged?fields=id,message,created_time,from,permalink_url,full_picture,attachments,type,status_type&access_token=${accessToken}&limit=10`
+      );
+      const data = await response.json();
+      console.log("Mentions data:", data);
+      if (!response.ok) throw new Error(data.error?.message || "Failed to fetch mentions");
+      setMentions(data.data || []);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setIsLoadingMentions(false);
+    }
+  };
+
+  const fetchReviews = async () => {
+    setIsLoadingReviews(true);
+    try {
+      const response = await fetch(
+        `https://graph.facebook.com/v18.0/${pageId}/ratings?fields=created_time,reviewer,rating,review_text,has_rating,has_review&access_token=${accessToken}&limit=10`
+      );
+      const data = await response.json();
+      console.log("Reviews data:", data);
+      if (!response.ok) throw new Error(data.error?.message || "Failed to fetch reviews");
+      setReviews(data.data || []);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setIsLoadingReviews(false);
+    }
+  };
+
   const fetchPostComments = async (postId) => {
     try {
       const response = await fetch("https://localhost:7099/api/Facebook/facebook-post-comments", {
@@ -203,7 +271,6 @@ const FacebookProfile = () => {
 
   const handleFileChange = (e) => {
     const files = Array.from(e.target.files);
-    console.log("Selected files:", files); // Debugging
     setMediaFiles(files);
   };
 
@@ -213,14 +280,12 @@ const FacebookProfile = () => {
       alert("Please add a message or media to post.");
       return;
     }
-
     setIsLoading(true);
     try {
       let uploadedMediaUrls = [];
       if (mediaFiles.length > 0) {
         uploadedMediaUrls = await handleMediaUpload(mediaFiles);
       }
-
       const response = await fetch("https://localhost:7099/api/Facebook/publish-facebook-post", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -229,7 +294,6 @@ const FacebookProfile = () => {
           access_token: accessToken,
           message: newPostMessage,
           photo_url: uploadedMediaUrls[0] || manualMediaUrl.trim() || null,
-          privacy: privacy,
         }),
       });
       const data = await response.json();
@@ -241,7 +305,6 @@ const FacebookProfile = () => {
         setManualMediaUrl("");
         fetchPagePosts();
         fetchAllMedia();
-        setPrivacy("public");
         alert("Post created successfully!");
       }
     } catch (error) {
@@ -254,7 +317,6 @@ const FacebookProfile = () => {
   const handleCommentSubmit = async (postId, e) => {
     e.preventDefault();
     if (!commentText[postId]?.trim()) return;
-
     try {
       const response = await fetch("https://localhost:7099/api/Facebook/publish-facebook-comment", {
         method: "POST",
@@ -279,7 +341,6 @@ const FacebookProfile = () => {
   const handleReplySubmit = async (commentId, postId, e) => {
     e.preventDefault();
     if (!replyText[commentId]?.trim()) return;
-
     try {
       const response = await fetch("https://localhost:7099/api/Facebook/reply-to-comment", {
         method: "POST",
@@ -349,7 +410,6 @@ const FacebookProfile = () => {
 
   const handleDeleteComment = async (commentId, postId) => {
     if (!window.confirm("Are you sure you want to delete this comment?")) return;
-
     try {
       const response = await fetch("https://localhost:7099/api/Facebook/delete-comment", {
         method: "POST",
@@ -372,7 +432,6 @@ const FacebookProfile = () => {
   const handleEditComment = async (commentId, postId, e) => {
     e.preventDefault();
     if (!editText[commentId]?.trim()) return;
-
     try {
       const response = await fetch("https://localhost:7099/api/Facebook/edit-comment", {
         method: "POST",
@@ -397,23 +456,19 @@ const FacebookProfile = () => {
   const handleEditPost = async (postId, e) => {
     e.preventDefault();
     if (!editPostText[postId]?.trim()) return;
-
     const isMediaUpdated = editPostMediaFiles[postId]?.length > 0 || editPostMediaUrl[postId]?.trim();
     if (isMediaUpdated) {
       const confirmMessage =
         "Warning: Editing the media of a post is restricted by Facebook. The existing post will be deleted, and a new post will be created with the updated content. This will result in the loss of all likes, comments, and other engagement on the original post. Do you want to proceed?";
       if (!window.confirm(confirmMessage)) return;
     }
-
     setIsLoading(true);
     try {
       let uploadedMediaUrls = [];
       if (editPostMediaFiles[postId]?.length > 0) {
         uploadedMediaUrls = await handleMediaUpload(editPostMediaFiles[postId]);
       }
-
       const photoUrl = uploadedMediaUrls[0] || editPostMediaUrl[postId]?.trim() || null;
-
       const response = await fetch("https://localhost:7099/api/Facebook/edit-post", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -443,7 +498,6 @@ const FacebookProfile = () => {
 
   const handleDeletePost = async (postId) => {
     if (!window.confirm("Are you sure you want to delete this post?")) return;
-
     try {
       const response = await fetch("https://localhost:7099/api/Facebook/delete-post", {
         method: "POST",
@@ -626,7 +680,6 @@ const FacebookProfile = () => {
             <div className="main-content">
               {activeTab === "Posts" && (
                 <div className="posts-section">
-                  {/* Create Post Section */}
                   <div className="new-post-section">
                     <form onSubmit={handleCreatePost}>
                       <div className="post-header">
@@ -638,11 +691,6 @@ const FacebookProfile = () => {
                         <div className="post-header-info">
                           <div className="post-author-wrapper">
                             <p className="post-author">{pageData.name}</p>
-                            <select className="privacy-select">
-                              <option value="public">Public</option>
-                              <option value="friends">Friends</option>
-                              <option value="only_me">Only Me</option>
-                            </select>
                           </div>
                         </div>
                       </div>
@@ -714,8 +762,6 @@ const FacebookProfile = () => {
                       </button>
                     </form>
                   </div>
-
-                  {/* Posts List */}
                   <div className="posts-header">
                     <h2>Posts</h2>
                   </div>
@@ -943,47 +989,85 @@ const FacebookProfile = () => {
                 <div className="about-section">
                   <div className="about-section-header">
                     <h2>About</h2>
+                    <button
+                      className="edit-about-button"
+                      onClick={() => setIsEditingAbout(!isEditingAbout)}
+                    >
+                      {isEditingAbout ? "Cancel" : "Edit"}
+                    </button>
                   </div>
                   <div className="about-section-content">
                     <h3>Contact Information</h3>
-                    {pageData.phone && (
-                      <div className="info-item">
-                        <span className="info-icon">📞</span>
-                        <p>Phone: {pageData.phone}</p>
-                      </div>
-                    )}
-                    {pageData.email && (
-                      <div className="info-item">
-                        <span className="info-icon">📧</span>
-                        <p>
-                          Email: <a href={`mailto:${pageData.email}`}>{pageData.email}</a>
-                        </p>
-                      </div>
-                    )}
-                    {pageData.website && (
-                      <div className="info-item">
-                        <span className="info-icon">🌐</span>
-                        <p>
-                          Website:{" "}
-                          <a href={pageData.website} target="_blank" rel="noopener noreferrer">
-                            {pageData.website}
-                          </a>
-                        </p>
-                      </div>
-                    )}
-                    {pageData.link && (
-                      <div className="info-item">
-                        <span className="info-icon">🔗</span>
-                        <p>
-                          Facebook:{" "}
-                          <a href={pageData.link} target="_blank" rel="noopener noreferrer">
-                            {pageData.username || pageData.link}
-                          </a>
-                        </p>
-                      </div>
-                    )}
-                    {!pageData.phone && !pageData.email && !pageData.website && !pageData.link && (
-                      <p>No contact information available.</p>
+                    {isEditingAbout ? (
+                      <>
+                        <div className="info-item">
+                          <span className="info-icon">📞</span>
+                          <input
+                            type="text"
+                            value={editedPageData.phone || ""}
+                            onChange={(e) =>
+                              setEditedPageData((prev) => ({ ...prev, phone: e.target.value }))
+                            }
+                            placeholder="Phone"
+                            className="edit-input"
+                          />
+                        </div>
+                        <div className="info-item">
+                          <span className="info-icon">🌐</span>
+                          <input
+                            type="text"
+                            value={editedPageData.website || ""}
+                            onChange={(e) =>
+                              setEditedPageData((prev) => ({ ...prev, website: e.target.value }))
+                            }
+                            placeholder="Website"
+                            className="edit-input"
+                          />
+                        </div>
+                        {isEditingAbout && (
+                          <button
+                            className="save-about-button"
+                            onClick={updatePageData}
+                            disabled={isLoading}
+                          >
+                            {isLoading ? "Saving..." : "Save"}
+                          </button>
+                        )}
+                      </>
+                    ) : (
+                      <>
+                        {pageData.phone && (
+                          <div className="info-item">
+                            <span className="info-icon">📞</span>
+                            <p>Phone: {pageData.phone}</p>
+                          </div>
+                        )}
+                        {pageData.website && (
+                          <div className="info-item">
+                            <span className="info-icon">🌐</span>
+                            <p>
+                              Website:{" "}
+                              <a href={pageData.website} target="_blank" rel="noopener noreferrer">
+                                {pageData.website}
+                              </a>
+                            </p>
+                          </div>
+                        )}
+                        {pageData.link && (
+                          <div className="info-item">
+                            <span className="info-icon">🔗</span>
+                            <p>
+                              Facebook:{" "}
+                              <a href={pageData.link} target="_blank" rel="noopener noreferrer">
+                                {pageData.username || pageData.link}
+                              </a>
+                            </p>
+                          </div>
+                        )}
+                        {!pageData.phone && !pageData.website && !pageData.link && (
+                          <p>No contact information available.</p>
+                        )}
+                      </>
                     )}
                   </div>
                   {pageData.location && (
@@ -1007,17 +1091,49 @@ const FacebookProfile = () => {
                       <span className="info-icon">🏷️</span>
                       <p>Category: {pageData.category || "Home Businesses"}</p>
                     </div>
-                    {pageData.description && (
-                      <div className="info-item">
-                        <span className="info-icon">📝</span>
-                        <p>Description: {pageData.description}</p>
-                      </div>
-                    )}
-                    {pageData.about && (
-                      <div className="info-item">
-                        <span className="info-icon">ℹ️</span>
-                        <p>About: {pageData.about}</p>
-                      </div>
+                    {isEditingAbout ? (
+                      <>
+                        <div className="info-item">
+                          <span className="info-icon">ℹ️</span>
+                          <textarea
+                            value={editedPageData.about || ""}
+                            onChange={(e) =>
+                              setEditedPageData((prev) => ({ ...prev, about: e.target.value }))
+                            }
+                            placeholder="About"
+                            className="edit-textarea"
+                          />
+                        </div>
+                        <div className="info-item">
+                          <span className="info-icon">📝</span>
+                          <textarea
+                            value={editedPageData.description || ""}
+                            onChange={(e) =>
+                              setEditedPageData((prev) => ({
+                                ...prev,
+                                description: e.target.value,
+                              }))
+                            }
+                            placeholder="Description"
+                            className="edit-textarea"
+                          />
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        {pageData.about && (
+                          <div className="info-item">
+                            <span className="info-icon">ℹ️</span>
+                            <p>About: {pageData.about}</p>
+                          </div>
+                        )}
+                        {pageData.description && (
+                          <div className="info-item">
+                            <span className="info-icon">📝</span>
+                            <p>Description: {pageData.description}</p>
+                          </div>
+                        )}
+                      </>
                     )}
                     {pageData.founded && (
                       <div className="info-item">
@@ -1038,6 +1154,7 @@ const FacebookProfile = () => {
                       </div>
                     )}
                   </div>
+                  {/* Other sections remain unchanged */}
                   {pageData.hours && (
                     <div className="about-section-content">
                       <h3>Operating Hours</h3>
@@ -1059,14 +1176,6 @@ const FacebookProfile = () => {
                       <div className="info-item">
                         <span className="info-icon">👥</span>
                         <p>Followers: {pageData.followers_count.toLocaleString()}</p>
-                      </div>
-                    )}
-                    {pageData.engagement && pageData.engagement.count && (
-                      <div className="info-item">
-                        <span className="info-icon">💬</span>
-                        <p>
-                          Engagement: {pageData.engagement.count.toLocaleString()} interactions
-                        </p>
                       </div>
                     )}
                   </div>
@@ -1095,83 +1204,101 @@ const FacebookProfile = () => {
                       <p>Status: {pageData.is_published ? "Published" : "Unpublished"}</p>
                     </div>
                   </div>
-                  <div className="about-section-content">
-                    <h3>Reels</h3>
-                    <p>{pageData.name}'s Reels</p>
-                    {isLoading ? (
-                      <p>Loading reels...</p>
-                    ) : reels.length > 0 ? (
-                      <div className="reels-gallery">
-                        {reels.slice(0, 3).map((reel) => (
-                          <div key={reel.id} className="reel-item">
-                            <div className="reel-wrapper">
-                              <video
-                                className="reel-video"
-                                poster={reel.thumbnail || "https://via.placeholder.com/150"}
-                                controls
-                              >
-                                <source src={reel.source} type="video/mp4" />
-                                Your browser does not support the video tag.
-                              </video>
-                            </div>
-                            <div className="reel-info">
-                              <p>{reel.description || reel.title || "Untitled Reel"}</p>
-                              <small>{new Date(reel.created_time).toLocaleString()}</small>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <p>No reels available.</p>
-                    )}
-                  </div>
-                  <div className="about-section-content">
-                    <h3>Videos</h3>
-                    <p>{pageData.name}'s Videos</p>
-                    {isLoading ? (
-                      <p>Loading videos...</p>
-                    ) : videos.length > 0 ? (
-                      <div className="videos-gallery">
-                        {videos.slice(0, 3).map((video) => (
-                          <div key={video.id} className="video-item">
-                            <div className="video-wrapper">
-                              <video
-                                className="video-player"
-                                poster={video.thumbnail_url || "https://via.placeholder.com/150"}
-                                controls
-                              >
-                                <source src={video.source} type="video/mp4" />
-                                Your browser does not support the video tag.
-                              </video>
-                            </div>
-                            <div className="video-info">
-                              <p>{video.description || video.title || "Untitled Video"}</p>
-                              <small>{new Date(video.created_time).toLocaleString()}</small>
+                </div>
+              )}
+              {activeTab === "Mentions" && (
+                <div className="mentions-section">
+                  <h2>Mentions</h2>
+                  {isLoadingMentions ? (
+                    <p>Loading mentions...</p>
+                  ) : mentions.length > 0 ? (
+                    <ul>
+                      {mentions.map((mention) => (
+                        <li key={mention.id} className="mention-item">
+                          <div className="post-header">
+                            <div className="post-header-left">
+                              <img
+                                src={mention.from?.picture?.data?.url || pageData.picture.data.url}
+                                alt="Mentioner Profile"
+                                className="post-profile-picture"
+                              />
+                              <div>
+                                <p className="post-author">{mention.from?.name || "Unknown"}</p>
+                                <small>{new Date(mention.created_time).toLocaleString()}</small>
+                              </div>
                             </div>
                           </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <p>No videos available.</p>
-                    )}
-                  </div>
-                  <div className="about-section-content">
-                    <h3>Followers</h3>
-                    {pageData.followers_count ? (
-                      <div className="info-item">
-                        <span className="info-icon">👥</span>
-                        <p>
-                          {pageData.name} has {pageData.followers_count.toLocaleString()} followers.
-                        </p>
-                      </div>
-                    ) : (
-                      <p>{pageData.name}'s follower count is unavailable.</p>
-                    )}
-                    <p>
-                      Note: The list of individual followers is not accessible due to privacy
-                      restrictions.
-                    </p>
-                  </div>
+                          {mention.message && <p>{mention.message}</p>}
+                          {mention.full_picture && (
+                            <img
+                              src={mention.full_picture}
+                              alt="Mention media"
+                              className="post-image"
+                              onError={(e) => (e.target.src = "https://via.placeholder.com/300")}
+                            />
+                          )}
+                          <div className="mention-actions">
+                            <a
+                              href={mention.permalink_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="action-button"
+                            >
+                              View on Facebook
+                            </a>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p>No mentions available.</p>
+                  )}
+                </div>
+              )}
+              {activeTab === "Reviews" && (
+                <div className="reviews-section">
+                  <h2>Reviews</h2>
+                  {isLoadingReviews ? (
+                    <p>Loading reviews...</p>
+                  ) : reviews.length > 0 ? (
+                    <ul>
+                      {reviews.map((review) => (
+                        <li key={review.id} className="review-item">
+                          <div className="post-header">
+                            <div className="post-header-left">
+                              <img
+                                src={
+                                  review.reviewer?.picture?.data?.url ||
+                                  pageData.picture.data.url
+                                }
+                                alt="Reviewer Profile"
+                                className="post-profile-picture"
+                              />
+                              <div>
+                                <p className="post-author">
+                                  {review.reviewer?.name || "Anonymous"}
+                                </p>
+                                <small>{new Date(review.created_time).toLocaleString()}</small>
+                              </div>
+                            </div>
+                          </div>
+                          {review.has_rating && (
+                            <p>
+                              Rating: {review.rating} / 5{" "}
+                              <span role="img" aria-label="star">
+                                ⭐
+                              </span>
+                            </p>
+                          )}
+                          {review.has_review && review.review_text && (
+                            <p>{review.review_text}</p>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p>No reviews available.</p>
+                  )}
                 </div>
               )}
               {activeTab === "Photos" && (
@@ -1200,9 +1327,6 @@ const FacebookProfile = () => {
                     <p>No photos available.</p>
                   )}
                 </div>
-              )}
-              {activeTab !== "Posts" && activeTab !== "Photos" && activeTab !== "About" && (
-                <p>Content for {activeTab} tab coming soon...</p>
               )}
             </div>
           </div>

@@ -1,7 +1,6 @@
 /* General container styling */
 .facebook-profile-container {
-  max-width: 1200px;
-  margin: 0 auto;
+  margin: 0 0;
   padding: 20px;
   font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
 }
@@ -196,28 +195,6 @@
   color: #1c2526;
 }
 
-.privacy-select {
-  padding: 4px 8px;
-  border: 1px solid #ccd0d5;
-  border-radius: 15px;
-  font-size: 0.85em;
-  background: #f0f2f5;
-  color: #1c2526;
-  cursor: pointer;
-  outline: none;
-  transition: border-color 0.2s ease, background-color 0.2s ease;
-}
-
-.privacy-select:hover {
-  border-color: #1877f2;
-  background: #e7f3ff;
-}
-
-.privacy-select:focus {
-  border-color: #1877f2;
-  box-shadow: 0 0 0 1px #1877f2;
-}
-
 .post-textarea {
   width: 100%;
   padding: 10px;
@@ -363,8 +340,6 @@
 .post-item {
   border-bottom: 1px solid #dadde1;
   padding: 20px 10px;
-  min-height: auto;
-  max-height: auto;
 }
 
 .post-item:last-child {
@@ -571,36 +546,6 @@
   color: #166fe5;
 }
 
-.boost-button,
-.boost-now-button {
-  width: 100%;
-  padding: 10px;
-  margin-top: 10px;
-  border: none;
-  border-radius: 5px;
-  font-size: 0.9em;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.boost-button {
-  background: #e4e6eb;
-  color: #1c2526;
-}
-
-.boost-button:hover {
-  background: #dadde1;
-}
-
-.boost-now-button {
-  background: #1877f2;
-  color: white;
-}
-
-.boost-now-button:hover {
-  background: #166fe5;
-}
-
 /* Edit post form */
 .edit-post-textarea {
   width: 100%;
@@ -702,6 +647,9 @@
 }
 
 .about-section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
   margin-bottom: 20px;
 }
 
@@ -712,6 +660,21 @@
   border-bottom: 2px solid #1877f2;
   padding-bottom: 5px;
   display: inline-block;
+}
+
+.edit-about-button {
+  background: #e4e6eb;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 5px;
+  font-size: 0.9em;
+  font-weight: 600;
+  color: #1c2526;
+  cursor: pointer;
+}
+
+.edit-about-button:hover {
+  background: #dadde1;
 }
 
 .about-section-content {
@@ -754,110 +717,117 @@
   text-decoration: underline;
 }
 
-/* Ensure long text wraps nicely */
-.info-item p {
-  word-break: break-word;
-}
-
-/* Reels section */
-.reels-gallery {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-  gap: 15px;
-}
-
-.reel-item {
-  text-align: center;
-}
-
-.reel-wrapper {
-  position: relative;
-  border-radius: 8px;
-  overflow: hidden;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-  transition: transform 0.2s ease;
-}
-
-.reel-wrapper:hover {
-  transform: scale(1.02);
-}
-
-.reel-video {
-  width: 100%;
-  height: 200px;
-  object-fit: cover;
-  border-radius: 8px;
-}
-
-.reel-info {
-  margin-top: 10px;
-}
-
-.reel-info p {
-  margin: 0;
+/* Edit inputs for About section */
+.edit-input {
+  flex: 1;
+  padding: 8px;
+  border: 1px solid #dadde1;
+  border-radius: 5px;
   font-size: 0.9em;
-  font-weight: 500;
   color: #1c2526;
 }
 
-.reel-info small {
-  color: #65676b;
-  font-size: 0.8em;
-  display: block;
-  margin-top: 5px;
-}
-
-/* Remove the play-button since the video element has its own controls */
-.play-button {
-  display: none;
-}
-
-/* Videos section */
-.videos-gallery {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-  gap: 15px;
-}
-
-.video-item {
-  text-align: center;
-}
-
-.video-wrapper {
-  position: relative;
-  border-radius: 8px;
-  overflow: hidden;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-  transition: transform 0.2s ease;
-}
-
-.video-wrapper:hover {
-  transform: scale(1.02);
-}
-
-.video-player {
-  width: 100%;
-  height: 200px;
-  object-fit: cover;
-  border-radius: 8px;
-}
-
-.video-info {
-  margin-top: 10px;
-}
-
-.video-info p {
-  margin: 0;
+.edit-textarea {
+  flex: 1;
+  padding: 8px;
+  border: 1px solid #dadde1;
+  border-radius: 5px;
   font-size: 0.9em;
-  font-weight: 500;
+  resize: vertical;
+  min-height: 60px;
   color: #1c2526;
 }
 
-.video-info small {
-  color: #65676b;
-  font-size: 0.8em;
-  display: block;
-  margin-top: 5px;
+.save-about-button {
+  background: #1877f2;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 5px;
+  font-size: 0.9em;
+  font-weight: 600;
+  color: white;
+  cursor: pointer;
+  margin-top: 10px;
+}
+
+.save-about-button:hover {
+  background: #166fe5;
+}
+
+.save-about-button:disabled {
+  background: #b0c4de;
+  cursor: not-allowed;
+}
+
+/* Mentions section */
+.mentions-section {
+  background: white;
+  padding: 20px;
+  border-radius: 10px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+}
+
+.mentions-section h2 {
+  margin: 0 0 20px;
+  font-size: 1.3em;
+  color: #1c2526;
+}
+
+.mentions-section ul {
+  list-style: none;
+  padding: 0;
+}
+
+.mention-item {
+  border-bottom: 1px solid #dadde1;
+  padding: 20px 10px;
+}
+
+.mention-item:last-child {
+  border-bottom: none;
+}
+
+.mention-actions {
+  display: flex;
+  gap: 10px;
+  margin: 10px 0;
+  justify-content: flex-start;
+  align-items: center;
+}
+
+/* Reviews section */
+.reviews-section {
+  background: white;
+  padding: 20px;
+  border-radius: 10px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+}
+
+.reviews-section h2 {
+  margin: 0 0 20px;
+  font-size: 1.3em;
+  color: #1c2526;
+}
+
+.reviews-section ul {
+  list-style: none;
+  padding: 0;
+}
+
+.review-item {
+  border-bottom: 1px solid #dadde1;
+  padding: 20px 10px;
+}
+
+.review-item:last-child {
+  border-bottom: none;
+}
+
+.review-item p {
+  margin: 10px 0;
+  color: #1c2526;
+  font-size: 1em;
+  text-align: start !important;
 }
 
 /* Responsive adjustments */
@@ -875,22 +845,6 @@
   }
 
   .photo-image {
-    height: 150px;
-  }
-
-  .reels-gallery {
-    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-  }
-
-  .reel-video {
-    height: 150px;
-  }
-
-  .videos-gallery {
-    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-  }
-
-  .video-player {
     height: 150px;
   }
 
