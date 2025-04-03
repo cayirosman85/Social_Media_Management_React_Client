@@ -139,7 +139,7 @@ const Sidebar = () => {
     try {
       console.log('Exchanging Facebook short-lived token:', shortLivedToken);
       const response = await fetch(
-        `https://graph.facebook.com/v18.0/oauth/access_token?grant_type=fb_exchange_token&client_id=${facebookAppId}&client_secret=${facebookAppSecret}&fb_exchange_token=${shortLivedToken}`
+        `https://graph.facebook.com/v20.0/oauth/access_token?grant_type=fb_exchange_token&client_id=${facebookAppId}&client_secret=${facebookAppSecret}&fb_exchange_token=${shortLivedToken}`
       );
       const data = await response.json();
       if (data.access_token) {
@@ -211,13 +211,13 @@ const Sidebar = () => {
       if (!isValid) throw new Error('Invalid or expired token');
 
       const pagesResponse = await fetch(
-        `https://graph.facebook.com/v18.0/me/accounts?access_token=${accessToken}&app_id=${facebookAppId}`
+        `https://graph.facebook.com/v20.0/me/accounts?access_token=${accessToken}&app_id=${facebookAppId}`
       );
       const pagesData = await pagesResponse.json();
       if (pagesData.data && pagesData.data.length > 0) {
         const pageId = pagesData.data[0].id;
         const igResponse = await fetch(
-          `https://graph.facebook.com/v18.0/${pageId}?fields=instagram_business_account&access_token=${accessToken}&app_id=${facebookAppId}`
+          `https://graph.facebook.com/v20.0/${pageId}?fields=instagram_business_account&access_token=${accessToken}&app_id=${facebookAppId}`
         );
         const igData = await igResponse.json();
         if (igData.instagram_business_account) {
@@ -246,7 +246,7 @@ const Sidebar = () => {
   const fetchInstagramUser = async (instagramBusinessId, accessToken) => {
     try {
       const response = await fetch(
-        `https://graph.facebook.com/v18.0/${instagramBusinessId}?fields=username,followers_count,media_count,follows_count,name,biography&access_token=${accessToken}&app_id=${facebookAppId}`
+        `https://graph.facebook.com/v20.0/${instagramBusinessId}?fields=username,followers_count,media_count,follows_count,name,biography&access_token=${accessToken}&app_id=${facebookAppId}`
       );
       
       const data = await response.json();
@@ -304,7 +304,7 @@ const Sidebar = () => {
     setError(null);
     try {
       const pagesResponse = await fetch(
-        `https://graph.facebook.com/v18.0/me/accounts?access_token=${accessToken}&app_id=${facebookAppId}`
+        `https://graph.facebook.com/v20.0/me/accounts?access_token=${accessToken}&app_id=${facebookAppId}`
       );
       const pagesData = await pagesResponse.json();
       if (pagesData.data && pagesData.data.length > 0) {
@@ -314,7 +314,7 @@ const Sidebar = () => {
         localStorage.set('facebookPageAccessToken', pageAccessToken);
 
         const pageResponse = await fetch(
-          `https://graph.facebook.com/v18.0/${pageId}?fields=name,about,fan_count,picture&access_token=${pageAccessToken}`
+          `https://graph.facebook.com/v20.0/${pageId}?fields=name,about,fan_count,picture&access_token=${pageAccessToken}`
         );
         const pageData = await pageResponse.json();
         localStorage.set('facebookPageName', pageData.name);
