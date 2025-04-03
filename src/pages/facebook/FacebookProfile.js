@@ -34,6 +34,12 @@ const FacebookProfile = () => {
   const [showMenu, setShowMenu] = useState({});
   const [addressAutocomplete, setAddressAutocomplete] = useState(null);
   const [isEditingAbout, setIsEditingAbout] = useState(false);
+  const [showInsightsModal, setShowInsightsModal] = useState(false);
+  const [selectedPostInsights, setSelectedPostInsights] = useState(null);
+  const [isLoadingInsights, setIsLoadingInsights] = useState(false);
+  const [pageInsights, setPageInsights] = useState(null);
+  const [isLoadingPageInsights, setIsLoadingPageInsights] = useState(false);
+  const [activeAccordion, setActiveAccordion] = useState(null);
   const [editedPageData, setEditedPageData] = useState({
     about: "",
     description: "",
@@ -66,6 +72,12 @@ const FacebookProfile = () => {
     fetchMentions();
     fetchReviews();
   }, [pageId, accessToken]);
+
+  useEffect(() => {
+    if (activeTab === "Page Insights" && !pageInsights && !isLoadingPageInsights) {
+      fetchPageInsights();
+    }
+  }, [activeTab, pageInsights, isLoadingPageInsights]);
 
   const fetchPageData = async () => {
     setIsLoading(true);
@@ -156,6 +168,7 @@ const FacebookProfile = () => {
         body: JSON.stringify({ page_id: pageId, access_token: accessToken, limit: "10" }),
       });
       const data = await response.json();
+      console.log("fetchPagePosts " + pageId, data);
       if (!response.ok) throw new Error(data.error || "Failed to fetch posts");
       setPosts(data.data || []);
     } catch (err) {
@@ -163,6 +176,214 @@ const FacebookProfile = () => {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const fetchPostInsights = async (postId) => {
+    setIsLoadingInsights(true);
+    try {
+      if (postId.split("_")[0] !== pageId) {
+        throw new Error("Post does not belong to this Page.");
+      }
+
+      const coreMetrics = [
+        { name: "post_impressions", title: "Lifetime Post Total Impressions", description: "The total number of times the post was seen, including multiple views by the same user." },
+        { name: "post_impressions_unique", title: "Lifetime Post Total Reach", description: "The number of unique users who saw the post." },
+        { name: "post_impressions_paid", title: "Lifetime Post Paid Impressions", description: "The number of times the post was seen through paid promotions." },
+        { name: "post_impressions_paid_unique", title: "Lifetime Post Paid Reach", description: "The number of unique users who saw the post through paid promotions." },
+        { name: "post_impressions_organic", title: "Lifetime Post Organic Impressions", description: "The number of times the post was seen organically (not through paid promotions)." },
+        { name: "post_impressions_organic_unique", title: "Lifetime Post Organic Reach", description: "The number of unique users who saw the post organically." },
+      ];
+
+      const videoMetrics = [
+        { name: "post_video_views", title: "Total Video Views", description: "The total number of times the video was viewed for at least 3 seconds." },
+        { name: "post_video_views_unique", title: "Unique Video Views", description: "The number of unique users who viewed the video for at least 3 seconds." },
+        { name: "post_video_views_paid", title: "Paid Video Views", description: "The number of times the video was viewed through paid promotions." },
+        { name: "post_video_views_organic", title: "Organic Video Views", description: "The number of times the video was viewed organically." },
+        { name: "post_video_complete_views_organic", title: "Organic Complete Views", description: "The number of times the video was watched to completion organically." },
+        { name: "post_video_complete_views_paid", title: "Paid Complete Views", description: "The number of times the video was watched to completion through paid promotions." },
+      ];
+
+      const post = posts.find((p) => p.id === postId);
+      const isVideoPost = post?.attachments?.data?.[0]?.type?.includes("video");
+      const metricsList = isVideoPost ? [...coreMetrics, ...videoMetrics] : coreMetrics;
+      const metricNames = metricsList.map((m) => m.name);
+
+      const response = await fetch(
+        `https://graph.facebook.com/v22.0/${postId}/insights?metric=${metricNames.join(",")}&access_token=${accessToken}`
+      );
+      const data = await response.json();
+
+      if (!response.ok) {
+        console.error("API Error Response:", data);
+        throw new Error(data.error?.message || "Failed to fetch insights");
+      }
+
+      const enrichedInsights = data.data.map((insight) => {
+        const metric = metricsList.find((m) => m.name === insight.name);
+        return {
+          ...insight,
+          title: metric?.title || insight.name,
+          description: metric?.description || "No description available.",
+        };
+      });
+
+      console.log("Enriched Insights Data:", enrichedInsights);
+      setSelectedPostInsights(enrichedInsights);
+      setShowInsightsModal(true);
+    } catch (err) {
+      setError(err.message);
+      console.error("Error fetching insights:", err);
+    } finally {
+      setIsLoadingInsights(false);
+    }
+  };
+
+  const fetchPageInsights = async () => {
+    setIsLoadingPageInsights(true);
+    try {
+      // All valid metrics combined into a single array
+      const metrics = [
+        { name: "page_total_actions", title: "Total Actions", description: "The number of clicks on your Page's contact info and call-to-action button." },
+        { name: "page_post_engagements", title: "Post Engagements", description: "The number of times people have engaged with your posts through reactions, comments, shares, and more." },
+        { name: "page_video_view_time", title: "Video View Time", description: "The total time, in milliseconds, people viewed your Page's videos." },
+        { name: "page_views_total", title: "Total Page Views", description: "The number of times your Page's profile has been viewed by logged-in and logged-out users." },
+        { name: "page_fan_adds_by_paid_non_paid_unique", title: "New Likes (Paid vs Organic)", description: "The number of new likes, broken down by paid vs. organic content." },
+        { name: "page_daily_follows", title: "Daily Follows", description: "The number of times your Page was followed in the selected time period." },
+        { name: "page_daily_follows_unique", title: "Unique Daily Follows", description: "The number of unique accounts that followed your Page in the selected time period." },
+        { name: "page_daily_unfollows_unique", title: "Unique Daily Unfollows", description: "The number of unique accounts that unfollowed your Page in the selected time period." },
+        { name: "page_follows", title: "Total Follows", description: "The number of followers of your Page (cumulative)." },
+        { name: "page_impressions", title: "Total Impressions", description: "The number of times any content from your Page entered a person's screen." },
+        { name: "page_impressions_unique", title: "Total Reach", description: "The number of unique users who saw any content from your Page." },
+        { name: "page_impressions_paid", title: "Paid Impressions", description: "The number of times your Page's content was seen through paid promotions." },
+        { name: "page_impressions_paid_unique", title: "Paid Reach", description: "The number of unique accounts that saw your ads at least once." },
+        { name: "page_impressions_viral", title: "Viral Impressions", description: "The number of times your Page's content was seen with social information attached." },
+        { name: "page_video_views_click_to_play", title: "Click-to-Play Video Views", description: "The number of times your Page's videos played for at least 3 seconds after people clicked play." },
+        { name: "page_video_views_unique", title: "Unique Video Views", description: "The number of unique users who viewed your Page's videos for at least 3 seconds." },
+        { name: "page_video_repeat_views", title: "Repeat Video Views", description: "The number of times your Page's videos were replayed for at least 3 seconds." },
+        { name: "page_video_complete_views_30s", title: "30s Video Views", description: "The number of times your Page's videos played for at least 30 seconds." },
+        { name: "page_video_complete_views_30s_paid", title: "Paid 30s Video Views", description: "The number of times your Page's promoted videos played for at least 30 seconds." },
+        { name: "page_video_complete_views_30s_organic", title: "Organic 30s Video Views", description: "The number of times your Page's videos played for at least 30 seconds by organic reach." },
+        { name: "page_video_complete_views_30s_autoplayed", title: "Autoplayed 30s Video Views", description: "The number of times your Page's automatically played videos played for at least 30 seconds." },
+        { name: "page_video_complete_views_30s_click_to_play", title: "Click-to-Play 30s Video Views", description: "The number of times your Page's videos played for at least 30 seconds after people clicked play." },
+        { name: "page_video_complete_views_30s_unique", title: "Unique 30s Video Views", description: "The number of unique users who viewed your Page's videos for at least 30 seconds." },
+        { name: "page_video_complete_views_30s_repeat_views", title: "Repeat 30s Video Views", description: "The number of times your Page's videos replayed for at least 30 seconds." },
+        { name: "page_impressions_viral_unique", title: "Viral Reach", description: "The number of unique users who saw your Page's content with social information attached." },
+        { name: "page_impressions_nonviral", title: "Non-Viral Impressions", description: "The number of times your Page's content was seen without social information attached." },
+        { name: "page_impressions_nonviral_unique", title: "Non-Viral Reach", description: "The number of unique users who saw your Page's content without social information attached." },
+        { name: "page_posts_impressions", title: "Post Impressions", description: "The number of times your Page's posts entered a person's screen." },
+        { name: "page_posts_impressions_unique", title: "Post Reach", description: "The number of unique users who saw your Page's posts." },
+        { name: "page_posts_impressions_paid", title: "Paid Post Impressions", description: "The number of times your Page's posts were seen through paid distribution." },
+        { name: "page_posts_impressions_paid_unique", title: "Paid Post Reach", description: "The number of unique accounts that saw your Page's posts through paid distribution." },
+        { name: "page_posts_impressions_organic_unique", title: "Organic Post Reach", description: "The number of unique users who saw your Page's posts through unpaid distribution." },
+        { name: "page_posts_served_impressions_organic_unique", title: "Served Organic Post Reach", description: "The number of unique users served your Page's posts in their Feed." },
+        { name: "page_posts_impressions_viral", title: "Viral Post Impressions", description: "The number of times your Page's posts were seen with social information attached." },
+        { name: "page_posts_impressions_viral_unique", title: "Viral Post Reach", description: "The number of unique users who saw your Page's posts with social information attached." },
+        { name: "page_posts_impressions_nonviral", title: "Non-Viral Post Impressions", description: "The number of times your Page's posts were seen without social information attached." },
+        { name: "page_posts_impressions_nonviral_unique", title: "Non-Viral Post Reach", description: "The number of unique users who saw your Page's posts without social information attached." },
+        { name: "page_actions_post_reactions_like_total", title: "Like Reactions", description: "Total 'like' reactions on your posts." },
+        { name: "page_actions_post_reactions_love_total", title: "Love Reactions", description: "Total 'love' reactions on your posts." },
+        { name: "page_actions_post_reactions_wow_total", title: "Wow Reactions", description: "Total 'wow' reactions on your posts." },
+        { name: "page_actions_post_reactions_haha_total", title: "Haha Reactions", description: "Total 'haha' reactions on your posts." },
+        { name: "page_actions_post_reactions_sorry_total", title: "Sorry Reactions", description: "Total 'sorry' reactions on your posts." },
+        { name: "page_actions_post_reactions_anger_total", title: "Anger Reactions", description: "Total 'anger' reactions on your posts." },
+        { name: "page_actions_post_reactions_total", title: "Total Reactions", description: "Total reactions on your posts by type." },
+        { name: "page_fan_adds", title: "New Likes", description: "The number of new people who have liked your Page." },
+        { name: "page_fan_adds_unique", title: "Unique New Likes", description: "The number of unique accounts that liked your Page for the first time." },
+        { name: "page_fan_removes", title: "Unlikes", description: "The number of unlikes of your Page." },
+        { name: "page_fan_removes_unique", title: "Unique Unlikes", description: "The number of unique accounts that unliked your Page." },
+        { name: "page_video_views", title: "Video Views", description: "The number of times your Page's videos played for at least 3 seconds." },
+        { name: "page_video_views_by_uploaded_hosted", title: "Video Views (Uploaded/Hosted)", description: "Video views broken down by uploaded and hosted variants." },
+        { name: "page_video_views_paid", title: "Paid Video Views", description: "The number of times your Page's promoted videos played for at least 3 seconds." },
+        { name: "page_video_views_organic", title: "Organic Video Views", description: "The number of times your Page's videos played for at least 3 seconds by organic reach." },
+        { name: "page_video_views_by_paid_non_paid", title: "Video Views (Paid vs Non-Paid)", description: "Video views broken down by paid vs. non-paid." },
+        { name: "page_video_views_autoplayed", title: "Autoplayed.Video Views", description: "The number of times your Page's videos automatically played for at least 3 seconds." },
+        { name: "page_daily_video_ad_break_ad_impressions_by_crosspost_status", title: "Ad Break Impressions (Crossposted)", description: "The total number of ad impressions in ad breaks for crossposted videos." },
+        { name: "page_daily_video_ad_break_cpm_by_crosspost_status", title: "Ad Break CPM (Crossposted)", description: "The average CPM for ad breaks in crossposted videos." },
+        { name: "page_daily_video_ad_break_earnings_by_crosspost_status", title: "Ad Break Earnings (Crossposted)", description: "The estimated earnings from ad breaks in crossposted videos." },
+        { name: "content_monetization_earnings", title: "Content Monetization Earnings", description: "The amount of money you may have earned from content monetization." },
+        { name: "monetization_approximate_earnings", title: "Approximate Monetization Earnings", description: "Your approximate earnings from monetization, excluding bonuses." },
+      ];
+
+      // Join all metric names for a single request
+      const metricNames = metrics.map((m) => m.name).join(",");
+      console.log(`Fetching page insights with metrics: ${metricNames}`);
+
+      // Single API request
+      const response = await fetch(
+        `https://graph.facebook.com/v22.0/${pageId}/insights?metric=${metricNames}&period=day&date_preset=last_28d&access_token=${accessToken}`
+      );
+      const data = await response.json();
+
+      if (!response.ok) {
+        console.error("API Error Response:", data);
+        throw new Error(data.error?.message || "Failed to fetch page insights");
+      }
+
+      // Map API response to enriched insights
+      const allInsights = data.data.map((insight) => {
+        const metric = metrics.find((m) => m.name === insight.name);
+        return {
+          ...insight,
+          title: metric?.title || insight.name,
+          description: metric?.description || "No description available.",
+        };
+      });
+
+      // Flatten nested objects in the insights data
+      const flattenedInsights = allInsights.map((insight) => {
+        const flattened = { ...insight };
+
+        if (insight.values && insight.values.length > 0) {
+          const value = insight.values[0].value;
+
+          if (typeof value === "object" && value !== null) {
+            // Handle specific nested object cases
+            if (insight.name === "page_fan_adds_by_paid_non_paid_unique") {
+              flattened.valueDisplay = `Paid: ${value.paid || 0}, Organic: ${value.organic || 0}`;
+            } else if (insight.name === "page_video_views_by_uploaded_hosted") {
+              flattened.valueDisplay = `Uploaded: ${value.page_uploaded || 0}, Crossposts: ${value.page_uploaded_from_crossposts || 0}, Shares: ${value.page_uploaded_from_shares || 0}, Hosted: ${value.page_hosted_crosspost || 0}`;
+            } else if (insight.name === "page_video_views_by_paid_non_paid") {
+              flattened.valueDisplay = `Total: ${value.total || 0}, Paid: ${value.paid || 0}, Unpaid: ${value.unpaid || 0}`;
+            } else if (insight.name === "content_monetization_earnings" || insight.name === "monetization_approximate_earnings") {
+              flattened.valueDisplay = `${value.currency || "Unknown"} ${(value.microAmount / 1000000).toFixed(2)}`;
+            } else if (insight.name.includes("page_actions_post_reactions")) {
+              flattened.valueDisplay = JSON.stringify(value); // For reaction types
+            } else {
+              flattened.valueDisplay = JSON.stringify(value); // Fallback for other objects
+            }
+          } else {
+            flattened.valueDisplay = value || 0; // Scalar value
+          }
+        } else {
+          flattened.valueDisplay = "N/A"; // No values available
+        }
+
+        return flattened;
+      });
+
+      // Add page likes (fan_count) manually
+      if (pageData?.fan_count) {
+        flattenedInsights.push({
+          name: "page_fans",
+          title: "Page Likes",
+          description: "The total number of users who like your Page.",
+          valueDisplay: pageData.fan_count,
+        });
+      }
+
+      console.log("Flattened Page Insights Data:", flattenedInsights);
+      setPageInsights(flattenedInsights);
+    } catch (err) {
+      setError(err.message);
+      console.error("Error fetching page insights:", err);
+    } finally {
+      setIsLoadingPageInsights(false);
+    }
+  };
+
+  const closeInsightsModal = () => {
+    setShowInsightsModal(false);
+    setSelectedPostInsights(null);
   };
 
   const fetchAllMedia = async () => {
@@ -686,7 +907,7 @@ const FacebookProfile = () => {
             </div>
           </div>
           <div className="profile-tabs">
-            {["Posts", "About", "Mentions", "Reviews", "Photos"].map((tab) => (
+            {["Posts", "About", "Mentions", "Reviews", "Photos", "Page Insights"].map((tab) => (
               <button
                 key={tab}
                 className={`tab ${activeTab === tab ? "active" : ""}`}
@@ -701,15 +922,10 @@ const FacebookProfile = () => {
               <div className="sidebar-section intro-section">
                 <h3>Intro</h3>
                 <div className="intro-details">
-                  {/* About */}
                   {pageData.about && (
                     <p className="intro-text intro-about">{pageData.about}</p>
                   )}
-
-                  {/* Category */}
                   <p className="intro-text">{pageData.category || "Home Businesses"}</p>
-
-                  {/* Location (if available) */}
                   {pageData.location && (pageData.location.city || pageData.location.country) && (
                     <p className="intro-text">
                       {[
@@ -720,8 +936,6 @@ const FacebookProfile = () => {
                         .join(", ")}
                     </p>
                   )}
-
-                  {/* Phone (if available) */}
                   {pageData.phone && (
                     <p className="intro-text">
                       <a href={`tel:${pageData.phone}`} className="intro-link">
@@ -729,8 +943,6 @@ const FacebookProfile = () => {
                       </a>
                     </p>
                   )}
-
-                  {/* Email (if available) */}
                   {pageData.emails?.[0] && (
                     <p className="intro-text">
                       <a href={`mailto:${pageData.emails[0]}`} className="intro-link">
@@ -738,8 +950,6 @@ const FacebookProfile = () => {
                       </a>
                     </p>
                   )}
-
-                  {/* Website (if available) */}
                   {pageData.website && (
                     <p className="intro-text">
                       <a href={pageData.website} target="_blank" rel="noopener noreferrer" className="intro-link">
@@ -1032,6 +1242,13 @@ const FacebookProfile = () => {
                               onClick={() => fetchPostComments(post.id)}
                             >
                               Comment ({post.comments?.summary?.total_count || 0})
+                            </button>
+                            <button
+                              className="action-button insights-action"
+                              onClick={() => fetchPostInsights(post.id)}
+                              disabled={isLoadingInsights}
+                            >
+                              {isLoadingInsights ? "Loading..." : "Insights"}
                             </button>
                             <button className="action-button boost-action">Boost</button>
                           </div>
@@ -1444,6 +1661,123 @@ const FacebookProfile = () => {
                   ) : (
                     <p>No photos available.</p>
                   )}
+                </div>
+              )}
+{activeTab === "Page Insights" && (
+                <div className="page-insights-section">
+                  <h2>Page Insights</h2>
+                  {isLoadingPageInsights ? (
+                    <p>Loading page insights...</p>
+                  ) : pageInsights && pageInsights.length > 0 ? (
+                    <div className="page-insights-content">
+                      {[
+                        {
+                          category: "Engagement",
+                          filter: (insight) =>
+                            insight.name.includes("engagements") ||
+                            insight.name.includes("actions") ||
+                            insight.name.includes("reactions"),
+                        },
+                        {
+                          category: "Reach & Impressions",
+                          filter: (insight) =>
+                            insight.name.includes("impressions") || insight.name.includes("reach"),
+                        },
+                        {
+                          category: "Likes & Follows",
+                          filter: (insight) =>
+                            insight.name.includes("fan") ||
+                            insight.name.includes("follows") ||
+                            insight.name === "page_fans",
+                        },
+                        {
+                          category: "Video Metrics",
+                          filter: (insight) =>
+                            insight.name.includes("video") && !insight.name.includes("ad_break"),
+                        },
+                        {
+                          category: "Monetization",
+                          filter: (insight) =>
+                            insight.name.includes("earnings") || insight.name.includes("ad_break"),
+                        },
+                        {
+                          category: "Page Views",
+                          filter: (insight) => insight.name.includes("views_total"),
+                        },
+                      ].map((cat) => {
+                        const categoryInsights = pageInsights.filter(cat.filter);
+                        return categoryInsights.length > 0 ? (
+                          <div key={cat.category} className="accordion-item">
+                            <button
+                              className={`accordion-header ${
+                                activeAccordion === cat.category ? "active" : ""
+                              }`}
+                              onClick={() =>
+                                setActiveAccordion((prev) =>
+                                  prev === cat.category ? null : cat.category
+                                )
+                              }
+                            >
+                              <span>{cat.category}</span>
+                              <span className="accordion-icon">
+                                {activeAccordion === cat.category ? "−" : "+"}
+                              </span>
+                            </button>
+                            {activeAccordion === cat.category && (
+                              <div className="accordion-content">
+                                <ul className="insights-list">
+                                  {categoryInsights.map((insight) => (
+                                    <li key={insight.name} className="insight-item">
+                                      <div className="insight-header">
+                                        <strong className="insight-title">{insight.title}</strong>
+                                        <span className="insight-value">{insight.valueDisplay}</span>
+                                      </div>
+                                      <p className="insight-description">{insight.description}</p>
+                                    </li>
+                                  ))}
+                                </ul>
+                              </div>
+                            )}
+                          </div>
+                        ) : null;
+                      })}
+                    </div>
+                  ) : (
+                    <p>No page insights available.</p>
+                  )}
+                </div>
+              )}
+              {showInsightsModal && (
+                <div className="insights-modal-overlay" onClick={closeInsightsModal}>
+                  <div className="insights-modal" onClick={(e) => e.stopPropagation()}>
+                    <div className="insights-modal-header">
+                      <h3>Post Insights</h3>
+                      <button className="close-modal-btn" onClick={closeInsightsModal}>
+                        ×
+                      </button>
+                    </div>
+                    <div className="insights-modal-content">
+                      {selectedPostInsights && selectedPostInsights.length > 0 ? (
+                        <ul>
+                          {selectedPostInsights.map((insight) => (
+                            <li key={insight.name} className="insight-item">
+                              <div className="insight-header">
+                                <strong>{insight.title}</strong>
+                                <span className="insight-value">
+                                  {insight.name === "post_reactions_by_type_total"
+                                    ? JSON.stringify(insight.values[0].value)
+                                    : insight.values[0].value}
+                                </span>
+                              </div>
+                              <p className="insight-description">{insight.description}</p>
+                            </li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <p>No insights available for this post.</p>
+                      )}
+                    </div>
+                  </div>
                 </div>
               )}
             </div>

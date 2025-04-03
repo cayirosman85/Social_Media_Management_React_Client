@@ -224,6 +224,7 @@
 /* Main content */
 .main-content {
   flex: 2;
+  position: relative;
 }
 
 /* New post section */
@@ -1019,4 +1020,243 @@
 
 .review-item:last-child {
   border-bottom: none;
+}/* Modal Overlay */
+/* Page Insights Section */
+.page-insights-section {
+  background: #ffffff;
+  padding: 25px;
+  border-radius: 10px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+}
+
+.page-insights-section h2 {
+  margin: 0 0 20px;
+  font-size: 1.4em;
+  font-weight: 600;
+  color: #2c2c2c;
+}
+
+/* Modal */
+.insights-modal {
+  background: #ffffff;
+  top:auto;
+  left: 35%;
+  padding: 5px;
+  border-radius: 16px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+  width: 90%;
+  max-width: 550px;
+  max-height: 100vh;
+  overflow-y: auto;
+  animation: slideUp 0.3s ease-in-out;
+  display: block;
+}
+
+/* Modal Header */
+.insights-modal-header {
+  padding: 5px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: 15px;
+  margin-bottom: 20px;
+  border-bottom: 1px solid #e8e8e8;
+}
+
+.insights-modal-header h3 {
+  margin: 0;
+  font-size: 1.5em;
+  font-weight: 700;
+  color: #1a1a1a;
+  letter-spacing: -0.02em;
+}
+
+.close-modal-btn {
+  background: none;
+  border: none;
+  font-size: 1.8em;
+  color: #65676b;
+  cursor: pointer;
+  transition: color 0.2s ease, transform 0.2s ease;
+}
+
+.close-modal-btn:hover {
+  color: #e41e26;
+  transform: scale(1.1);
+}
+
+
+
+.insights-modal-content ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.insight-item {
+  margin: 15px 0;
+  padding: 15px;
+  background: #f8f9fa;
+  border-radius: 10px;
+  border-left: 4px solid #1877f2;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.insight-item:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.insight-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.insight-header strong {
+  font-size: 1.1em;
+  font-weight: 600;
+  color: #2c2c2c;
+}
+
+.insight-value {
+  font-size: 1.1em;
+  font-weight: 500;
+  color: #1877f2;
+}
+
+.insight-description {
+  margin: 0;
+  font-size: 0.9em;
+  color: #555;
+  line-height: 1.5;
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.page-insights-section {
+  padding: 20px;
+  background-color: #f9f9f9;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.page-insights-section h2 {
+  margin-bottom: 20px;
+  font-size: 24px;
+  color: #333;
+}
+
+.page-insights-content {
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.accordion-item {
+  margin-bottom: 10px;
+}
+
+.accordion-header {
+  width: 100%;
+  padding: 15px;
+  background-color: #fff;
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  font-size: 18px;
+  font-weight: 600;
+  color: #1a73e8;
+  text-align: left;
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  transition: background-color 0.2s ease;
+}
+
+.accordion-header:hover {
+  background-color: #f5f5f5;
+}
+
+.accordion-header.active {
+  background-color: #e8f0fe;
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+.accordion-icon {
+  font-size: 20px;
+  color: #555;
+}
+
+.accordion-content {
+  background-color: #fff;
+  border: 1px solid #e0e0e0;
+  border-top: none;
+  border-bottom-left-radius: 6px;
+  border-bottom-right-radius: 6px;
+  padding: 15px;
+}
+
+.insights-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.insight-item {
+  padding: 10px 0;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.insight-item:last-child {
+  border-bottom: none;
+}
+
+.insight-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.insight-title {
+  font-size: 16px;
+  font-weight: 500;
+  color: #333;
+}
+
+.insight-value {
+  font-size: 14px;
+  font-weight: 500;
+  color: #555;
+  background-color: #f0f0f0;
+  padding: 4px 8px;
+  border-radius: 4px;
+}
+
+.insight-description {
+  font-size: 13px;
+  color: #666;
+  margin: 0;
+  line-height: 1.4;
 }
