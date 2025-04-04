@@ -439,8 +439,16 @@ const Sidebar = () => {
                           appId={facebookAppId}
                           autoLoad={false}
                           fields="name,email,picture"
-                          scope="pages_show_list,pages_manage_posts,pages_read_user_content, pages_manage_engagement,
-          pages_manage_metadata,pages_read_engagement,read_insights
+                          scope="pages_show_list,
+                          pages_manage_posts,
+                          pages_read_user_content,
+                           pages_manage_engagement,
+                          pages_manage_metadata,
+                          pages_read_engagement,
+                          read_insights,publish_video,
+                          pages_manage_posts,
+                       
+
 
 "
                           callback={responseFacebookPage}

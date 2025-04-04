@@ -2,6 +2,9 @@ import React, { useState, useEffect } from "react";
 import localStorage from "local-storage";
 import { LoadScript, GoogleMap, Marker, Autocomplete } from "@react-google-maps/api";
 import "./FacebookProfile.css";
+import Slider from "react-slick"; // Import react-slick
+import "slick-carousel/slick/slick.css";
+import "slick-carousel/slick/slick-theme.css";
 
 const FacebookProfile = () => {
   const [pageData, setPageData] = useState(null);
@@ -14,10 +17,11 @@ const FacebookProfile = () => {
   const [comments, setComments] = useState({});
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [newPostMessage, setNewPostMessage] = useState("");
+  const [newPostMessage, setNewPostMessage] = useState(""); 
   const [mediaFiles, setMediaFiles] = useState([]);
   const [mediaUrls, setMediaUrls] = useState([]);
   const [manualMediaUrl, setManualMediaUrl] = useState("");
+  const [manualMediaUrls, setManualMediaUrls] = useState([""]);
   const [activeTab, setActiveTab] = useState("Posts");
   const [commentText, setCommentText] = useState({});
   const [replyText, setReplyText] = useState({});
@@ -530,23 +534,40 @@ const FacebookProfile = () => {
         body: formData,
       });
       const data = await response.json();
-      if (!response.ok) throw new Error(data.error || "Failed to upload media");
-      setMediaUrls(data.urls);
-      return data.urls;
+      if (!response.ok || !data.urls) throw new Error(data.error || "Failed to upload media");
+      console.log("Uploaded URLs from server:", data.urls);
+      return data.urls; // Expecting an array of URLs
     } catch (error) {
+      console.error("Media upload error:", error);
       setError(error.message);
-      return [];
+      return []; // Return empty array on failure
     }
   };
-
+  
   const handleFileChange = (e) => {
     const files = Array.from(e.target.files);
-    setMediaFiles(files);
+    setMediaFiles((prev) => [...prev, ...files]); // Append new files
   };
+  
+  const handleManualUrlChange = (index, value) => {
+    const newUrls = [...manualMediaUrls];
+    newUrls[index] = value;
+    setManualMediaUrls(newUrls);
+  };
+  
+  const addManualUrlField = () => {
+    setManualMediaUrls((prev) => [...prev, ""]);
+  };
+  
+  const removeManualUrlField = (index) => {
+    setManualMediaUrls((prev) => prev.filter((_, i) => i !== index));
+  };
+
+
 
   const handleCreatePost = async (e) => {
     e.preventDefault();
-    if (!newPostMessage.trim() && mediaFiles.length === 0) {
+    if (!newPostMessage.trim() && mediaFiles.length === 0 && manualMediaUrls.every((url) => !url.trim())) {
       alert("Please add a message or media to post.");
       return;
     }
@@ -556,34 +577,46 @@ const FacebookProfile = () => {
       if (mediaFiles.length > 0) {
         uploadedMediaUrls = await handleMediaUpload(mediaFiles);
       }
+      const validManualUrls = manualMediaUrls.filter((url) => url.trim());
+      const allMediaUrls = [...uploadedMediaUrls, ...validManualUrls];
+  
+      console.log("Uploaded Media URLs:", uploadedMediaUrls);
+      console.log("Manual Media URLs:", validManualUrls);
+      console.log("All Media URLs:", allMediaUrls);
+  
+      const payload = {
+        page_id: pageId,
+        access_token: accessToken,
+        message: newPostMessage,
+        photo_urls: allMediaUrls.length > 0 ? allMediaUrls : null,
+      };
+      console.log("Request Payload:", payload);
+  
       const response = await fetch("https://localhost:7099/api/Facebook/publish-facebook-post", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          page_id: pageId,
-          access_token: accessToken,
-          message: newPostMessage,
-          photo_url: uploadedMediaUrls[0] || manualMediaUrl.trim() || null,
-        }),
+        body: JSON.stringify(payload),
       });
       const data = await response.json();
+      console.log("Response Data:", data);
+  
       if (!response.ok) throw new Error(data.error || "Failed to create post");
       if (data.success) {
         setNewPostMessage("");
         setMediaFiles([]);
         setMediaUrls([]);
-        setManualMediaUrl("");
+        setManualMediaUrls([""]);
         fetchPagePosts();
         fetchAllMedia();
         alert("Post created successfully!");
       }
     } catch (error) {
       setError(error.message);
+      console.error("Error in handleCreatePost:", error);
     } finally {
       setIsLoading(false);
     }
   };
-
   const handleCommentSubmit = async (postId, e) => {
     e.preventDefault();
     if (!commentText[postId]?.trim()) return;
@@ -983,320 +1016,366 @@ const FacebookProfile = () => {
               </div>
             </div>
             <div className="main-content">
-              {activeTab === "Posts" && (
-                <div className="posts-section">
-                  <div className="new-post-section">
-                    <form onSubmit={handleCreatePost}>
-                      <div className="post-header">
-                        <img
-                          src={pageData.picture.data.url}
-                          alt="Page Profile"
-                          className="post-profile-picture"
-                        />
-                        <div className="post-header-info">
-                          <div className="post-author-wrapper">
-                            <p className="post-author">{pageData.name}</p>
-                          </div>
-                        </div>
-                      </div>
-                      <textarea
-                        value={newPostMessage}
-                        onChange={(e) => setNewPostMessage(e.target.value)}
-                        placeholder={`What's on your mind, ${pageData.name}?`}
-                        className="post-textarea"
-                        rows="3"
-                      />
-                      {mediaFiles.length > 0 && (
-                        <div className="image-preview">
-                          {mediaFiles.map((file, index) => (
-                            <div key={index} className="media-preview-item">
-                              {file.type.startsWith("image/") ? (
-                                <img
-                                  src={URL.createObjectURL(file)}
-                                  alt="Preview"
-                                  className="preview-image"
-                                />
-                              ) : (
-                                <video
-                                  src={URL.createObjectURL(file)}
-                                  className="preview-video"
-                                  controls
-                                >
-                                  Your browser does not support the video tag.
-                                </video>
-                              )}
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  setMediaFiles((prev) => prev.filter((_, i) => i !== index))
-                                }
-                                className="remove-media-button"
-                              >
-                                Remove
-                              </button>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                      <div className="media-upload-section">
-                        <label htmlFor="media-upload" className="media-upload-label">
-                          Upload photos/videos
-                          <input
-                            id="media-upload"
-                            type="file"
-                            accept="image/*,video/*"
-                            multiple
-                            onChange={handleFileChange}
-                            style={{ display: "none" }}
+            {activeTab === "Posts" && (
+  <div className="posts-section">
+    {/* New Post Section */}
+    <div className="new-post-section">
+      <form onSubmit={handleCreatePost}>
+        <div className="post-header">
+          <img
+            src={pageData.picture.data.url}
+            alt="Page Profile"
+            className="post-profile-picture"
+          />
+          <div className="post-header-info">
+            <div className="post-author-wrapper">
+              <p className="post-author">{pageData.name}</p>
+            </div>
+          </div>
+        </div>
+        <textarea
+          value={newPostMessage}
+          onChange={(e) => setNewPostMessage(e.target.value)}
+          placeholder={`What's on your mind, ${pageData.name}?`}
+          className="post-textarea"
+          rows="3"
+        />
+        {mediaFiles.length > 0 && (
+          <div className="image-preview">
+            {mediaFiles.map((file, index) => (
+              <div key={index} className="media-preview-item">
+                {file.type.startsWith("image/") ? (
+                  <img
+                    src={URL.createObjectURL(file)}
+                    alt="Preview"
+                    className="preview-image"
+                  />
+                ) : (
+                  <video src={URL.createObjectURL(file)} className="preview-video" controls>
+                    Your browser does not support the video tag.
+                  </video>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setMediaFiles((prev) => prev.filter((_, i) => i !== index))}
+                  className="remove-media-button"
+                >
+                  Remove
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+        <div className="media-upload-section">
+          <label htmlFor="media-upload" className="media-upload-label">
+            Upload photos/videos
+            <input
+              id="media-upload"
+              type="file"
+              accept="image/*,video/*"
+              multiple
+              onChange={handleFileChange}
+              style={{ display: "none" }}
+            />
+          </label>
+          {manualMediaUrls.map((url, index) => (
+            <div key={index} className="manual-url-input-wrapper">
+              <input
+                type="text"
+                value={url}
+                onChange={(e) => handleManualUrlChange(index, e.target.value)}
+                placeholder={`Enter media URL #${index + 1} (optional)`}
+                className="manual-url-input"
+              />
+              {manualMediaUrls.length > 1 && (
+                <button
+                  type="button"
+                  onClick={() => removeManualUrlField(index)}
+                  className="remove-url-button"
+                >
+                  Remove
+                </button>
+              )}
+            </div>
+          ))}
+          <button type="button" onClick={addManualUrlField} className="add-url-button">
+            Add Another URL
+          </button>
+        </div>
+        <button
+          type="submit"
+          className="post-button"
+          disabled={isLoading || (!newPostMessage.trim() && mediaFiles.length === 0 && manualMediaUrls.every((url) => !url.trim()))}
+        >
+          {isLoading ? "Posting..." : "Post"}
+        </button>
+      </form>
+    </div>
+
+    {/* Posts List */}
+    <div className="posts-header">
+      <h2>Posts</h2>
+    </div>
+    {posts.length > 0 ? (
+      <ul>
+        {posts.map((post) => (
+          <li key={post.id} className="post-item">
+            <div className="post-header">
+              <div className="post-header-left">
+                <img
+                  src={pageData.picture.data.url}
+                  alt="Page Profile"
+                  className="post-profile-picture"
+                />
+                <div>
+                  <p className="post-author">{pageData.name}</p>
+                  <small>{new Date(post.created_time).toLocaleString()}</small>
+                </div>
+              </div>
+              <div className="post-menu">
+                <button
+                  className="menu-button"
+                  onClick={() =>
+                    setShowMenu((prev) => ({
+                      ...prev,
+                      [post.id]: !prev[post.id],
+                    }))
+                  }
+                >
+                  ⋮
+                </button>
+                {showMenu[post.id] && (
+                  <div className="menu-dropdown">
+                    <button
+                      className="menu-item"
+                      onClick={() => {
+                        setEditPostText((prev) => ({
+                          ...prev,
+                          [post.id]: post.message,
+                        }));
+                        setShowMenu((prev) => ({
+                          ...prev,
+                          [post.id]: false,
+                        }));
+                      }}
+                    >
+                      Edit
+                    </button>
+                    <button
+                      className="menu-item"
+                      onClick={() => {
+                        handleDeletePost(post.id);
+                        setShowMenu((prev) => ({
+                          ...prev,
+                          [post.id]: false,
+                        }));
+                      }}
+                    >
+                      Delete
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+            {editPostText[post.id] ? (
+              <form onSubmit={(e) => handleEditPost(post.id, e)}>
+                <textarea
+                  value={editPostText[post.id]}
+                  onChange={(e) =>
+                    setEditPostText((prev) => ({
+                      ...prev,
+                      [post.id]: e.target.value,
+                    }))
+                  }
+                  rows="3"
+                  className="edit-post-textarea"
+                />
+                <input
+                  type="file"
+                  accept="image/*,video/*"
+                  multiple
+                  onChange={(e) =>
+                    setEditPostMediaFiles((prev) => ({
+                      ...prev,
+                      [post.id]: Array.from(e.target.files),
+                    }))
+                  }
+                />
+                {editPostMediaFiles[post.id]?.length > 0 && (
+                  <div className="image-preview">
+                    {editPostMediaFiles[post.id].map((file, index) => (
+                      <div key={index} className="media-preview-item">
+                        {file.type.startsWith("image/") ? (
+                          <img
+                            src={URL.createObjectURL(file)}
+                            alt="Preview"
+                            className="preview-image"
                           />
-                        </label>
-                        <input
-                          type="text"
-                          value={manualMediaUrl}
-                          onChange={(e) => setManualMediaUrl(e.target.value)}
-                          placeholder="Or enter a media URL (optional)"
-                          className="manual-url-input"
-                        />
+                        ) : (
+                          <video
+                            src={URL.createObjectURL(file)}
+                            className="preview-video"
+                            controls
+                          >
+                            Your browser does not support the video tag.
+                          </video>
+                        )}
                       </div>
-                      <button
-                        type="submit"
-                        className="post-button"
-                        disabled={isLoading || (!newPostMessage.trim() && mediaFiles.length === 0 && !manualMediaUrl.trim())}
+                    ))}
+                  </div>
+                )}
+                <input
+                  type="text"
+                  value={editPostMediaUrl[post.id] || ""}
+                  onChange={(e) =>
+                    setEditPostMediaUrl((prev) => ({
+                      ...prev,
+                      [post.id]: e.target.value,
+                    }))
+                  }
+                  placeholder="Or enter a new media URL"
+                  className="manual-url-input"
+                />
+                <button type="submit" className="edit-post-submit-button">
+                  Save
+                </button>
+              </form>
+            ) : (
+              <>
+                {post.message && <p>{post.message}</p>}
+                {post.attachments?.data?.[0] && (
+                  <>
+                    {console.log("Post attachments:", post.attachments.data[0])}
+                    {post.attachments.data[0].type === "video_inline" ||
+                    post.attachments.data[0].type === "video" ? (
+                      <video
+                        className="post-video"
+                        poster={
+                          post.attachments.data[0].media?.image?.src ||
+                          "https://via.placeholder.com/300"
+                        }
+                        controls
                       >
-                        {isLoading ? "Posting..." : "Post"}
-                      </button>
-                    </form>
-                  </div>
-                  <div className="posts-header">
-                    <h2>Posts</h2>
-                  </div>
-                  {posts.length > 0 ? (
-                    <ul>
-                      {posts.map((post) => (
-                        <li key={post.id} className="post-item">
-                          <div className="post-header">
-                            <div className="post-header-left">
+                        <source
+                          src={post.attachments.data[0].media?.source}
+                          type="video/mp4"
+                        />
+                        Your browser does not support the video tag.
+                      </video>
+                    ) : post.attachments.data[0].type === "album" &&
+                      post.attachments.data[0]?.data?.length > 1 ? (
+                      <Slider
+                        dots={true}
+                        infinite={true}
+                        speed={500}
+                        slidesToShow={1}
+                        slidesToScroll={1}
+                        arrows={true}
+                      >
+                        {post.attachments.data[0].data.map(
+                          (subattachment, index) => (
+                            <div key={index} className="slider-item">
                               <img
-                                src={pageData.picture.data.url}
-                                alt="Page Profile"
-                                className="post-profile-picture"
+                                src={
+                                  subattachment.media?.image?.src ||
+                                  "https://via.placeholder.com/300"
+                                }
+                                alt={`Album media ${index + 1}`}
+                                className="post-image"
+                                onError={(e) =>
+                                  (e.target.src = "https://via.placeholder.com/300")
+                                }
                               />
-                              <div>
-                                <p className="post-author">{pageData.name}</p>
-                                <small>{new Date(post.created_time).toLocaleString()}</small>
-                              </div>
                             </div>
-                            <div className="post-menu">
-                              <button
-                                className="menu-button"
-                                onClick={() =>
-                                  setShowMenu((prev) => ({
-                                    ...prev,
-                                    [post.id]: !prev[post.id],
-                                  }))
-                                }
-                              >
-                                ⋮
-                              </button>
-                              {showMenu[post.id] && (
-                                <div className="menu-dropdown">
-                                  <button
-                                    className="menu-item"
-                                    onClick={() => {
-                                      setEditPostText((prev) => ({
-                                        ...prev,
-                                        [post.id]: post.message,
-                                      }));
-                                      setShowMenu((prev) => ({
-                                        ...prev,
-                                        [post.id]: false,
-                                      }));
-                                    }}
-                                  >
-                                    Edit
-                                  </button>
-                                  <button
-                                    className="menu-item"
-                                    onClick={() => {
-                                      handleDeletePost(post.id);
-                                      setShowMenu((prev) => ({
-                                        ...prev,
-                                        [post.id]: false,
-                                      }));
-                                    }}
-                                  >
-                                    Delete
-                                  </button>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                          {editPostText[post.id] ? (
-                            <form onSubmit={(e) => handleEditPost(post.id, e)}>
-                              <textarea
-                                value={editPostText[post.id]}
-                                onChange={(e) =>
-                                  setEditPostText((prev) => ({
-                                    ...prev,
-                                    [post.id]: e.target.value,
-                                  }))
-                                }
-                                rows="3"
-                                className="edit-post-textarea"
-                              />
-                              <input
-                                type="file"
-                                accept="image/*,video/*"
-                                multiple
-                                onChange={(e) =>
-                                  setEditPostMediaFiles((prev) => ({
-                                    ...prev,
-                                    [post.id]: Array.from(e.target.files),
-                                  }))
-                                }
-                              />
-                              {editPostMediaFiles[post.id]?.length > 0 && (
-                                <div className="image-preview">
-                                  {editPostMediaFiles[post.id].map((file, index) => (
-                                    <div key={index} className="media-preview-item">
-                                      {file.type.startsWith("image/") ? (
-                                        <img
-                                          src={URL.createObjectURL(file)}
-                                          alt="Preview"
-                                          className="preview-image"
-                                        />
-                                      ) : (
-                                        <video
-                                          src={URL.createObjectURL(file)}
-                                          className="preview-video"
-                                          controls
-                                        >
-                                          Your browser does not support the video tag.
-                                        </video>
-                                      )}
-                                    </div>
-                                  ))}
-                                </div>
-                              )}
-                              <input
-                                type="text"
-                                value={editPostMediaUrl[post.id] || ""}
-                                onChange={(e) =>
-                                  setEditPostMediaUrl((prev) => ({
-                                    ...prev,
-                                    [post.id]: e.target.value,
-                                  }))
-                                }
-                                placeholder="Or enter a new media URL"
-                                className="manual-url-input"
-                              />
-                              <button type="submit" className="edit-post-submit-button">
-                                Save
-                              </button>
-                            </form>
-                          ) : (
-                            <>
-                              {post.message && <p>{post.message}</p>}
-                              {post.attachments?.data?.[0] && (
-                                <>
-                                  {post.attachments.data[0].type === "video_inline" ||
-                                  post.attachments.data[0].type === "video" ? (
-                                    <video
-                                      className="post-video"
-                                      poster={
-                                        post.attachments.data[0].media?.image?.src ||
-                                        "https://via.placeholder.com/300"
-                                      }
-                                      controls
-                                    >
-                                      <source
-                                        src={post.attachments.data[0].media?.source}
-                                        type="video/mp4"
-                                      />
-                                      Your browser does not support the video tag.
-                                    </video>
-                                  ) : post.attachments.data[0].media?.image ? (
-                                    <img
-                                      src={post.attachments.data[0].media.image.src}
-                                      alt="Post media"
-                                      className="post-image"
-                                      onError={(e) =>
-                                        (e.target.src = "https://via.placeholder.com/300")
-                                      }
-                                    />
-                                  ) : null}
-                                </>
-                              )}
-                            </>
-                          )}
-                          <div className="post-actions">
-                            <button
-                              className={`action-button ${likedPosts[post.id] ? "liked" : ""}`}
-                              onClick={() => handleLikePost(post.id)}
-                            >
-                              {likedPosts[post.id] ? "Unlike" : "Like"} (
-                              {post.likes?.summary?.total_count || 0})
-                            </button>
-                            <button
-                              className="action-button"
-                              onClick={() => fetchPostComments(post.id)}
-                            >
-                              Comment ({post.comments?.summary?.total_count || 0})
-                            </button>
-                            <button
-                              className="action-button insights-action"
-                              onClick={() => fetchPostInsights(post.id)}
-                              disabled={isLoadingInsights}
-                            >
-                              {isLoadingInsights ? "Loading..." : "Insights"}
-                            </button>
-                            <button className="action-button boost-action">Boost</button>
-                          </div>
-                          <div className="comment-section">
-                            {comments[post.id] && (
-                              <div className="comments-list">
-                                {comments[post.id].map((comment) => (
-                                  <CommentItem
-                                    key={comment.id}
-                                    comment={comment}
-                                    postId={post.id}
-                                  />
-                                ))}
-                              </div>
-                            )}
-                            <form onSubmit={(e) => handleCommentSubmit(post.id, e)}>
-                              <div className="comment-input-wrapper">
-                                <img
-                                  src={pageData.picture.data.url}
-                                  alt="User Profile"
-                                  className="comment-profile-picture"
-                                />
-                                <input
-                                  type="text"
-                                  value={commentText[post.id] || ""}
-                                  onChange={(e) =>
-                                    setCommentText((prev) => ({
-                                      ...prev,
-                                      [post.id]: e.target.value,
-                                    }))
-                                  }
-                                  placeholder="Write a comment..."
-                                  className="comment-input"
-                                />
-                                <button type="submit" className="comment-submit-button">
-                                  ➤
-                                </button>
-                              </div>
-                            </form>
-                          </div>
-                        </li>
-                      ))}
-                    </ul>
-                  ) : (
-                    <p>No posts available.</p>
-                  )}
+                          )
+                        )}
+                      </Slider>
+                    ) : post.attachments.data[0].type === "album" ? (
+                      <img
+                        src={
+                          post.attachments.data[0].media?.image?.src ||
+                          "https://via.placeholder.com/300"
+                        }
+                        alt="Single album media"
+                        className="post-image"
+                        onError={(e) => (e.target.src = "https://via.placeholder.com/300")}
+                      />
+                    ) : post.attachments.data[0].media?.image ? (
+                      <img
+                        src={post.attachments.data[0].media.image.src}
+                        alt="Post media"
+                        className="post-image"
+                        onError={(e) => (e.target.src = "https://via.placeholder.com/300")}
+                      />
+                    ) : null}
+                  </>
+                )}
+              </>
+            )}
+            <div className="post-actions">
+              <button
+                className={`action-button ${likedPosts[post.id] ? "liked" : ""}`}
+                onClick={() => handleLikePost(post.id)}
+              >
+                {likedPosts[post.id] ? "Unlike" : "Like"} (
+                {post.likes?.summary?.total_count || 0})
+              </button>
+              <button
+                className="action-button"
+                onClick={() => fetchPostComments(post.id)}
+              >
+                Comment ({post.comments?.summary?.total_count || 0})
+              </button>
+              <button
+                className="action-button insights-action"
+                onClick={() => fetchPostInsights(post.id)}
+                disabled={isLoadingInsights}
+              >
+                {isLoadingInsights ? "Loading..." : "Insights"}
+              </button>
+              <button className="action-button boost-action">Boost</button>
+            </div>
+            <div className="comment-section">
+              {comments[post.id] && (
+                <div className="comments-list">
+                  {comments[post.id].map((comment) => (
+                    <CommentItem key={comment.id} comment={comment} postId={post.id} />
+                  ))}
                 </div>
               )}
+              <form onSubmit={(e) => handleCommentSubmit(post.id, e)}>
+                <div className="comment-input-wrapper">
+                  <img
+                    src={pageData.picture.data.url}
+                    alt="User Profile"
+                    className="comment-profile-picture"
+                  />
+                  <input
+                    type="text"
+                    value={commentText[post.id] || ""}
+                    onChange={(e) =>
+                      setCommentText((prev) => ({
+                        ...prev,
+                        [post.id]: e.target.value,
+                      }))
+                    }
+                    placeholder="Write a comment..."
+                    className="comment-input"
+                  />
+                  <button type="submit" className="comment-submit-button">
+                    ➤
+                  </button>
+                </div>
+              </form>
+            </div>
+          </li>
+        ))}
+      </ul>
+    ) : (
+      <p>No posts available.</p>
+    )}
+  </div>
+)}
               {activeTab === "About" && (
                 <LoadScript googleMapsApiKey="AIzaSyCAzRS_i_8GcmiGF5jhb9UuXdS1nn6kskA" libraries={["places"]}>
                   <div className="about-section">

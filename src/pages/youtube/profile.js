@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import localStorage from 'local-storage';
 import {
@@ -17,6 +17,111 @@ import {
 } from '@mui/material';
 import { MoreVert, ThumbUp, Comment } from '@mui/icons-material';
 import ProfileSidebar from '../../components/youtube/ProfileSidebar';
+
+// VideoCard component with comments fix
+const VideoCard = ({
+  video,
+  videoIdKey = 'id',
+  onPlay,
+  showActions = false,
+  fetchComments,
+  handleLikeVideo,
+  comments = {}, // Default to empty object
+  newComment,
+  setNewComment,
+  handlePostComment,
+}) => {
+  const videoId = video[videoIdKey] || video.id.videoId || video.id.id || video.id;
+  const playerRef = useRef(null);
+
+  useEffect(() => {
+    console.log('Rendering VideoCard for ID:', videoId);
+    if (window.YT && window.YT.Player && !playerRef.current) {
+      console.log('Initializing YT.Player for', videoId);
+      playerRef.current = new window.YT.Player(`player-${videoId}`, {
+        events: {
+          onReady: () => console.log('Player ready for', videoId),
+          onStateChange: (event) => {
+            console.log('Player state changed for', videoId, ':', event.data);
+            if (event.data === window.YT.PlayerState.PLAYING) {
+              onPlay(videoId);
+            }
+          },
+          onError: (event) => console.error('Player error for', videoId, ':', event.data),
+        },
+      });
+    }
+  }, [videoId, onPlay]);
+
+  return (
+    <Grid item xs={12} sm={6} md={4} key={videoId}>
+      <Card style={{ maxWidth: '345px' }}>
+        <div>
+          <iframe
+            id={`player-${videoId}`}
+            width="100%"
+            height="140"
+            src={`https://www.youtube.com/embed/${videoId}?enablejsapi=1`}
+            title={video.snippet.title}
+            frameBorder="0"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+            allowFullScreen
+          />
+        </div>
+        <CardContent style={{ display: 'flex', alignItems: 'flex-start', padding: '8px' }}>
+          <div style={{ flexGrow: 1 }}>
+            <Typography variant="body2" style={{ fontWeight: 'medium' }}>
+              {video.snippet.title}
+            </Typography>
+            <Typography variant="caption" style={{ color: 'rgba(0, 0, 0, 0.6)' }}>
+              {video.snippet.channelTitle || 'Your Channel'} •{' '}
+              {new Date(video.snippet.publishedAt).toLocaleDateString()}
+              {video.statistics?.viewCount && ` • ${video.statistics.viewCount} views`}
+            </Typography>
+          </div>
+          {showActions && (
+            <IconButton size="small">
+              <MoreVert />
+            </IconButton>
+          )}
+        </CardContent>
+        {showActions && (
+          <Box sx={{ padding: '8px', display: 'flex', gap: '8px' }}>
+            <Button startIcon={<ThumbUp />} onClick={() => handleLikeVideo(videoId)}>
+              Like
+            </Button>
+            <Button startIcon={<Comment />} onClick={() => fetchComments(videoId)}>
+              Comments
+            </Button>
+          </Box>
+        )}
+        {showActions && comments[videoId] && (
+          <Box sx={{ padding: '8px' }}>
+            {comments[videoId].map((comment) => (
+              <Typography key={comment.id} variant="body2" sx={{ marginBottom: '8px' }}>
+                {comment.snippet.topLevelComment.snippet.textDisplay}
+              </Typography>
+            ))}
+            <TextField
+              label="Add a comment"
+              value={newComment || ''} // Default to empty string if undefined
+              onChange={(e) => setNewComment(e.target.value)}
+              fullWidth
+              margin="normal"
+            />
+            <Button
+              variant="contained"
+              onClick={() => handlePostComment(videoId)}
+              disabled={!newComment}
+            >
+              Post
+            </Button>
+          </Box>
+        )}
+      </Card>
+    </Grid>
+  );
+};
 
 const YoutubeProfile = () => {
   const [profile, setProfile] = useState(null);
@@ -37,6 +142,7 @@ const YoutubeProfile = () => {
   const [tabValue, setTabValue] = useState(0);
   const [comments, setComments] = useState({});
   const [newComment, setNewComment] = useState('');
+  const [apiReady, setApiReady] = useState(false);
   const navigate = useNavigate();
 
   const itemsPerPage = 10;
@@ -52,19 +158,24 @@ const YoutubeProfile = () => {
     searchResults: null,
   });
 
-  // Load YouTube iframe API and ensure it's ready
+  // Load YouTube Iframe API
   useEffect(() => {
+    console.log('Checking if YouTube Iframe API is already loaded...');
     if (!window.YT) {
+      console.log('Loading YouTube Iframe API script...');
       const tag = document.createElement('script');
       tag.src = 'https://www.youtube.com/iframe_api';
+      tag.onerror = () => console.error('Failed to load YouTube Iframe API script');
       const firstScriptTag = document.getElementsByTagName('script')[0];
       firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
 
       window.onYouTubeIframeAPIReady = () => {
         console.log('YouTube Iframe API is ready');
+        setApiReady(true);
       };
     } else {
       console.log('YouTube Iframe API already loaded');
+      setApiReady(true);
     }
   }, []);
 
@@ -84,6 +195,7 @@ const YoutubeProfile = () => {
       throw new Error(`Token refresh failed: ${data.error || 'Unknown error'}`);
     } catch (err) {
       setError('Authentication failed. Please log in again.');
+      console.error('Token refresh error:', err);
       return null;
     }
   };
@@ -93,12 +205,14 @@ const YoutubeProfile = () => {
     let accessToken = localStorage.get('youtubeAccessToken');
     const refreshToken = localStorage.get('youtubeRefreshToken');
     try {
+      console.log('Fetching video details for IDs:', videoIds);
       const response = await fetch(
         `https://www.googleapis.com/youtube/v3/videos?part=snippet&id=${videoIds.join(',')}`,
         { headers: { Authorization: `Bearer ${accessToken}` } }
       );
       if (!response.ok) {
         if (response.status === 401) {
+          console.log('Access token expired, refreshing...');
           accessToken = await refreshAccessToken(refreshToken);
           if (!accessToken) throw new Error('Token refresh failed');
           return fetchVideoDetails(videoIds);
@@ -107,8 +221,10 @@ const YoutubeProfile = () => {
         throw new Error(data.error?.message || 'Failed to fetch video details');
       }
       const data = await response.json();
+      console.log('Fetched video details:', data.items);
       return data.items || [];
     } catch (err) {
+      console.error('Error fetching video details:', err.message);
       if (err.message.includes('quota')) setError('YouTube API quota exceeded. History may be incomplete.');
       else setError(`Failed to fetch video details: ${err.message}`);
       return [];
@@ -117,11 +233,13 @@ const YoutubeProfile = () => {
 
   // Initialize history from localStorage
   useEffect(() => {
+    console.log('Initializing history from localStorage...');
     const storedHistory = JSON.parse(localStorage.get('watchedVideos') || '[]');
+    console.log('Stored history IDs:', storedHistory);
     if (storedHistory.length > 0) {
       fetchVideoDetails(storedHistory).then((videoDetails) => {
         setHistory(videoDetails.filter((v) => v));
-        console.log('Loaded history from localStorage:', videoDetails);
+        console.log('Loaded history into state:', videoDetails);
       });
     }
     setLoading(false);
@@ -132,13 +250,13 @@ const YoutubeProfile = () => {
     const fetchProfile = async () => {
       let accessToken = localStorage.get('youtubeAccessToken');
       const refreshToken = localStorage.get('youtubeRefreshToken');
-    
+
       if (!accessToken || !refreshToken) {
         setError('No authentication tokens found. Please log in again.');
         navigate('/YoutubeLogin');
         return;
       }
-    
+
       const fetchWithAuth = async (url, options = {}, pageTokenKey) => {
         const pageToken = pageTokens[pageTokenKey] || '';
         const fullUrl = `${url}&maxResults=${itemsPerPage}${pageToken ? `&pageToken=${pageToken}` : ''}`;
@@ -162,40 +280,35 @@ const YoutubeProfile = () => {
           throw err;
         }
       };
-    
+
       try {
         const cachedProfileRaw = localStorage.get('youtubeProfile');
         const cachedVideos = localStorage.get('youtubeVideos');
         let cachedProfile = cachedProfileRaw ? JSON.parse(cachedProfileRaw) : null;
         if (cachedProfile && cachedProfile.snippet) setProfile(cachedProfile);
         if (cachedVideos) setVideos(JSON.parse(cachedVideos));
-    
+
         if (!cachedProfile || !cachedProfile.snippet) {
-          console.log('Fetching profile from backend with token:', accessToken); // Debug log
           const profileResponse = await fetch('https://localhost:7099/api/GoogleAuth/youtube/profile', {
             headers: {
               'X-Access-Token': accessToken,
               'X-Refresh-Token': refreshToken,
             },
           });
-    
+
           if (!profileResponse.ok) {
-            const errorText = await profileResponse.text(); // Get raw response for more detail
-            console.error('Profile fetch response:', profileResponse.status, errorText); // Debug log
-            throw new Error(
-              `Failed to fetch YouTube profile: ${profileResponse.status} - ${errorText || 'Unknown error'}`
-            );
+            const errorText = await profileResponse.text();
+            throw new Error(`Failed to fetch YouTube profile: ${profileResponse.status} - ${errorText || 'Unknown error'}`);
           }
-    
+
           const profileData = await profileResponse.json();
-          console.log('Profile data received:', profileData); // Debug log
           setProfile(profileData.channel);
           setVideos(profileData.videos || []);
           localStorage.set('youtubeProfile', JSON.stringify(profileData.channel));
           localStorage.set('youtubeVideos', JSON.stringify(profileData.videos || []));
           cachedProfile = profileData.channel;
         }
-    
+
         const fetchPaginatedData = async (url, setter, cacheKey, pageTokenKey) => {
           try {
             const data = await fetchWithAuth(url, {}, pageTokenKey);
@@ -220,7 +333,7 @@ const YoutubeProfile = () => {
             }
           }
         };
-    
+
         await Promise.all([
           fetchPaginatedData(
             'https://www.googleapis.com/youtube/v3/playlists?part=snippet,contentDetails&mine=true',
@@ -259,7 +372,7 @@ const YoutubeProfile = () => {
             'trendingVideos'
           ),
         ]);
-    
+
         localStorage.set('youtubeChannelId', cachedProfile?.id || '');
         localStorage.set('youtubeUsername', cachedProfile?.snippet?.title || '');
       } catch (err) {
@@ -277,7 +390,7 @@ const YoutubeProfile = () => {
           setError(`Failed to fetch YouTube data: ${err.message}. Showing cached or empty data.`);
         }
       } finally {
-        setLoading(false); // Ensure loading state is cleared even on error
+        setLoading(false);
       }
     };
     fetchProfile();
@@ -560,7 +673,7 @@ const YoutubeProfile = () => {
       storedHistory.unshift(videoId);
       const limitedHistory = storedHistory.slice(0, 50);
       localStorage.set('watchedVideos', JSON.stringify(limitedHistory));
-      console.log('Updated localStorage:', limitedHistory);
+      console.log('Updated localStorage with watchedVideos:', limitedHistory);
       fetchVideoDetails([videoId]).then((videoDetails) => {
         if (videoDetails.length > 0) {
           setHistory((prev) => {
@@ -568,12 +681,16 @@ const YoutubeProfile = () => {
             console.log('Updated history state:', updatedHistory);
             return updatedHistory.slice(0, 50);
           });
+        } else {
+          console.log('No video details returned for', videoId);
         }
       });
+    } else {
+      console.log('Video', videoId, 'already in history, skipping...');
     }
   };
 
-  if (loading) {
+  if (loading || !apiReady) {
     return (
       <Container>
         <Typography variant="h6">Loading YouTube profile...</Typography>
@@ -694,48 +811,12 @@ const YoutubeProfile = () => {
                 </Typography>
                 <Grid container spacing={2}>
                   {searchResults.map((video) => (
-                    <Grid item xs={12} sm={6} md={4} key={video.id.videoId}>
-                      <Card style={{ maxWidth: '345px' }}>
-                        <div>
-                          <iframe
-                            width="100%"
-                            height="140"
-                            src={`https://www.youtube.com/embed/${video.id.videoId}`}
-                            title={video.snippet.title}
-                            frameBorder="0"
-                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                            allowFullScreen
-                            onLoad={() => {
-                              if (window.YT && window.YT.Player) {
-                                new window.YT.Player(`player-${video.id.videoId}`, {
-                                  events: {
-                                    onStateChange: (event) => {
-                                      if (event.data === window.YT.PlayerState.PLAYING) {
-                                        handleVideoPlay(video.id.videoId);
-                                      }
-                                    },
-                                    onError: (event) => {
-                                      console.error('YouTube Player Error:', event.data);
-                                    },
-                                  },
-                                });
-                              } else {
-                                console.warn('YouTube API not loaded yet for video:', video.id.videoId);
-                              }
-                            }}
-                            id={`player-${video.id.videoId}`}
-                          />
-                        </div>
-                        <CardContent>
-                          <Typography variant="body2" style={{ fontWeight: 'medium' }}>
-                            {video.snippet.title}
-                          </Typography>
-                          <Typography variant="caption" style={{ color: 'rgba(0, 0, 0, 0.6)' }}>
-                            {video.snippet.channelTitle} • {new Date(video.snippet.publishedAt).toLocaleDateString()}
-                          </Typography>
-                        </CardContent>
-                      </Card>
-                    </Grid>
+                    <VideoCard
+                      key={video.id.videoId}
+                      video={video}
+                      videoIdKey="id.videoId"
+                      onPlay={handleVideoPlay}
+                    />
                   ))}
                 </Grid>
                 {pageTokens.searchResults && (
@@ -764,85 +845,19 @@ const YoutubeProfile = () => {
                 {videos.length > 0 ? (
                   <Grid container spacing={2}>
                     {videos.map((video) => (
-                      <Grid item xs={12} sm={6} md={4} key={video.id.id}>
-                        <Card style={{ maxWidth: '345px' }}>
-                          <div>
-                            <iframe
-                              width="100%"
-                              height="140"
-                              src={`https://www.youtube.com/embed/${video.id.id}`}
-                              title={video.snippet.title}
-                              frameBorder="0"
-                              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                              allowFullScreen
-                              onLoad={() => {
-                                if (window.YT && window.YT.Player) {
-                                  new window.YT.Player(`player-${video.id.id}`, {
-                                    events: {
-                                      onStateChange: (event) => {
-                                        if (event.data === window.YT.PlayerState.PLAYING) {
-                                          handleVideoPlay(video.id.id);
-                                        }
-                                      },
-                                      onError: (event) => {
-                                        console.error('YouTube Player Error:', event.data);
-                                      },
-                                    },
-                                  });
-                                } else {
-                                  console.warn('YouTube API not loaded yet for video:', video.id.id);
-                                }
-                              }}
-                              id={`player-${video.id.id}`}
-                            />
-                          </div>
-                          <CardContent style={{ display: 'flex', alignItems: 'flex-start', padding: '8px' }}>
-                            <div style={{ flexGrow: 1 }}>
-                              <Typography variant="body2" style={{ fontWeight: 'medium' }}>
-                                {video.snippet.title}
-                              </Typography>
-                              <Typography variant="caption" style={{ color: 'rgba(0, 0, 0, 0.6)' }}>
-                                {video.statistics?.viewCount || '0'} views •{' '}
-                                {new Date(video.snippet.publishedAt).toLocaleDateString()}
-                              </Typography>
-                            </div>
-                            <IconButton size="small">
-                              <MoreVert />
-                            </IconButton>
-                          </CardContent>
-                          <Box sx={{ padding: '8px', display: 'flex', gap: '8px' }}>
-                            <Button startIcon={<ThumbUp />} onClick={() => handleLikeVideo(video.id.id)}>
-                              Like
-                            </Button>
-                            <Button startIcon={<Comment />} onClick={() => fetchComments(video.id.id)}>
-                              Comments
-                            </Button>
-                          </Box>
-                          {comments[video.id.id] && (
-                            <Box sx={{ padding: '8px' }}>
-                              {comments[video.id.id].map((comment) => (
-                                <Typography key={comment.id} variant="body2" sx={{ marginBottom: '8px' }}>
-                                  {comment.snippet.topLevelComment.snippet.textDisplay}
-                                </Typography>
-                              ))}
-                              <TextField
-                                label="Add a comment"
-                                value={newComment}
-                                onChange={(e) => setNewComment(e.target.value)}
-                                fullWidth
-                                margin="normal"
-                              />
-                              <Button
-                                variant="contained"
-                                onClick={() => handlePostComment(video.id.id)}
-                                disabled={!newComment}
-                              >
-                                Post
-                              </Button>
-                            </Box>
-                          )}
-                        </Card>
-                      </Grid>
+                      <VideoCard
+                        key={video.id.id}
+                        video={video}
+                        videoIdKey="id.id"
+                        onPlay={handleVideoPlay}
+                        showActions={true}
+                        fetchComments={fetchComments}
+                        handleLikeVideo={handleLikeVideo}
+                        comments={comments}
+                        newComment={newComment}
+                        setNewComment={setNewComment}
+                        handlePostComment={handlePostComment}
+                      />
                     ))}
                   </Grid>
                 ) : (
@@ -870,49 +885,7 @@ const YoutubeProfile = () => {
                 {trendingVideos.length > 0 ? (
                   <Grid container spacing={2}>
                     {trendingVideos.map((video) => (
-                      <Grid item xs={12} sm={6} md={4} key={video.id}>
-                        <Card style={{ maxWidth: '345px' }}>
-                          <div>
-                            <iframe
-                              width="100%"
-                              height="140"
-                              src={`https://www.youtube.com/embed/${video.id}`}
-                              title={video.snippet.title}
-                              frameBorder="0"
-                              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                              allowFullScreen
-                              onLoad={() => {
-                                if (window.YT && window.YT.Player) {
-                                  new window.YT.Player(`player-${video.id}`, {
-                                    events: {
-                                      onStateChange: (event) => {
-                                        if (event.data === window.YT.PlayerState.PLAYING) {
-                                          handleVideoPlay(video.id);
-                                        }
-                                      },
-                                      onError: (event) => {
-                                        console.error('YouTube Player Error:', event.data);
-                                      },
-                                    },
-                                  });
-                                } else {
-                                  console.warn('YouTube API not loaded yet for video:', video.id);
-                                }
-                              }}
-                              id={`player-${video.id}`}
-                            />
-                          </div>
-                          <CardContent>
-                            <Typography variant="body2" style={{ fontWeight: 'medium' }}>
-                              {video.snippet.title}
-                            </Typography>
-                            <Typography variant="caption" style={{ color: 'rgba(0, 0, 0, 0.6)' }}>
-                              {video.snippet.channelTitle} • {video.statistics.viewCount || '0'} views •{' '}
-                              {new Date(video.snippet.publishedAt).toLocaleDateString()}
-                            </Typography>
-                          </CardContent>
-                        </Card>
-                      </Grid>
+                      <VideoCard key={video.id} video={video} onPlay={handleVideoPlay} />
                     ))}
                   </Grid>
                 ) : (
@@ -940,48 +913,12 @@ const YoutubeProfile = () => {
                 {shorts.length > 0 ? (
                   <Grid container spacing={2}>
                     {shorts.map((video) => (
-                      <Grid item xs={12} sm={6} md={4} key={video.id.videoId}>
-                        <Card style={{ maxWidth: '345px' }}>
-                          <div>
-                            <iframe
-                              width="100%"
-                              height="140"
-                              src={`https://www.youtube.com/embed/${video.id.videoId}`}
-                              title={video.snippet.title}
-                              frameBorder="0"
-                              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                              allowFullScreen
-                              onLoad={() => {
-                                if (window.YT && window.YT.Player) {
-                                  new window.YT.Player(`player-${video.id.videoId}`, {
-                                    events: {
-                                      onStateChange: (event) => {
-                                        if (event.data === window.YT.PlayerState.PLAYING) {
-                                          handleVideoPlay(video.id.videoId);
-                                        }
-                                      },
-                                      onError: (event) => {
-                                        console.error('YouTube Player Error:', event.data);
-                                      },
-                                    },
-                                  });
-                                } else {
-                                  console.warn('YouTube API not loaded yet for video:', video.id.videoId);
-                                }
-                              }}
-                              id={`player-${video.id.videoId}`}
-                            />
-                          </div>
-                          <CardContent>
-                            <Typography variant="body2" style={{ fontWeight: 'medium' }}>
-                              {video.snippet.title}
-                            </Typography>
-                            <Typography variant="caption" style={{ color: 'rgba(0, 0, 0, 0.6)' }}>
-                              {video.snippet.channelTitle} • {new Date(video.snippet.publishedAt).toLocaleDateString()}
-                            </Typography>
-                          </CardContent>
-                        </Card>
-                      </Grid>
+                      <VideoCard
+                        key={video.id.videoId}
+                        video={video}
+                        videoIdKey="id.videoId"
+                        onPlay={handleVideoPlay}
+                      />
                     ))}
                   </Grid>
                 ) : (
@@ -1008,48 +945,12 @@ const YoutubeProfile = () => {
                 {shorts.length > 0 ? (
                   <Grid container spacing={2}>
                     {shorts.map((video) => (
-                      <Grid item xs={12} sm={6} md={4} key={video.id.videoId}>
-                        <Card style={{ maxWidth: '345px' }}>
-                          <div>
-                            <iframe
-                              width="100%"
-                              height="140"
-                              src={`https://www.youtube.com/embed/${video.id.videoId}`}
-                              title={video.snippet.title}
-                              frameBorder="0"
-                              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                              allowFullScreen
-                              onLoad={() => {
-                                if (window.YT && window.YT.Player) {
-                                  new window.YT.Player(`player-${video.id.videoId}`, {
-                                    events: {
-                                      onStateChange: (event) => {
-                                        if (event.data === window.YT.PlayerState.PLAYING) {
-                                          handleVideoPlay(video.id.videoId);
-                                        }
-                                      },
-                                      onError: (event) => {
-                                        console.error('YouTube Player Error:', event.data);
-                                      },
-                                    },
-                                  });
-                                } else {
-                                  console.warn('YouTube API not loaded yet for video:', video.id.videoId);
-                                }
-                              }}
-                              id={`player-${video.id.videoId}`}
-                            />
-                          </div>
-                          <CardContent>
-                            <Typography variant="body2" style={{ fontWeight: 'medium' }}>
-                              {video.snippet.title}
-                            </Typography>
-                            <Typography variant="caption" style={{ color: 'rgba(0, 0, 0, 0.6)' }}>
-                              {video.snippet.channelTitle} • {new Date(video.snippet.publishedAt).toLocaleDateString()}
-                            </Typography>
-                          </CardContent>
-                        </Card>
-                      </Grid>
+                      <VideoCard
+                        key={video.id.videoId}
+                        video={video}
+                        videoIdKey="id.videoId"
+                        onPlay={handleVideoPlay}
+                      />
                     ))}
                   </Grid>
                 ) : (
@@ -1076,48 +977,12 @@ const YoutubeProfile = () => {
                 {subscriptionFeed.length > 0 ? (
                   <Grid container spacing={2}>
                     {subscriptionFeed.map((video) => (
-                      <Grid item xs={12} sm={6} md={4} key={video.id.videoId}>
-                        <Card style={{ maxWidth: '345px' }}>
-                          <div>
-                            <iframe
-                              width="100%"
-                              height="140"
-                              src={`https://www.youtube.com/embed/${video.id.videoId}`}
-                              title={video.snippet.title}
-                              frameBorder="0"
-                              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                              allowFullScreen
-                              onLoad={() => {
-                                if (window.YT && window.YT.Player) {
-                                  new window.YT.Player(`player-${video.id.videoId}`, {
-                                    events: {
-                                      onStateChange: (event) => {
-                                        if (event.data === window.YT.PlayerState.PLAYING) {
-                                          handleVideoPlay(video.id.videoId);
-                                        }
-                                      },
-                                      onError: (event) => {
-                                        console.error('YouTube Player Error:', event.data);
-                                      },
-                                    },
-                                  });
-                                } else {
-                                  console.warn('YouTube API not loaded yet for video:', video.id.videoId);
-                                }
-                              }}
-                              id={`player-${video.id.videoId}`}
-                            />
-                          </div>
-                          <CardContent>
-                            <Typography variant="body2" style={{ fontWeight: 'medium' }}>
-                              {video.snippet.title}
-                            </Typography>
-                            <Typography variant="caption" style={{ color: 'rgba(0, 0, 0, 0.6)' }}>
-                              {video.snippet.channelTitle} • {new Date(video.snippet.publishedAt).toLocaleDateString()}
-                            </Typography>
-                          </CardContent>
-                        </Card>
-                      </Grid>
+                      <VideoCard
+                        key={video.id.videoId}
+                        video={video}
+                        videoIdKey="id.videoId"
+                        onPlay={handleVideoPlay}
+                      />
                     ))}
                   </Grid>
                 ) : (
@@ -1136,48 +1001,7 @@ const YoutubeProfile = () => {
                 {history.length > 0 ? (
                   <Grid container spacing={2}>
                     {history.map((video) => (
-                      <Grid item xs={12} sm={6} md={4} key={video.id}>
-                        <Card style={{ maxWidth: '345px' }}>
-                          <div>
-                            <iframe
-                              width="100%"
-                              height="140"
-                              src={`https://www.youtube.com/embed/${video.id}`}
-                              title={video.snippet.title}
-                              frameBorder="0"
-                              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                              allowFullScreen
-                              onLoad={() => {
-                                if (window.YT && window.YT.Player) {
-                                  new window.YT.Player(`player-${video.id}`, {
-                                    events: {
-                                      onStateChange: (event) => {
-                                        if (event.data === window.YT.PlayerState.PLAYING) {
-                                          handleVideoPlay(video.id);
-                                        }
-                                      },
-                                      onError: (event) => {
-                                        console.error('YouTube Player Error:', event.data);
-                                      },
-                                    },
-                                  });
-                                } else {
-                                  console.warn('YouTube API not loaded yet for video:', video.id);
-                                }
-                              }}
-                              id={`player-${video.id}`}
-                            />
-                          </div>
-                          <CardContent>
-                            <Typography variant="body2" style={{ fontWeight: 'medium' }}>
-                              {video.snippet.title}
-                            </Typography>
-                            <Typography variant="caption" style={{ color: 'rgba(0, 0, 0, 0.6)' }}>
-                              {video.snippet.channelTitle} • {new Date(video.snippet.publishedAt).toLocaleDateString()}
-                            </Typography>
-                          </CardContent>
-                        </Card>
-                      </Grid>
+                      <VideoCard key={video.id} video={video} onPlay={handleVideoPlay} />
                     ))}
                   </Grid>
                 ) : (
@@ -1243,49 +1067,12 @@ const YoutubeProfile = () => {
                 {videos.length > 0 ? (
                   <Grid container spacing={2}>
                     {videos.map((video) => (
-                      <Grid item xs={12} sm={6} md={4} key={video.id.id}>
-                        <Card style={{ maxWidth: '345px' }}>
-                          <div>
-                            <iframe
-                              width="100%"
-                              height="140"
-                              src={`https://www.youtube.com/embed/${video.id.id}`}
-                              title={video.snippet.title}
-                              frameBorder="0"
-                              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                              allowFullScreen
-                              onLoad={() => {
-                                if (window.YT && window.YT.Player) {
-                                  new window.YT.Player(`player-${video.id.id}`, {
-                                    events: {
-                                      onStateChange: (event) => {
-                                        if (event.data === window.YT.PlayerState.PLAYING) {
-                                          handleVideoPlay(video.id.id);
-                                        }
-                                      },
-                                      onError: (event) => {
-                                        console.error('YouTube Player Error:', event.data);
-                                      },
-                                    },
-                                  });
-                                } else {
-                                  console.warn('YouTube API not loaded yet for video:', video.id.id);
-                                }
-                              }}
-                              id={`player-${video.id.id}`}
-                            />
-                          </div>
-                          <CardContent>
-                            <Typography variant="body2" style={{ fontWeight: 'medium' }}>
-                              {video.snippet.title}
-                            </Typography>
-                            <Typography variant="caption" style={{ color: 'rgba(0, 0, 0, 0.6)' }}>
-                              {video.statistics?.viewCount || '0'} views •{' '}
-                              {new Date(video.snippet.publishedAt).toLocaleDateString()}
-                            </Typography>
-                          </CardContent>
-                        </Card>
-                      </Grid>
+                      <VideoCard
+                        key={video.id.id}
+                        video={video}
+                        videoIdKey="id.id"
+                        onPlay={handleVideoPlay}
+                      />
                     ))}
                   </Grid>
                 ) : (
@@ -1312,48 +1099,12 @@ const YoutubeProfile = () => {
                 {watchLater.length > 0 ? (
                   <Grid container spacing={2}>
                     {watchLater.map((item) => (
-                      <Grid item xs={12} sm={6} md={4} key={item.id}>
-                        <Card style={{ maxWidth: '345px' }}>
-                          <div>
-                            <iframe
-                              width="100%"
-                              height="140"
-                              src={`https://www.youtube.com/embed/${item.snippet.resourceId.videoId}`}
-                              title={item.snippet.title}
-                              frameBorder="0"
-                              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                              allowFullScreen
-                              onLoad={() => {
-                                if (window.YT && window.YT.Player) {
-                                  new window.YT.Player(`player-${item.snippet.resourceId.videoId}`, {
-                                    events: {
-                                      onStateChange: (event) => {
-                                        if (event.data === window.YT.PlayerState.PLAYING) {
-                                          handleVideoPlay(item.snippet.resourceId.videoId);
-                                        }
-                                      },
-                                      onError: (event) => {
-                                        console.error('YouTube Player Error:', event.data);
-                                      },
-                                    },
-                                  });
-                                } else {
-                                  console.warn('YouTube API not loaded yet for video:', item.snippet.resourceId.videoId);
-                                }
-                              }}
-                              id={`player-${item.snippet.resourceId.videoId}`}
-                            />
-                          </div>
-                          <CardContent>
-                            <Typography variant="body2" style={{ fontWeight: 'medium' }}>
-                              {item.snippet.title}
-                            </Typography>
-                            <Typography variant="caption" style={{ color: 'rgba(0, 0, 0, 0.6)' }}>
-                              {item.snippet.channelTitle} • {new Date(item.snippet.publishedAt).toLocaleDateString()}
-                            </Typography>
-                          </CardContent>
-                        </Card>
-                      </Grid>
+                      <VideoCard
+                        key={item.snippet.resourceId.videoId}
+                        video={item}
+                        videoIdKey="snippet.resourceId.videoId"
+                        onPlay={handleVideoPlay}
+                      />
                     ))}
                   </Grid>
                 ) : (
@@ -1380,49 +1131,7 @@ const YoutubeProfile = () => {
                 {likedVideos.length > 0 ? (
                   <Grid container spacing={2}>
                     {likedVideos.map((video) => (
-                      <Grid item xs={12} sm={6} md={4} key={video.id}>
-                        <Card style={{ maxWidth: '345px' }}>
-                          <div>
-                            <iframe
-                              width="100%"
-                              height="140"
-                              src={`https://www.youtube.com/embed/${video.id}`}
-                              title={video.snippet.title}
-                              frameBorder="0"
-                              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                              allowFullScreen
-                              onLoad={() => {
-                                if (window.YT && window.YT.Player) {
-                                  new window.YT.Player(`player-${video.id}`, {
-                                    events: {
-                                      onStateChange: (event) => {
-                                        if (event.data === window.YT.PlayerState.PLAYING) {
-                                          handleVideoPlay(video.id);
-                                        }
-                                      },
-                                      onError: (event) => {
-                                        console.error('YouTube Player Error:', event.data);
-                                      },
-                                    },
-                                  });
-                                } else {
-                                  console.warn('YouTube API not loaded yet for video:', video.id);
-                                }
-                              }}
-                              id={`player-${video.id}`}
-                            />
-                          </div>
-                          <CardContent>
-                            <Typography variant="body2" style={{ fontWeight: 'medium' }}>
-                              {video.snippet.title}
-                            </Typography>
-                            <Typography variant="caption" style={{ color: 'rgba(0, 0, 0, 0.6)' }}>
-                              {video.statistics.viewCount || '0'} views •{' '}
-                              {new Date(video.snippet.publishedAt).toLocaleDateString()}
-                            </Typography>
-                          </CardContent>
-                        </Card>
-                      </Grid>
+                      <VideoCard key={video.id} video={video} onPlay={handleVideoPlay} />
                     ))}
                   </Grid>
                 ) : (
@@ -1463,49 +1172,12 @@ const YoutubeProfile = () => {
                       {videos.length > 0 ? (
                         <Grid container spacing={2}>
                           {videos.map((video) => (
-                            <Grid item xs={12} sm={6} md={4} key={video.id.videoId}>
-                              <Card style={{ maxWidth: '345px' }}>
-                                <div>
-                                  <iframe
-                                    width="100%"
-                                    height="140"
-                                    src={`https://www.youtube.com/embed/${video.id.videoId}`}
-                                    title={video.snippet.title}
-                                    frameBorder="0"
-                                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                                    allowFullScreen
-                                    onLoad={() => {
-                                      if (window.YT && window.YT.Player) {
-                                        new window.YT.Player(`player-${video.id.videoId}`, {
-                                          events: {
-                                            onStateChange: (event) => {
-                                              if (event.data === window.YT.PlayerState.PLAYING) {
-                                                handleVideoPlay(video.id.videoId);
-                                              }
-                                            },
-                                            onError: (event) => {
-                                              console.error('YouTube Player Error:', event.data);
-                                            },
-                                          },
-                                        });
-                                      } else {
-                                        console.warn('YouTube API not loaded yet for video:', video.id.videoId);
-                                      }
-                                    }}
-                                    id={`player-${video.id.videoId}`}
-                                  />
-                                </div>
-                                <CardContent>
-                                  <Typography variant="body2" style={{ fontWeight: 'medium' }}>
-                                    {video.snippet.title}
-                                  </Typography>
-                                  <Typography variant="caption" style={{ color: 'rgba(0, 0, 0, 0.6)' }}>
-                                    {video.snippet.channelTitle} •{' '}
-                                    {new Date(video.snippet.publishedAt).toLocaleDateString()}
-                                  </Typography>
-                                </CardContent>
-                              </Card>
-                            </Grid>
+                            <VideoCard
+                              key={video.id.videoId}
+                              video={video}
+                              videoIdKey="id.videoId"
+                              onPlay={handleVideoPlay}
+                            />
                           ))}
                         </Grid>
                       ) : (
