@@ -25,13 +25,13 @@ import {
   Visibility,
   Terrain,
   YouTube,
-  Facebook as FacebookIcon, // Added for Facebook icon
+  Facebook as FacebookIcon,
 } from '@mui/icons-material';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import largeLogo from '../../assets/images/linkedin-banner.jpg';
 import smallLogo from '../../assets/images/small-linkedin-logo.jpg';
 import LogoutOutlinedIcon from '@mui/icons-material/LogoutOutlined';
-import { Home, Files, Login, BrandYoutube } from 'tabler-icons-react';
+import { Home, Files, Login, BrandYoutube, Message } from 'tabler-icons-react';
 import { useSidebar } from '../../context/SidebarContext';
 import FacebookLogin from 'react-facebook-login';
 
@@ -53,14 +53,13 @@ const menuItems = [
       { text: 'Login', icon: <Login size={22} />, path: '/FacebookLogin' },
     ],
   },
-  // New Facebook section added here
   {
     text: 'Facebook',
     icon: <FacebookIcon size={22} />,
     subItems: [
       { text: 'Profile', icon: <Person size={22} />, path: '/FacebookProfile' },
       { text: 'Posts', icon: <InsertChart size={22} />, path: '/FacebookPosts' },
-      { text: 'Login', icon: <Login size={22} />, path: '/FacebookLoginPage' }, // Unique path for clarity
+      { text: 'Login', icon: <Login size={22} />, path: '/FacebookLoginPage' },
     ],
   },
   {
@@ -76,6 +75,14 @@ const menuItems = [
       { text: 'Login', icon: <Login size={22} />, path: '/YoutubeLogin' },
     ],
   },
+  {
+    text: 'Messenger',
+    icon: <Message size={22} />,
+    subItems: [
+      { text: 'Login', icon: <Login size={22} />, path: '/MessengerLogin' },
+      { text: 'Chat', icon: <Message size={22} />, path: '/messenger' }, // Updated path
+    ],
+  },
   { text: 'Logout', icon: <LogoutOutlinedIcon size={22} />, action: logout, path: '/login' },
 ];
 
@@ -89,16 +96,82 @@ const Sidebar = () => {
   const location = useLocation();
 
   const facebookAppId = '1936737430086867';
-  const facebookAppSecret = 'd3d576725b8470849808a68eca9c9b75'; // WARNING: Move to server-side in production!
+  const facebookAppSecret = 'd3d576725b8470849808a68eca9c9b75'; // Move to server-side in production!
+  const messengerAppId = '1936737430086867';
+  const messengerPageId = '576837692181131';
 
-  // Handle Google Login by redirecting to the server-side endpoint
+  // Messenger Login Response Handler
+  const responseMessenger = async (response) => {
+    console.log('Messenger Login Response:', response);
+    if (response.accessToken) {
+      setLoading(true);
+      setError(null);
+      localStorage.set('messengerAccessToken', response.accessToken);
+      const isValid = await validateMessengerToken(response.accessToken);
+      if (isValid) {
+        fetchMessengerData(response.accessToken);
+      } else {
+        setError('Messenger token validation failed.');
+        setLoading(false);
+      }
+    } else {
+      setError('No access token received from Messenger login.');
+      console.log('Messenger Login Failed - No accessToken:', response);
+    }
+  };
+
+  // Validate Messenger Token
+  const validateMessengerToken = async (accessToken) => {
+    try {
+      console.log('Validating Messenger Token:', accessToken);
+      const response = await fetch('https://localhost:7099/api/messenger/validate-token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(accessToken),
+      });
+      const isValid = await response.json();
+      console.log('Validation Response:', isValid);
+      if (!isValid) {
+        throw new Error('Invalid Messenger token.');
+      }
+      return true;
+    } catch (error) {
+      console.error('Error validating Messenger token:', error);
+      setError(error.message || 'Error validating token.');
+      return false;
+    }
+  };
+
+  // Fetch Messenger Data
+  const fetchMessengerData = async (accessToken) => {
+    setLoading(true);
+    try {
+      console.log('Fetching Messenger Data with Token:', accessToken);
+      const response = await fetch(
+        `https://graph.facebook.com/v20.0/me?fields=id,name&access_token=${accessToken}`
+      );
+      const data = await response.json();
+      console.log('Messenger Data:', data);
+      localStorage.set('messengerUserId', data.id);
+      navigate('/messenger'); // Navigate to chat page after login
+    } catch (error) {
+      console.error('Error fetching Messenger data:', error);
+      setError('Failed to connect to Messenger.');
+      localStorage.remove('messengerAccessToken');
+      localStorage.remove('messengerUserId');
+      navigate('/MessengerLogin');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Handle Google Login
   const handleGoogleLogin = () => {
     console.log('Google Login button clicked');
-    // Redirect to the .NET server's login endpoint
     window.location.href = 'https://localhost:7099/api/GoogleAuth/login';
   };
 
-  // Facebook Token Validation
+  // Existing Facebook Token Validation
   const validateFacebookToken = async (accessToken) => {
     try {
       console.log('Validating Facebook access token:', accessToken);
@@ -134,7 +207,7 @@ const Sidebar = () => {
     }
   };
 
-  // Facebook Long-Lived Token Exchange
+  // Existing Facebook Long-Lived Token Exchange
   const exchangeForLongLivedFacebookToken = async (shortLivedToken) => {
     try {
       console.log('Exchanging Facebook short-lived token:', shortLivedToken);
@@ -152,7 +225,7 @@ const Sidebar = () => {
     }
   };
 
-  // Facebook Login Response Handler (Original for Instagram)
+  // Existing Instagram Login Handler
   const responseFacebook = async (response) => {
     console.log('Facebook Response from Sidebar:', response);
     if (response.accessToken) {
@@ -177,7 +250,7 @@ const Sidebar = () => {
     }
   };
 
-  // New Facebook Login Response Handler
+  // Existing Facebook Page Login Handler
   const responseFacebookPage = async (response) => {
     console.log('Facebook Page Response from Sidebar:', response);
     if (response.accessToken) {
@@ -185,7 +258,7 @@ const Sidebar = () => {
       setError(null);
       const longLivedToken = await exchangeForLongLivedFacebookToken(response.accessToken);
       if (longLivedToken) {
-        localStorage.set('facebookPageAccessToken', longLivedToken); // Separate key for Facebook Page
+        localStorage.set('facebookPageAccessToken', longLivedToken);
         const isValid = await validateFacebookPageToken(longLivedToken);
         if (isValid) {
           fetchFacebookPageData(longLivedToken);
@@ -202,14 +275,13 @@ const Sidebar = () => {
     }
   };
 
-  // Fetch Instagram Data
+  // Existing Instagram Data Fetch
   const fetchInstagramData = async (accessToken) => {
     setLoading(true);
     setError(null);
     try {
       const isValid = await validateFacebookToken(accessToken);
       if (!isValid) throw new Error('Invalid or expired token');
-
       const pagesResponse = await fetch(
         `https://graph.facebook.com/v20.0/me/accounts?access_token=${accessToken}&app_id=${facebookAppId}`
       );
@@ -242,13 +314,12 @@ const Sidebar = () => {
     }
   };
 
-  // Fetch Instagram User Data
+  // Existing Instagram User Fetch
   const fetchInstagramUser = async (instagramBusinessId, accessToken) => {
     try {
       const response = await fetch(
         `https://graph.facebook.com/v20.0/${instagramBusinessId}?fields=username,followers_count,media_count,follows_count,name,biography&access_token=${accessToken}&app_id=${facebookAppId}`
       );
-      
       const data = await response.json();
       if (data.error && data.error.code === 190) {
         setError('Your session has expired. Please log in again.');
@@ -266,7 +337,7 @@ const Sidebar = () => {
     }
   };
 
-  // New Facebook Page Token Validation
+  // Existing Facebook Page Token Validation
   const validateFacebookPageToken = async (accessToken) => {
     try {
       console.log('Validating Facebook Page access token:', accessToken);
@@ -283,7 +354,7 @@ const Sidebar = () => {
           'pages_manage_engagement',
           'pages_manage_metadata',
           'pages_read_engagement',
-          ];
+        ];
         const missingScopes = requiredScopes.filter((scope) => !grantedScopes.includes(scope));
         if (missingScopes.length > 0) {
           throw new Error(`Missing permissions: ${missingScopes.join(', ')}. Please reauthorize the app.`);
@@ -298,7 +369,7 @@ const Sidebar = () => {
     }
   };
 
-  // New Facebook Page Data Fetch
+  // Existing Facebook Page Data Fetch
   const fetchFacebookPageData = async (accessToken) => {
     setLoading(true);
     setError(null);
@@ -312,7 +383,6 @@ const Sidebar = () => {
         const pageAccessToken = pagesData.data[0].access_token;
         localStorage.set('facebookPageId', pageId);
         localStorage.set('facebookPageAccessToken', pageAccessToken);
-
         const pageResponse = await fetch(
           `https://graph.facebook.com/v20.0/${pageId}?fields=name,about,fan_count,picture&access_token=${pageAccessToken}`
         );
@@ -429,7 +499,6 @@ const Sidebar = () => {
                     </ListItem>
                   );
                 }
-                // New Facebook Login button
                 if (subItem.text === 'Login' && item.text === 'Facebook') {
                   return (
                     <ListItem key={subItem.text} sx={{ pl: 4, m: 1, width: '95%' }}>
@@ -439,18 +508,7 @@ const Sidebar = () => {
                           appId={facebookAppId}
                           autoLoad={false}
                           fields="name,email,picture"
-                          scope="pages_show_list,
-                          pages_manage_posts,
-                          pages_read_user_content,
-                           pages_manage_engagement,
-                          pages_manage_metadata,
-                          pages_read_engagement,
-                          read_insights,publish_video,
-                          pages_manage_posts,
-                       
-
-
-"
+                          scope="pages_show_list,pages_manage_posts,pages_read_user_content,pages_manage_engagement,pages_manage_metadata,pages_read_engagement,read_insights,publish_video,pages_manage_posts"
                           callback={responseFacebookPage}
                           cssClass="facebook-login-btn"
                           textButton="Login with Facebook"
@@ -459,6 +517,43 @@ const Sidebar = () => {
                       )}
                     </ListItem>
                   );
+                }
+                if (item.text === 'Messenger') {
+                  if (subItem.text === 'Login') {
+                    return (
+                      <ListItem key={subItem.text} sx={{ pl: 4, m: 1, width: '95%' }}>
+                        <ListItemIcon>{subItem.icon}</ListItemIcon>
+                        {(sidebarOpen || isHovered) && (
+                          <FacebookLogin
+                            appId={messengerAppId}
+                            autoLoad={false}
+                            fields="name,email,picture"
+                            scope="public_profile,email,pages_messaging"
+                            callback={responseMessenger}
+                            cssClass="messenger-login-btn"
+                            textButton="Login with Messenger"
+                            disabled={loading}
+                            onClick={() => console.log('Messenger Login Button Clicked')}
+                          />
+                        )}
+                      </ListItem>
+                    );
+                  }
+                  if (subItem.text === 'Chat') {
+                    return (
+                      <ListItem
+                        button
+                        key={subItem.text}
+                        component={Link}
+                        to={subItem.path}
+                        className={location.pathname === subItem.path ? 'selected-menu-item' : 'unselected-menu-item'}
+                        sx={{ pl: 4, m: 1, width: '95%' }}
+                      >
+                        <ListItemIcon>{subItem.icon}</ListItemIcon>
+                        {(sidebarOpen || isHovered) && <ListItemText primary="Chat" />}
+                      </ListItem>
+                    );
+                  }
                 }
                 return (
                   <ListItem

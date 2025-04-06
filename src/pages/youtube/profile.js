@@ -14,11 +14,27 @@ import {
   Box,
   Tabs,
   Tab,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  Checkbox,
+  FormControlLabel,
+  Paper,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
 } from '@mui/material';
 import { MoreVert, ThumbUp, Comment } from '@mui/icons-material';
 import ProfileSidebar from '../../components/youtube/ProfileSidebar';
+import { Line } from 'react-chartjs-2';
+import { Chart as ChartJS, LineElement, PointElement, LinearScale, TimeScale, Title, Tooltip, Legend } from 'chart.js';
 
-// VideoCard component with comments fix
+// Register Chart.js components
+ChartJS.register(LineElement, PointElement, LinearScale, TimeScale, Title, Tooltip, Legend);
+
+// VideoCard component
 const VideoCard = ({
   video,
   videoIdKey = 'id',
@@ -26,7 +42,7 @@ const VideoCard = ({
   showActions = false,
   fetchComments,
   handleLikeVideo,
-  comments = {}, // Default to empty object
+  comments = {},
   newComment,
   setNewComment,
   handlePostComment,
@@ -54,75 +70,74 @@ const VideoCard = ({
   }, [videoId, onPlay]);
 
   return (
-    <Grid item xs={12} sm={6} md={4} key={videoId}>
-      <Card style={{ maxWidth: '345px' }}>
-        <div>
-          <iframe
-            id={`player-${videoId}`}
-            width="100%"
-            height="140"
-            src={`https://www.youtube.com/embed/${videoId}?enablejsapi=1`}
-            title={video.snippet.title}
-            frameBorder="0"
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-            allowFullScreen
-          />
+    <Card style={{ maxWidth: '345px' }}>
+      <div>
+        <iframe
+          id={`player-${videoId}`}
+          width="100%"
+          height="140"
+          src={`https://www.youtube.com/embed/${videoId}?enablejsapi=1`}
+          title={video.snippet.title}
+          frameBorder="0"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+          allowFullScreen
+        />
+      </div>
+      <CardContent style={{ display: 'flex', alignItems: 'flex-start', padding: '8px' }}>
+        <div style={{ flexGrow: 1 }}>
+          <Typography variant="body2" style={{ fontWeight: 'medium' }}>
+            {video.snippet.title}
+          </Typography>
+          <Typography variant="caption" style={{ color: 'rgba(0, 0, 0, 0.6)' }}>
+            {video.snippet.channelTitle || 'Your Channel'} •{' '}
+            {new Date(video.snippet.publishedAt).toLocaleDateString()}
+            {video.statistics?.viewCount && ` • ${video.statistics.viewCount} views`}
+          </Typography>
         </div>
-        <CardContent style={{ display: 'flex', alignItems: 'flex-start', padding: '8px' }}>
-          <div style={{ flexGrow: 1 }}>
-            <Typography variant="body2" style={{ fontWeight: 'medium' }}>
-              {video.snippet.title}
-            </Typography>
-            <Typography variant="caption" style={{ color: 'rgba(0, 0, 0, 0.6)' }}>
-              {video.snippet.channelTitle || 'Your Channel'} •{' '}
-              {new Date(video.snippet.publishedAt).toLocaleDateString()}
-              {video.statistics?.viewCount && ` • ${video.statistics.viewCount} views`}
-            </Typography>
-          </div>
-          {showActions && (
-            <IconButton size="small">
-              <MoreVert />
-            </IconButton>
-          )}
-        </CardContent>
         {showActions && (
-          <Box sx={{ padding: '8px', display: 'flex', gap: '8px' }}>
-            <Button startIcon={<ThumbUp />} onClick={() => handleLikeVideo(videoId)}>
-              Like
-            </Button>
-            <Button startIcon={<Comment />} onClick={() => fetchComments(videoId)}>
-              Comments
-            </Button>
-          </Box>
+          <IconButton size="small">
+            <MoreVert />
+          </IconButton>
         )}
-        {showActions && comments[videoId] && (
-          <Box sx={{ padding: '8px' }}>
-            {comments[videoId].map((comment) => (
-              <Typography key={comment.id} variant="body2" sx={{ marginBottom: '8px' }}>
-                {comment.snippet.topLevelComment.snippet.textDisplay}
-              </Typography>
-            ))}
-            <TextField
-              label="Add a comment"
-              value={newComment || ''} // Default to empty string if undefined
-              onChange={(e) => setNewComment(e.target.value)}
-              fullWidth
-              margin="normal"
-            />
-            <Button
-              variant="contained"
-              onClick={() => handlePostComment(videoId)}
-              disabled={!newComment}
-            >
-              Post
-            </Button>
-          </Box>
-        )}
-      </Card>
-    </Grid>
+      </CardContent>
+      {showActions && (
+        <Box sx={{ padding: '8px', display: 'flex', gap: '8px' }}>
+          <Button startIcon={<ThumbUp />} onClick={() => handleLikeVideo(videoId)}>
+            Like
+          </Button>
+          <Button startIcon={<Comment />} onClick={() => fetchComments(videoId)}>
+            Comments
+          </Button>
+        </Box>
+      )}
+      {showActions && comments[videoId] && (
+        <Box sx={{ padding: '8px' }}>
+          {comments[videoId].map((comment) => (
+            <Typography key={comment.id} variant="body2" sx={{ marginBottom: '8px' }}>
+              {comment.snippet.topLevelComment.snippet.textDisplay}
+            </Typography>
+          ))}
+          <TextField
+            label="Add a comment"
+            value={newComment || ''}
+            onChange={(e) => setNewComment(e.target.value)}
+            fullWidth
+            margin="normal"
+          />
+          <Button
+            variant="contained"
+            onClick={() => handlePostComment(videoId)}
+            disabled={!newComment}
+          >
+            Post
+          </Button>
+        </Box>
+      )}
+    </Card>
   );
 };
 
+// YoutubeProfile component
 const YoutubeProfile = () => {
   const [profile, setProfile] = useState(null);
   const [videos, setVideos] = useState([]);
@@ -143,6 +158,15 @@ const YoutubeProfile = () => {
   const [comments, setComments] = useState({});
   const [newComment, setNewComment] = useState('');
   const [apiReady, setApiReady] = useState(false);
+  const [uploadTitle, setUploadTitle] = useState('');
+  const [uploadDescription, setUploadDescription] = useState('');
+  const [uploadFile, setUploadFile] = useState(null);
+  const [uploadCategoryId, setUploadCategoryId] = useState('22');
+  const [uploadPrivacyStatus, setUploadPrivacyStatus] = useState('private');
+  const [isShort, setIsShort] = useState(false);
+  const [openUploadDialog, setOpenUploadDialog] = useState(false);
+  const [analyticsData, setAnalyticsData] = useState(null);
+
   const navigate = useNavigate();
 
   const itemsPerPage = 10;
@@ -157,6 +181,24 @@ const YoutubeProfile = () => {
     subscriptionFeed: null,
     searchResults: null,
   });
+
+  const categories = [
+    { id: '1', name: 'Film & Animation' },
+    { id: '2', name: 'Autos & Vehicles' },
+    { id: '10', name: 'Music' },
+    { id: '15', name: 'Pets & Animals' },
+    { id: '17', name: 'Sports' },
+    { id: '19', name: 'Travel & Events' },
+    { id: '20', name: 'Gaming' },
+    { id: '22', name: 'People & Blogs' },
+    { id: '23', name: 'Comedy' },
+    { id: '24', name: 'Entertainment' },
+    { id: '25', name: 'News & Politics' },
+    { id: '26', name: 'Howto & Style' },
+    { id: '27', name: 'Education' },
+    { id: '28', name: 'Science & Technology' },
+    { id: '29', name: 'Nonprofits & Activism' },
+  ];
 
   // Load YouTube Iframe API
   useEffect(() => {
@@ -439,6 +481,128 @@ const YoutubeProfile = () => {
     fetchSubscriptionFeed();
   }, [subscriptions]);
 
+  // Fetch analytics data
+  useEffect(() => {
+    const fetchAnalytics = async () => {
+      let accessToken = localStorage.get('youtubeAccessToken');
+      const refreshToken = localStorage.get('youtubeRefreshToken');
+      if (!accessToken || !refreshToken || !profile?.id) return;
+
+      try {
+        const endDate = new Date().toISOString().split('T')[0]; // Today
+        const startDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]; // Last 30 days
+
+        const response = await fetch(
+          `https://youtubeanalytics.googleapis.com/v2/reports?ids=channel==${profile.id}&startDate=${startDate}&endDate=${endDate}&metrics=views,estimatedMinutesWatched,subscribersGained,subscribersLost,likes,dislikes,comments,shares&dimensions=day&sort=day`,
+          {
+            headers: { Authorization: `Bearer ${accessToken}` },
+          }
+        );
+
+        if (!response.ok) {
+          if (response.status === 401) {
+            accessToken = await refreshAccessToken(refreshToken);
+            if (!accessToken) throw new Error('Token refresh failed');
+            return fetchAnalytics();
+          }
+          const data = await response.json();
+          throw new Error(data.error?.message || 'Failed to fetch analytics');
+        }
+
+        const data = await response.json();
+        console.log('Analytics data:', data);
+        setAnalyticsData(data);
+        console.log('Analytics data fetched:', data);
+      } catch (err) {
+        console.error('Error fetching analytics:', err.message);
+        if (err.message.includes('quota')) {
+          setError('YouTube Analytics API quota exceeded. Analytics unavailable.');
+        } else {
+          setError(`Failed to fetch analytics: ${err.message}`);
+        }
+      }
+    };
+
+    if (profile?.id) fetchAnalytics();
+  }, [profile]);
+
+  // Upload video or short
+  const handleVideoUpload = async () => {
+    if (!uploadTitle || !uploadFile) {
+      setError('Title and video file are required.');
+      return;
+    }
+
+    let accessToken = localStorage.get('youtubeAccessToken');
+    const refreshToken = localStorage.get('youtubeRefreshToken');
+
+    const validExtensions = ['.mp4', '.mov', '.avi', '.wmv', '.flv', '.3gp', '.webm', '.mpeg', '.mpg'];
+    const ext = uploadFile.name.slice(uploadFile.name.lastIndexOf('.')).toLowerCase();
+    if (!validExtensions.includes(ext)) {
+      setError('Unsupported video format. Please use MP4, MOV, AVI, WMV, FLV, 3GP, WebM, or MPEG.');
+      return;
+    }
+
+    const metadata = {
+      title: uploadTitle,
+      description: uploadDescription,
+      tags: isShort ? ['shorts'] : [],
+      categoryId: uploadCategoryId,
+      privacyStatus: uploadPrivacyStatus,
+    };
+
+    const formData = new FormData();
+    formData.append('metadata', JSON.stringify(metadata));
+    formData.append('video', uploadFile);
+
+    try {
+      const response = await fetch('https://localhost:7099/api/Youtube/upload', {
+        method: 'POST',
+        headers: {
+          'X-Access-Token': accessToken,
+          'X-Refresh-Token': refreshToken,
+        },
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        if (response.status === 401) {
+          setError('Authentication failed. Please log in again.');
+          navigate('/YoutubeLogin');
+          return;
+        }
+        throw new Error(data.error?.message || 'Failed to upload video');
+      }
+
+      const data = await response.json();
+      console.log('Video uploaded:', data);
+
+      if (isShort) {
+        setShorts((prev) => [data, ...prev]);
+      } else {
+        setVideos((prev) => [data, ...prev]);
+      }
+
+      setUploadTitle('');
+      setUploadDescription('');
+      setUploadFile(null);
+      setUploadCategoryId('22');
+      setUploadPrivacyStatus('private');
+      setIsShort(false);
+      setError(null);
+      setOpenUploadDialog(false);
+      alert('Video uploaded successfully!');
+    } catch (err) {
+      console.error('Error uploading video:', err.message);
+      if (err.message.includes('quota')) {
+        setError('YouTube API quota exceeded. Video upload failed.');
+      } else {
+        setError(`Failed to upload video: ${err.message}`);
+      }
+    }
+  };
+
   // Load more data
   const loadMore = async (url, setter, pageTokenKey) => {
     let accessToken = localStorage.get('youtubeAccessToken');
@@ -665,7 +829,6 @@ const YoutubeProfile = () => {
     }
   };
 
-  // Handle video play to update history
   const handleVideoPlay = (videoId) => {
     console.log('Video played:', videoId);
     const storedHistory = JSON.parse(localStorage.get('watchedVideos') || '[]');
@@ -700,6 +863,25 @@ const YoutubeProfile = () => {
 
   const snippet = profile?.snippet || { title: 'Your Channel', thumbnails: { high: { url: '' } } };
   const statistics = profile?.statistics || { subscriberCount: '0', videoCount: '0' };
+
+  // Chart data for analytics
+  const chartData = analyticsData && analyticsData.rows ? {
+    labels: analyticsData.rows.map(row => row[0]), // Dates
+    datasets: [
+      {
+        label: 'Views',
+        data: analyticsData.rows.map(row => row[1]),
+        borderColor: '#FF0000',
+        fill: false,
+      },
+      {
+        label: 'Watch Time (Minutes)',
+        data: analyticsData.rows.map(row => row[2]),
+        borderColor: '#00FF00',
+        fill: false,
+      },
+    ],
+  } : null;
 
   return (
     <div style={{ flexGrow: 1, padding: '24px' }}>
@@ -766,6 +948,111 @@ const YoutubeProfile = () => {
               </div>
             </div>
 
+            <Box sx={{ mb: 3 }}>
+              <Button
+                variant="contained"
+                color="primary"
+                onClick={() => setOpenUploadDialog(true)}
+                sx={{ borderRadius: '20px', textTransform: 'none' }}
+              >
+                Create a Video or Short
+              </Button>
+            </Box>
+
+            <Dialog open={openUploadDialog} onClose={() => setOpenUploadDialog(false)} maxWidth="sm" fullWidth>
+              <DialogTitle>Create a Video or Short</DialogTitle>
+              <DialogContent>
+                <Grid container spacing={2}>
+                  <Grid item xs={12}>
+                    <TextField
+                      label="Title"
+                      value={uploadTitle}
+                      onChange={(e) => setUploadTitle(e.target.value)}
+                      fullWidth
+                      variant="outlined"
+                      required
+                    />
+                  </Grid>
+                  <Grid item xs={12}>
+                    <TextField
+                      label="Description"
+                      value={uploadDescription}
+                      onChange={(e) => setUploadDescription(e.target.value)}
+                      fullWidth
+                      variant="outlined"
+                      multiline
+                      rows={3}
+                    />
+                  </Grid>
+                  <Grid item xs={12} sm={6}>
+                    <FormControl fullWidth variant="outlined">
+                      <InputLabel>Category</InputLabel>
+                      <Select
+                        value={uploadCategoryId}
+                        onChange={(e) => setUploadCategoryId(e.target.value)}
+                        label="Category"
+                      >
+                        {categories.map((cat) => (
+                          <MenuItem key={cat.id} value={cat.id}>
+                            {cat.name}
+                          </MenuItem>
+                        ))}
+                      </Select>
+                    </FormControl>
+                  </Grid>
+                  <Grid item xs={12} sm={6}>
+                    <FormControl fullWidth variant="outlined">
+                      <InputLabel>Privacy</InputLabel>
+                      <Select
+                        value={uploadPrivacyStatus}
+                        onChange={(e) => setUploadPrivacyStatus(e.target.value)}
+                        label="Privacy"
+                      >
+                        <MenuItem value="public">Public</MenuItem>
+                        <MenuItem value="private">Private</MenuItem>
+                        <MenuItem value="unlisted">Unlisted</MenuItem>
+                      </Select>
+                    </FormControl>
+                  </Grid>
+                  <Grid item xs={12}>
+                    <Button
+                      variant="outlined"
+                      component="label"
+                      fullWidth
+                      sx={{ py: 1.5, textTransform: 'none', borderStyle: 'dashed' }}
+                    >
+                      {uploadFile ? uploadFile.name : 'Select Video File'}
+                      <input
+                        type="file"
+                        accept="video/mp4,video/quicktime,video/x-msvideo,video/x-ms-wmv,video/x-flv,video/3gpp,video/webm,video/mpeg"
+                        hidden
+                        onChange={(e) => setUploadFile(e.target.files[0])}
+                      />
+                    </Button>
+                  </Grid>
+                  <Grid item xs={12}>
+                    <FormControlLabel
+                      control={<Checkbox checked={isShort} onChange={(e) => setIsShort(e.target.checked)} />}
+                      label="Upload as Short"
+                    />
+                  </Grid>
+                </Grid>
+              </DialogContent>
+              <DialogActions>
+                <Button onClick={() => setOpenUploadDialog(false)} color="secondary">
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleVideoUpload}
+                  color="primary"
+                  variant="contained"
+                  disabled={!uploadTitle || !uploadFile}
+                >
+                  Upload Video
+                </Button>
+              </DialogActions>
+            </Dialog>
+
             <div style={{ display: 'flex', alignItems: 'center', marginBottom: '16px' }}>
               <TextField
                 variant="outlined"
@@ -791,9 +1078,12 @@ const YoutubeProfile = () => {
               </Button>
             </div>
 
-            <Tabs value={tabValue} onChange={(e, newValue) => setTabValue(newValue)} sx={{ marginBottom: '16px' }}>
+            <Tabs value={tabValue}   variant="scrollable"
+  scrollButtons="auto"
+  onChange={(e, newValue) => setTabValue(newValue)} sx={{ marginBottom: '16px' }}>
               <Tab label="Home" />
               <Tab label="Shorts" />
+
               <Tab label="Subscriptions" />
               <Tab label="History" />
               <Tab label="Playlists" />
@@ -802,6 +1092,8 @@ const YoutubeProfile = () => {
               <Tab label="Liked Videos" />
               <Tab label="Posts" />
               <Tab label="Channel Videos" />
+              <Tab label="Analytics" />
+
             </Tabs>
 
             {tabValue === -1 && searchResults.length > 0 ? (
@@ -811,12 +1103,9 @@ const YoutubeProfile = () => {
                 </Typography>
                 <Grid container spacing={2}>
                   {searchResults.map((video) => (
-                    <VideoCard
-                      key={video.id.videoId}
-                      video={video}
-                      videoIdKey="id.videoId"
-                      onPlay={handleVideoPlay}
-                    />
+                    <Grid item xs={12} sm={6} md={4} key={video.id.videoId}>
+                      <VideoCard video={video} videoIdKey="id.videoId" onPlay={handleVideoPlay} />
+                    </Grid>
                   ))}
                 </Grid>
                 {pageTokens.searchResults && (
@@ -845,19 +1134,20 @@ const YoutubeProfile = () => {
                 {videos.length > 0 ? (
                   <Grid container spacing={2}>
                     {videos.map((video) => (
-                      <VideoCard
-                        key={video.id.id}
-                        video={video}
-                        videoIdKey="id.id"
-                        onPlay={handleVideoPlay}
-                        showActions={true}
-                        fetchComments={fetchComments}
-                        handleLikeVideo={handleLikeVideo}
-                        comments={comments}
-                        newComment={newComment}
-                        setNewComment={setNewComment}
-                        handlePostComment={handlePostComment}
-                      />
+                      <Grid item xs={12} sm={6} md={4} key={video.id}>
+                        <VideoCard
+                          video={video}
+                          videoIdKey="id"
+                          onPlay={handleVideoPlay}
+                          showActions={true}
+                          fetchComments={fetchComments}
+                          handleLikeVideo={handleLikeVideo}
+                          comments={comments}
+                          newComment={newComment}
+                          setNewComment={setNewComment}
+                          handlePostComment={handlePostComment}
+                        />
+                      </Grid>
                     ))}
                   </Grid>
                 ) : (
@@ -885,7 +1175,9 @@ const YoutubeProfile = () => {
                 {trendingVideos.length > 0 ? (
                   <Grid container spacing={2}>
                     {trendingVideos.map((video) => (
-                      <VideoCard key={video.id} video={video} onPlay={handleVideoPlay} />
+                      <Grid item xs={12} sm={6} md={4} key={video.id}>
+                        <VideoCard video={video} onPlay={handleVideoPlay} />
+                      </Grid>
                     ))}
                   </Grid>
                 ) : (
@@ -913,12 +1205,9 @@ const YoutubeProfile = () => {
                 {shorts.length > 0 ? (
                   <Grid container spacing={2}>
                     {shorts.map((video) => (
-                      <VideoCard
-                        key={video.id.videoId}
-                        video={video}
-                        videoIdKey="id.videoId"
-                        onPlay={handleVideoPlay}
-                      />
+                      <Grid item xs={12} sm={6} md={4} key={video.id}>
+                        <VideoCard video={video} videoIdKey="id" onPlay={handleVideoPlay} />
+                      </Grid>
                     ))}
                   </Grid>
                 ) : (
@@ -945,12 +1234,9 @@ const YoutubeProfile = () => {
                 {shorts.length > 0 ? (
                   <Grid container spacing={2}>
                     {shorts.map((video) => (
-                      <VideoCard
-                        key={video.id.videoId}
-                        video={video}
-                        videoIdKey="id.videoId"
-                        onPlay={handleVideoPlay}
-                      />
+                      <Grid item xs={12} sm={6} md={4} key={video.id}>
+                        <VideoCard video={video} videoIdKey="id" onPlay={handleVideoPlay} />
+                      </Grid>
                     ))}
                   </Grid>
                 ) : (
@@ -977,12 +1263,9 @@ const YoutubeProfile = () => {
                 {subscriptionFeed.length > 0 ? (
                   <Grid container spacing={2}>
                     {subscriptionFeed.map((video) => (
-                      <VideoCard
-                        key={video.id.videoId}
-                        video={video}
-                        videoIdKey="id.videoId"
-                        onPlay={handleVideoPlay}
-                      />
+                      <Grid item xs={12} sm={6} md={4} key={video.id.videoId}>
+                        <VideoCard video={video} videoIdKey="id.videoId" onPlay={handleVideoPlay} />
+                      </Grid>
                     ))}
                   </Grid>
                 ) : (
@@ -1001,7 +1284,9 @@ const YoutubeProfile = () => {
                 {history.length > 0 ? (
                   <Grid container spacing={2}>
                     {history.map((video) => (
-                      <VideoCard key={video.id} video={video} onPlay={handleVideoPlay} />
+                      <Grid item xs={12} sm={6} md={4} key={video.id}>
+                        <VideoCard video={video} onPlay={handleVideoPlay} />
+                      </Grid>
                     ))}
                   </Grid>
                 ) : (
@@ -1067,12 +1352,9 @@ const YoutubeProfile = () => {
                 {videos.length > 0 ? (
                   <Grid container spacing={2}>
                     {videos.map((video) => (
-                      <VideoCard
-                        key={video.id.id}
-                        video={video}
-                        videoIdKey="id.id"
-                        onPlay={handleVideoPlay}
-                      />
+                      <Grid item xs={12} sm={6} md={4} key={video.id}>
+                        <VideoCard video={video} videoIdKey="id" onPlay={handleVideoPlay} />
+                      </Grid>
                     ))}
                   </Grid>
                 ) : (
@@ -1099,12 +1381,9 @@ const YoutubeProfile = () => {
                 {watchLater.length > 0 ? (
                   <Grid container spacing={2}>
                     {watchLater.map((item) => (
-                      <VideoCard
-                        key={item.snippet.resourceId.videoId}
-                        video={item}
-                        videoIdKey="snippet.resourceId.videoId"
-                        onPlay={handleVideoPlay}
-                      />
+                      <Grid item xs={12} sm={6} md={4} key={item.snippet.resourceId.videoId}>
+                        <VideoCard video={item} videoIdKey="snippet.resourceId.videoId" onPlay={handleVideoPlay} />
+                      </Grid>
                     ))}
                   </Grid>
                 ) : (
@@ -1131,7 +1410,9 @@ const YoutubeProfile = () => {
                 {likedVideos.length > 0 ? (
                   <Grid container spacing={2}>
                     {likedVideos.map((video) => (
-                      <VideoCard key={video.id} video={video} onPlay={handleVideoPlay} />
+                      <Grid item xs={12} sm={6} md={4} key={video.id}>
+                        <VideoCard video={video} onPlay={handleVideoPlay} />
+                      </Grid>
                     ))}
                   </Grid>
                 ) : (
@@ -1172,12 +1453,9 @@ const YoutubeProfile = () => {
                       {videos.length > 0 ? (
                         <Grid container spacing={2}>
                           {videos.map((video) => (
-                            <VideoCard
-                              key={video.id.videoId}
-                              video={video}
-                              videoIdKey="id.videoId"
-                              onPlay={handleVideoPlay}
-                            />
+                            <Grid item xs={12} sm={6} md={4} key={video.id.videoId}>
+                              <VideoCard video={video} videoIdKey="id.videoId" onPlay={handleVideoPlay} />
+                            </Grid>
                           ))}
                         </Grid>
                       ) : (
@@ -1207,6 +1485,80 @@ const YoutubeProfile = () => {
                 ) : (
                   <Typography variant="body1" style={{ color: 'rgba(0, 0, 0, 0.6)' }}>
                     Select a subscription from the sidebar to view videos.
+                  </Typography>
+                )}
+              </div>
+            ) : tabValue === 10 ? (
+              <div>
+                <Typography variant="h6" style={{ marginBottom: '16px' }}>
+                  Channel Analytics (Last 30 Days)
+                </Typography>
+                {analyticsData && analyticsData.rows ? (
+                  <Box>
+                    <Grid container spacing={2}>
+                      <Grid item xs={12} sm={6} md={3}>
+                        <Card>
+                          <CardContent>
+                            <Typography variant="body2" color="textSecondary">
+                              Total Views
+                            </Typography>
+                            <Typography variant="h5">
+                              {analyticsData.rows.reduce((sum, row) => sum + row[1], 0)}
+                            </Typography>
+                          </CardContent>
+                        </Card>
+                      </Grid>
+                      <Grid item xs={12} sm={6} md={3}>
+                        <Card>
+                          <CardContent>
+                            <Typography variant="body2" color="textSecondary">
+                              Watch Time (Minutes)
+                            </Typography>
+                            <Typography variant="h5">
+                              {analyticsData.rows.reduce((sum, row) => sum + row[2], 0)}
+                            </Typography>
+                          </CardContent>
+                        </Card>
+                      </Grid>
+                      <Grid item xs={12} sm={6} md={3}>
+                        <Card>
+                          <CardContent>
+                            <Typography variant="body2" color="textSecondary">
+                              Subscribers Gained
+                            </Typography>
+                            <Typography variant="h5">
+                              {analyticsData.rows.reduce((sum, row) => sum + row[3], 0)}
+                            </Typography>
+                          </CardContent>
+                        </Card>
+                      </Grid>
+                      <Grid item xs={12} sm={6} md={3}>
+                        <Card>
+                          <CardContent>
+                            <Typography variant="body2" color="textSecondary">
+                              Likes
+                            </Typography>
+                            <Typography variant="h5">
+                              {analyticsData.rows.reduce((sum, row) => sum + row[5], 0)}
+                            </Typography>
+                          </CardContent>
+                        </Card>
+                      </Grid>
+                    </Grid>
+                    <Box sx={{ mt: 3 }}>
+                      <Line
+                        data={chartData}
+                        options={{
+                          responsive: true,
+                          scales: { x: { type: 'time', time: { unit: 'day' } } },
+                          plugins: { legend: { position: 'top' } },
+                        }}
+                      />
+                    </Box>
+                  </Box>
+                ) : (
+                  <Typography variant="body1" style={{ color: 'rgba(0, 0, 0, 0.6)' }}>
+                    No analytics data available yet.
                   </Typography>
                 )}
               </div>

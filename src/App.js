@@ -40,7 +40,7 @@ import Sidebar from "./components/sidebars/clientSideBar.js";
 import AdminSidebar from "./components/sidebars/adminSideBar.js";
 import { SidebarProvider } from "./context/SidebarContext";
 import { useSidebar } from "./context/SidebarContext";
-
+import MessengerPage from './pages/Messenger/MessengerPage'; // Adjust pat
 const NotFound = () => {
   return (
     <div
@@ -164,6 +164,14 @@ function AppRoutes() {
           element={
             <ProtectedRoute>
               <GridPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/messenger"
+          element={
+            <ProtectedRoute>
+              <MessengerPage />
             </ProtectedRoute>
           }
         />
