@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { Typography, TextField, Button, Box, List, ListItem, ListItemText, IconButton, Menu, MenuItem, Modal, Avatar } from '@mui/material';
+import { Typography, TextField, Button, Box, List, ListItem, ListItemText, IconButton, Menu, MenuItem, Modal, Avatar, CircularProgress } from '@mui/material';
 import * as signalR from '@microsoft/signalr';
 import { useNavigate } from 'react-router-dom';
 import localStorage from 'local-storage';
@@ -56,19 +56,29 @@ const MessengerPage = () => {
 
     newConnection.on('ReceiveMessage', (message) => {
       if (message.conversationId === selectedConversationId) {
-        setMessages((prev) => [...prev, message]);
+        setMessages((prev) => {
+          // Replace the temporary "sending" message with the actual message
+          const updatedMessages = prev.map((msg) =>
+            msg.tempId === message.tempId ? { ...message, status: 'sent' } : msg
+          );
+          // If the message wasn't in the list (e.g., sent from another client), add it
+          if (!updatedMessages.some((msg) => msg.tempId === message.tempId)) {
+            updatedMessages.push({ ...message, status: 'sent' });
+          }
+          return updatedMessages;
+        });
         setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
       }
     });
 
     newConnection.on('MessageDeleted', (data) => {
       if (data.conversationId === selectedConversationId) {
-        setMessages((prev) => prev.filter(msg => msg.id !== data.messageId));
+        setMessages((prev) => prev.filter((msg) => msg.id !== data.messageId));
       }
     });
 
-    newConnection.on('ConversationDeleted', (data) => {
-      setConversations((prev) => prev.filter(conv => conv.id !== data.conversationId));
+    newConnection.on('Conversation className="ConversationDeleted', (data) => {
+      setConversations((prev) => prev.filter((conv) => conv.id !== data.conversationId));
       if (selectedConversationId === data.conversationId) {
         setSelectedConversationId(null);
         setMessages([]);
@@ -161,7 +171,7 @@ const MessengerPage = () => {
       setFilePreview({
         type: selectedFile.type.startsWith('image/') ? 'Image' : selectedFile.type.startsWith('video/') ? 'Video' : 'Document',
         url: previewUrl,
-        name: selectedFile.name
+        name: selectedFile.name,
       });
     }
   };
@@ -181,52 +191,103 @@ const MessengerPage = () => {
   // Send Message
   const sendMessage = async () => {
     if ((!newMessage.trim() && !file) || !connection || !selectedConversationId) return;
-    const selectedConversation = conversations.find(c => c.id === selectedConversationId);
+    const selectedConversation = conversations.find((c) => c.id === selectedConversationId);
     if (!selectedConversation) return;
 
-    let request;
-    if (file) {
-      const formData = new FormData();
-      formData.append('file', file);
-      const uploadResponse = await fetch('https://localhost:7099/api/messenger/upload-file', {
+    // Generate a temporary ID for the message
+    const tempId = Date.now().toString() + Math.random().toString(36).substr(2, 9);
+
+    // Add a temporary "sending" message to the chat
+    const tempMessage = {
+      tempId,
+      conversationId: selectedConversationId,
+      senderId: "576837692181131",
+      recipientId: selectedConversation.senderId,
+      text: file ? null : newMessage,
+      url: file ? URL.createObjectURL(file) : null,
+      messageType: file
+        ? file.type.startsWith('image/')
+          ? 'Image'
+          : file.type.startsWith('video/')
+          ? 'Video'
+          : 'Document'
+        : 'Text',
+      timestamp: new Date().toISOString(),
+      direction: 'Outbound',
+      status: 'sending', // Add status to indicate the message is being sent
+    };
+
+    setMessages((prev) => [...prev, tempMessage]);
+    setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
+
+    try {
+      let request;
+      if (file) {
+        const formData = new FormData();
+        formData.append('file', file);
+        const uploadResponse = await fetch('https://localhost:7099/api/messenger/upload-file', {
+          method: 'POST',
+          body: formData,
+          credentials: 'include',
+        });
+        const uploadData = await uploadResponse.json();
+        const fileUrl = uploadData.url;
+        request = {
+          conversationId: selectedConversationId,
+          senderId: "576837692181131",
+          recipientId: selectedConversation.senderId,
+          text: null,
+          url: fileUrl,
+          messageType: file.type.startsWith('image/') ? 'Image' : file.type.startsWith('video/') ? 'Video' : 'Document',
+          tempId, // Include tempId to match with the temporary message
+        };
+      } else {
+        request = {
+          conversationId: selectedConversationId,
+          senderId: "576837692181131",
+          recipientId: selectedConversation.senderId,
+          text: newMessage,
+          url: null,
+          messageType: "Text",
+          tempId, // Include tempId to match with the temporary message
+        };
+      }
+
+      const response = await fetch('https://localhost:7099/api/messenger/send-message', {
         method: 'POST',
-        body: formData,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(request),
         credentials: 'include',
       });
-      const uploadData = await uploadResponse.json();
-      const fileUrl = uploadData.url;
-      request = {
-        conversationId: selectedConversationId,
-        senderId: "576837692181131",
-        recipientId: selectedConversation.senderId,
-        text: null,
-        url: fileUrl,
-        messageType: file.type.startsWith('image/') ? 'Image' : file.type.startsWith('video/') ? 'Video' : 'Document'
-      };
-    } else {
-      request = {
-        conversationId: selectedConversationId,
-        senderId: "576837692181131",
-        recipientId: selectedConversation.senderId,
-        text: newMessage,
-        url: null,
-        messageType: "Text"
-      };
-    }
 
-    const response = await fetch('https://localhost:7099/api/messenger/send-message', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(request),
-      credentials: 'include',
-    });
-    const data = await response.json();
-    if (response.ok) {
-      setNewMessage('');
-      setFile(null);
-      setFilePreview(null);
-    } else {
-      setError('Failed to send message: ' + (data.error || 'Unknown error'));
+      const data = await response.json();
+      if (response.ok) {
+        // Update the temporary message to "sent" status (SignalR will handle the actual message update)
+        setMessages((prev) =>
+          prev.map((msg) =>
+            msg.tempId === tempId ? { ...msg, status: 'sent' } : msg
+          )
+        );
+        setNewMessage('');
+        setFile(null);
+        setFilePreview(null);
+      } else {
+        // Update the temporary message to "failed" status
+        setMessages((prev) =>
+          prev.map((msg) =>
+            msg.tempId === tempId ? { ...msg, status: 'failed' } : msg
+          )
+        );
+        setError('Failed to send message: ' + (data.error || 'Unknown error'));
+      }
+    } catch (error) {
+      // Update the temporary message to "failed" status
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg.tempId === tempId ? { ...msg, status: 'failed' } : msg
+        )
+      );
+      setError('Failed to send message: ' + error.message);
     }
   };
 
@@ -293,7 +354,7 @@ const MessengerPage = () => {
   };
 
   // Get the selected conversation's name for use in the message list
-  const selectedConversation = conversations.find(c => c.id === selectedConversationId);
+  const selectedConversation = conversations.find((c) => c.id === selectedConversationId);
   const userName = selectedConversation?.name || '?';
 
   return (
@@ -346,9 +407,7 @@ const MessengerPage = () => {
       <Box sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column', bgcolor: '#fff' }}>
         {/* Header */}
         <Box sx={{ p: 2, borderBottom: '1px solid #e5e5e5', display: 'flex', alignItems: 'center' }}>
-          <Avatar sx={{ mr: 2, bgcolor: '#ddd' }}>
-            {userName[0]}
-          </Avatar>
+          <Avatar sx={{ mr: 2, bgcolor: '#ddd' }}>{userName[0]}</Avatar>
           <Typography variant="h6" sx={{ fontWeight: 600, color: '#050505' }}>
             {selectedConversation?.name || 'Select a chat'}
           </Typography>
@@ -385,67 +444,106 @@ const MessengerPage = () => {
           )}
           {messages.map((msg, idx) => (
             <Box
-              key={msg.id || idx}
+              key={msg.id || msg.tempId || idx}
               sx={{
                 display: 'flex',
                 justifyContent: msg.direction === 'Outbound' ? 'flex-end' : 'flex-start',
                 mb: 2,
                 alignItems: 'flex-start',
               }}
-              onMouseEnter={() => setHoveredMessageId(msg.id)}
+              onMouseEnter={() => setHoveredMessageId(msg.id || msg.tempId)}
               onMouseLeave={() => setHoveredMessageId(null)}
             >
               <Box sx={{ maxWidth: '60%', display: 'flex', alignItems: 'flex-start' }}>
                 {msg.direction === 'Inbound' && (
-                  <Avatar sx={{ mr: 1, bgcolor: '#ddd', width: 32, height: 32 }}>
-                    {userName[0]}
-                  </Avatar>
+                  <Avatar sx={{ mr: 1, bgcolor: '#ddd', width: 32, height: 32 }}>{userName[0]}</Avatar>
                 )}
                 <Box sx={{ position: 'relative' }}>
-                  {msg.messageType === "Text" ? (
-                    <Typography
+                  {msg.status === 'sending' ? (
+                    <Box
                       sx={{
-                        bgcolor: msg.direction === 'Outbound' ? '#0084ff' : '#e9ecef',
-                        color: msg.direction === 'Outbound' ? '#fff' : '#050505',
+                        bgcolor: '#0084ff',
+                        color: '#fff',
                         p: 1.5,
                         borderRadius: '10px',
-                        wordBreak: 'break-word',
-                        fontSize: '15px',
-                        position: 'relative',
-                        zIndex: 1,
+                        display: 'flex',
+                        alignItems: 'center',
                       }}
                     >
-                      {msg.text}
-                    </Typography>
-                  ) : msg.messageType === "Image" ? (
-                    <Box
-                      sx={{ p: 0.5, bgcolor: msg.direction === 'Outbound' ? '#0084ff' : '#e9ecef', borderRadius: '10px', cursor: 'pointer' }}
-                      onClick={() => handleOpenModal('Image', msg.url)}
-                    >
-                      <img src={msg.url} alt="Sent image" style={{ maxWidth: '200px', borderRadius: '8px' }} />
+                      <CircularProgress size={16} sx={{ color: '#fff', mr: 1 }} />
+                      <Typography sx={{ fontSize: '15px' }}>Sending...</Typography>
                     </Box>
-                  ) : msg.messageType === "Video" ? (
+                  ) : msg.status === 'failed' ? (
                     <Box
-                      sx={{ p: 0.5, bgcolor: msg.direction === 'Outbound' ? '#0084ff' : '#e9ecef', borderRadius: '10px', cursor: 'pointer' }}
-                      onClick={() => handleOpenModal('Video', msg.url)}
-                    >
-                      <video src={msg.url} style={{ maxWidth: '200px', borderRadius: '8px' }} controls />
-                    </Box>
-                  ) : msg.messageType === "Document" ? (
-                    <Typography
                       sx={{
-                        bgcolor: msg.direction === 'Outbound' ? '#0084ff' : '#e9ecef',
-                        color: msg.direction === 'Outbound' ? '#fff' : '#050505',
+                        bgcolor: '#d93025',
+                        color: '#fff',
                         p: 1.5,
                         borderRadius: '10px',
-                        fontSize: '15px',
-                        position: 'relative',
-                        zIndex: 1,
                       }}
                     >
-                      <a href={msg.url} target="_blank" rel="noopener noreferrer" style={{ color: 'inherit' }}>Document</a>
-                    </Typography>
-                  ) : null}
+                      <Typography sx={{ fontSize: '15px' }}>Failed to send</Typography>
+                    </Box>
+                  ) : (
+                    <>
+                      {msg.messageType === 'Text' ? (
+                        <Typography
+                          sx={{
+                            bgcolor: msg.direction === 'Outbound' ? '#0084ff' : '#e9ecef',
+                            color: msg.direction === 'Outbound' ? '#fff' : '#050505',
+                            p: 1.5,
+                            borderRadius: '10px',
+                            wordBreak: 'break-word',
+                            fontSize: '15px',
+                            position: 'relative',
+                            zIndex: 1,
+                          }}
+                        >
+                          {msg.text}
+                        </Typography>
+                      ) : msg.messageType === 'Image' ? (
+                        <Box
+                          sx={{
+                            p: 0.5,
+                            bgcolor: msg.direction === 'Outbound' ? '#0084ff' : '#e9ecef',
+                            borderRadius: '10px',
+                            cursor: 'pointer',
+                          }}
+                          onClick={() => handleOpenModal('Image', msg.url)}
+                        >
+                          <img src={msg.url} alt="Sent image" style={{ maxWidth: '200px', borderRadius: '8px' }} />
+                        </Box>
+                      ) : msg.messageType === 'Video' ? (
+                        <Box
+                          sx={{
+                            p: 0.5,
+                            bgcolor: msg.direction === 'Outbound' ? '#0084ff' : '#e9ecef',
+                            borderRadius: '10px',
+                            cursor: 'pointer',
+                          }}
+                          onClick={() => handleOpenModal('Video', msg.url)}
+                        >
+                          <video src={msg.url} style={{ maxWidth: '200px', borderRadius: '8px' }} controls />
+                        </Box>
+                      ) : msg.messageType === 'Document' ? (
+                        <Typography
+                          sx={{
+                            bgcolor: msg.direction === 'Outbound' ? '#0084ff' : '#e9ecef',
+                            color: msg.direction === 'Outbound' ? '#fff' : '#050505',
+                            p: 1.5,
+                            borderRadius: '10px',
+                            fontSize: '15px',
+                            position: 'relative',
+                            zIndex: 1,
+                          }}
+                        >
+                          <a href={msg.url} target="_blank" rel="noopener noreferrer" style={{ color: 'inherit' }}>
+                            Document
+                          </a>
+                        </Typography>
+                      ) : null}
+                    </>
+                  )}
                   <Typography
                     sx={{
                       position: 'absolute',
@@ -458,16 +556,16 @@ const MessengerPage = () => {
                   >
                     {new Date(msg.timestamp).toLocaleTimeString('en-US', { hour: 'numeric', minute: 'numeric', hour12: true })}
                   </Typography>
-                  {msg.direction === 'Outbound' && hoveredMessageId === msg.id && (
+                  {msg.direction === 'Outbound' && (msg.status === 'sent' || !msg.status) && hoveredMessageId === (msg.id || msg.tempId) && (
                     <IconButton
-                      onClick={(e) => handleOpenMessageMenu(e, msg.id)}
+                      onClick={(e) => handleOpenMessageMenu(e, msg.id || msg.tempId)}
                       sx={{
                         position: 'absolute',
                         top: '-18px',
                         right: '-18px',
                         color: '#65676b',
                         '&:hover': { color: '#1877f2' },
-                        zIndex: 2,
+                        zIndex: 2, 
                       }}
                     >
                       <ArrowDropDown />
@@ -477,7 +575,7 @@ const MessengerPage = () => {
               </Box>
               <Menu
                 anchorEl={anchorElMessage}
-                open={Boolean(anchorElMessage) && selectedMessageId === msg.id}
+                open={Boolean(anchorElMessage) && selectedMessageId === (msg.id || msg.tempId)}
                 onClose={handleCloseMessageMenu}
                 anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
                 transformOrigin={{ vertical: 'top', horizontal: 'right' }}
@@ -491,8 +589,23 @@ const MessengerPage = () => {
 
         {/* Media Modal */}
         <Modal open={openModal} onClose={handleCloseModal}>
-          <Box sx={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', bgcolor: '#fff', borderRadius: '12px', p: 2, maxWidth: '80%', maxHeight: '80vh', overflow: 'auto' }}>
-            <IconButton onClick={handleCloseModal} sx={{ position: 'absolute', top: 8, right: 8, color: '#65676b' }}><Close /></IconButton>
+          <Box
+            sx={{
+              position: 'absolute',
+              top: '50%',
+              left: '50%',
+              transform: 'translate(-50%, -50%)',
+              bgcolor: '#fff',
+              borderRadius: '12px',
+              p: 2,
+              maxWidth: '80%',
+              maxHeight: '80vh',
+              overflow: 'auto',
+            }}
+          >
+            <IconButton onClick={handleCloseModal} sx={{ position: 'absolute', top: 8, right: 8, color: '#65676b' }}>
+              <Close />
+            </IconButton>
             {modalMedia.type === 'Image' ? (
               <img src={modalMedia.url} alt="Full size" style={{ maxWidth: '100%', borderRadius: '8px' }} />
             ) : modalMedia.type === 'Video' ? (
@@ -511,7 +624,9 @@ const MessengerPage = () => {
             ) : (
               <Typography sx={{ mr: 2, color: '#050505' }}>{filePreview.name}</Typography>
             )}
-            <IconButton onClick={removeFile} sx={{ color: '#d93025' }}><Close /></IconButton>
+            <IconButton onClick={removeFile} sx={{ color: '#d93025' }}>
+              <Close />
+            </IconButton>
           </Box>
         )}
 
@@ -550,7 +665,13 @@ const MessengerPage = () => {
           <Button
             onClick={sendMessage}
             disabled={!selectedConversationId || (!newMessage.trim() && !file)}
-            sx={{ minWidth: 0, p: 1, color: '#0084ff', '&:hover': { bgcolor: 'transparent', color: '#1877f2' }, '&:disabled': { color: '#b0b3b8' } }}
+            sx={{
+              minWidth: 0,
+              p: 1,
+              color: '#0084ff',
+              '&:hover': { bgcolor: 'transparent', color: '#1877f2' },
+              '&:disabled': { color: '#b0b3b8' },
+            }}
           >
             <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
               <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />
