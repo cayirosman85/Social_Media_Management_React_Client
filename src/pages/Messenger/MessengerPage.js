@@ -1,23 +1,39 @@
-import React, { useEffect, useState } from 'react';
-import { Typography, TextField, Button, Box, List, ListItem, ListItemText } from '@mui/material';
+import React, { useEffect, useState, useRef } from 'react';
+import { Typography, TextField, Button, Box, List, ListItem, ListItemText, IconButton, Menu, MenuItem, Modal, Avatar } from '@mui/material';
 import * as signalR from '@microsoft/signalr';
 import { useNavigate } from 'react-router-dom';
 import localStorage from 'local-storage';
+import { AttachFile, SentimentSatisfiedAlt, ArrowDropDown, Close } from '@mui/icons-material';
+import Picker from 'emoji-picker-react';
 
 const MessengerPage = () => {
   const [conversations, setConversations] = useState([]);
   const [selectedConversationId, setSelectedConversationId] = useState(null);
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState('');
+  const [file, setFile] = useState(null);
+  const [filePreview, setFilePreview] = useState(null);
   const [connection, setConnection] = useState(null);
   const [error, setError] = useState(null);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [anchorElMessage, setAnchorElMessage] = useState(null);
+  const [anchorElConversation, setAnchorElConversation] = useState(null);
+  const [selectedMessageId, setSelectedMessageId] = useState(null);
+  const [selectedConversationIdForMenu, setSelectedConversationIdForMenu] = useState(null);
+  const [openModal, setOpenModal] = useState(false);
+  const [modalMedia, setModalMedia] = useState({ type: '', url: '' });
+  const [hoveredMessageId, setHoveredMessageId] = useState(null);
+  const [page, setPage] = useState(1);
+  const [totalMessages, setTotalMessages] = useState(0);
+  const [showLoadMore, setShowLoadMore] = useState(false);
+  const messagesEndRef = useRef(null);
+  const messagesContainerRef = useRef(null);
   const navigate = useNavigate();
 
   // Check if logged in
   useEffect(() => {
     const userId = localStorage.get('messengerUserId');
     const accessToken = localStorage.get('messengerAccessToken');
-    console.log('Checking login - UserId:', userId, 'AccessToken:', accessToken);
     if (!userId || !accessToken) {
       setError('Please log in to access the Messenger chat.');
       navigate('/MessengerLogin');
@@ -27,306 +43,524 @@ const MessengerPage = () => {
   // Setup SignalR Connection
   useEffect(() => {
     const newConnection = new signalR.HubConnectionBuilder()
-      .withUrl('https://localhost:7099/messengerHub', {
-        withCredentials: true,
-        skipNegotiation: false,
-      })
+      .withUrl('https://localhost:7099/messengerHub', { withCredentials: true })
       .withAutomaticReconnect()
       .configureLogging(signalR.LogLevel.Information)
       .build();
 
     setConnection(newConnection);
 
-    newConnection
-      .start()
+    newConnection.start()
       .then(() => console.log('SignalR Connected'))
       .catch((err) => console.error('SignalR Connection Error:', err));
 
     newConnection.on('ReceiveMessage', (message) => {
-      console.log('New Message Received:', message);
       if (message.conversationId === selectedConversationId) {
-        setMessages((prevMessages) => [...prevMessages, message]);
+        setMessages((prev) => [...prev, message]);
+        setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
       }
     });
 
-    return () => {
-      newConnection.stop();
-    };
+    newConnection.on('MessageDeleted', (data) => {
+      if (data.conversationId === selectedConversationId) {
+        setMessages((prev) => prev.filter(msg => msg.id !== data.messageId));
+      }
+    });
+
+    newConnection.on('ConversationDeleted', (data) => {
+      setConversations((prev) => prev.filter(conv => conv.id !== data.conversationId));
+      if (selectedConversationId === data.conversationId) {
+        setSelectedConversationId(null);
+        setMessages([]);
+      }
+    });
+
+    return () => newConnection.stop();
   }, [selectedConversationId]);
 
   // Fetch Conversations
   useEffect(() => {
     const fetchConversations = async () => {
       try {
-        const response = await fetch('https://localhost:7099/api/messenger/conversations', {
-          credentials: 'include',
-        });
-        if (!response.ok) {
-          throw new Error(`HTTP error! Status: ${response.status}`);
-        }
+        const response = await fetch('https://localhost:7099/api/messenger/conversations', { credentials: 'include' });
+        if (!response.ok) throw new Error(`HTTP error! Status: ${response.status}`);
         const data = await response.json();
-        console.log('Fetched Conversations:', data);
         setConversations(data);
-        if (data.length > 0) {
-          console.log('Setting initial conversationId:', data[0].id);
-          setSelectedConversationId(data[0].id);
-        }
+        if (data.length > 0 && !selectedConversationId) setSelectedConversationId(data[0].id);
       } catch (error) {
         console.error('Error fetching conversations:', error);
-        setError('Failed to load conversations.');
+        setError('Failed to load conversations: ' + error.message);
       }
     };
     fetchConversations();
   }, []);
 
-  // Fetch Messages for Selected Conversation
-  useEffect(() => {
-    const fetchMessages = async () => {
-      if (!selectedConversationId) {
-        console.log('No conversation selected yet');
-        return;
-      }
-
-      try {
-        console.log(`Fetching messages for conversationId: ${selectedConversationId}`);
-        const response = await fetch(`https://localhost:7099/api/messenger/conversation-messages/${selectedConversationId}`, {
-          credentials: 'include',
-        });
-        if (!response.ok) {
-          throw new Error(`HTTP error! Status: ${response.status}`);
-        }
-        const data = await response.json();
-        console.log('Fetched Messages:', data);
-        setMessages(data.messages || []);
-      } catch (error) {
-        console.error('Error fetching messages:', error);
-        setError('Failed to load messages: ' + error.message);
-      }
-    };
-    fetchMessages();
-  }, [selectedConversationId]);
-
-  // Send Message via Backend
-  const sendMessage = async () => {
-    if (!newMessage.trim() || !connection || !selectedConversationId) return;
-
-    const userId = localStorage.get('messengerUserId');
-    const selectedConversation = conversations.find(c => c.id === selectedConversationId);
-
-    if (!selectedConversation) {
-      console.error('Selected conversation not found for id:', selectedConversationId);
-      setError('Selected conversation not found.');
-      return;
-    }
-
-    console.log('Sending message - UserId:', userId, 'RecipientId:', selectedConversation.senderId, 'Message:', newMessage);
-
-    const request = {
-      conversationId: selectedConversationId,
-      senderId: "576837692181131", // Page ID as the sender
-      recipientId: selectedConversation.senderId,
-      text: newMessage,
-    };
-
+  // Fetch Messages for Selected Conversation with Pagination
+  const fetchMessages = async (pageToFetch = 1, append = false) => {
+    if (!selectedConversationId) return;
     try {
-      const response = await fetch('https://localhost:7099/api/messenger/send-message', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(request),
-        credentials: 'include',
-      });
-
-      const data = await response.json();
-      console.log('Message Sent Response:', data);
-
+      const response = await fetch(
+        `https://localhost:7099/api/messenger/conversation-messages/${selectedConversationId}?page=${pageToFetch}&pageSize=5`,
+        { credentials: 'include' }
+      );
       if (!response.ok) {
-        throw new Error(data.error || 'Failed to send message');
+        const errorData = await response.json();
+        throw new Error(`HTTP error! Status: ${response.status}, Message: ${errorData.Error || 'Unknown error'}`);
+      }
+      const data = await response.json();
+      const fetchedMessages = data.messages || [];
+      setTotalMessages(data.totalMessages || 0);
+
+      if (append) {
+        setMessages((prev) => [...fetchedMessages, ...prev]);
+      } else {
+        setMessages(fetchedMessages);
+        setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
       }
 
-      setNewMessage(''); // Clear input only on success (message is added via SignalR)
+      setShowLoadMore(pageToFetch * 5 < data.totalMessages);
     } catch (error) {
-      console.error('Error sending message:', error);
-      setError('Failed to send message: ' + error.message);
+      console.error('Error fetching messages:', error);
+      setError('Failed to load messages: ' + error.message);
     }
   };
 
+  // Fetch messages when a conversation is selected
+  useEffect(() => {
+    setPage(1);
+    setMessages([]);
+    fetchMessages(1);
+  }, [selectedConversationId]);
+
+  // Handle scroll to show "Load More" button
+  const handleScroll = () => {
+    if (messagesContainerRef.current) {
+      const { scrollTop } = messagesContainerRef.current;
+      if (scrollTop === 0 && page * 5 < totalMessages) {
+        setShowLoadMore(true);
+      } else {
+        setShowLoadMore(false);
+      }
+    }
+  };
+
+  // Load more messages when the "Load More" button is clicked
+  const loadMoreMessages = () => {
+    const nextPage = page + 1;
+    setPage(nextPage);
+    fetchMessages(nextPage, true);
+  };
+
+  // Handle file upload and preview
+  const handleFileChange = (event) => {
+    const selectedFile = event.target.files[0];
+    if (selectedFile) {
+      setFile(selectedFile);
+      setNewMessage('');
+      const previewUrl = URL.createObjectURL(selectedFile);
+      setFilePreview({
+        type: selectedFile.type.startsWith('image/') ? 'Image' : selectedFile.type.startsWith('video/') ? 'Video' : 'Document',
+        url: previewUrl,
+        name: selectedFile.name
+      });
+    }
+  };
+
+  const removeFile = () => {
+    if (filePreview?.url) URL.revokeObjectURL(filePreview.url);
+    setFile(null);
+    setFilePreview(null);
+  };
+
+  // Handle emoji selection
+  const onEmojiClick = (emojiObject) => {
+    setNewMessage((prev) => prev + emojiObject.emoji);
+    setShowEmojiPicker(false);
+  };
+
+  // Send Message
+  const sendMessage = async () => {
+    if ((!newMessage.trim() && !file) || !connection || !selectedConversationId) return;
+    const selectedConversation = conversations.find(c => c.id === selectedConversationId);
+    if (!selectedConversation) return;
+
+    let request;
+    if (file) {
+      const formData = new FormData();
+      formData.append('file', file);
+      const uploadResponse = await fetch('https://localhost:7099/api/messenger/upload-file', {
+        method: 'POST',
+        body: formData,
+        credentials: 'include',
+      });
+      const uploadData = await uploadResponse.json();
+      const fileUrl = uploadData.url;
+      request = {
+        conversationId: selectedConversationId,
+        senderId: "576837692181131",
+        recipientId: selectedConversation.senderId,
+        text: null,
+        url: fileUrl,
+        messageType: file.type.startsWith('image/') ? 'Image' : file.type.startsWith('video/') ? 'Video' : 'Document'
+      };
+    } else {
+      request = {
+        conversationId: selectedConversationId,
+        senderId: "576837692181131",
+        recipientId: selectedConversation.senderId,
+        text: newMessage,
+        url: null,
+        messageType: "Text"
+      };
+    }
+
+    const response = await fetch('https://localhost:7099/api/messenger/send-message', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(request),
+      credentials: 'include',
+    });
+    const data = await response.json();
+    if (response.ok) {
+      setNewMessage('');
+      setFile(null);
+      setFilePreview(null);
+    } else {
+      setError('Failed to send message: ' + (data.error || 'Unknown error'));
+    }
+  };
+
+  // Delete Message
+  const deleteMessage = async (messageId) => {
+    if (!window.confirm("Warning: This message will be deleted from this project only, not from the real Messenger. Are you sure?")) {
+      handleCloseMessageMenu();
+      return;
+    }
+    const response = await fetch(`https://localhost:7099/api/messenger/delete-message/${messageId}`, {
+      method: 'DELETE',
+      credentials: 'include',
+    });
+    if (!response.ok) {
+      const data = await response.json();
+      setError('Failed to delete message: ' + (data.error || 'Unknown error'));
+    }
+    handleCloseMessageMenu();
+  };
+
+  // Delete Conversation
+  const deleteConversation = async (conversationId) => {
+    if (!window.confirm("Warning: This conversation will be deleted from this project only, not from the real Messenger. Are you sure?")) {
+      handleCloseConversationMenu();
+      return;
+    }
+    const response = await fetch(`https://localhost:7099/api/messenger/delete-conversation/${conversationId}`, {
+      method: 'DELETE',
+      credentials: 'include',
+    });
+    if (!response.ok) {
+      const data = await response.json();
+      setError('Failed to delete conversation: ' + (data.error || 'Unknown error'));
+    }
+    handleCloseConversationMenu();
+  };
+
+  // Dropdown Menu Handlers
+  const handleOpenMessageMenu = (event, messageId) => {
+    setAnchorElMessage(event.currentTarget);
+    setSelectedMessageId(messageId);
+  };
+  const handleCloseMessageMenu = () => {
+    setAnchorElMessage(null);
+    setSelectedMessageId(null);
+  };
+  const handleOpenConversationMenu = (event, conversationId) => {
+    setAnchorElConversation(event.currentTarget);
+    setSelectedConversationIdForMenu(conversationId);
+  };
+  const handleCloseConversationMenu = () => {
+    setAnchorElConversation(null);
+    setSelectedConversationIdForMenu(null);
+  };
+
+  // Modal Handlers
+  const handleOpenModal = (type, url) => {
+    setModalMedia({ type, url });
+    setOpenModal(true);
+  };
+  const handleCloseModal = () => {
+    setOpenModal(false);
+    setModalMedia({ type: '', url: '' });
+  };
+
+  // Get the selected conversation's name for use in the message list
+  const selectedConversation = conversations.find(c => c.id === selectedConversationId);
+  const userName = selectedConversation?.name || '?';
+
   return (
-    <Box sx={{ 
-      display: 'flex', 
-      height: '100vh', 
-      bgcolor: '#f5f6fa', 
-      overflow: 'hidden' 
-    }}>
+    <Box sx={{ display: 'flex', height: '100vh', bgcolor: '#f0f2f5', fontFamily: '"Segoe UI", Roboto, sans-serif' }}>
       {/* Conversation List */}
-      <Box sx={{ 
-        width: '30%', 
-        bgcolor: '#ffffff', 
-        boxShadow: '0 4px 12px rgba(0,0,0,0.1)', 
-        borderRadius: '12px 0 0 12px', 
-        overflowY: 'auto', 
-        p: 2,
-        transition: 'all 0.3s ease' 
-      }}>
-        <Typography 
-          variant="h6" 
-          sx={{ 
-            fontWeight: 600, 
-            color: '#2c3e50', 
-            mb: 2, 
-            borderBottom: '2px solid #3498db', 
-            pb: 1 
-          }}
-        >
-          Conversations
+      <Box sx={{ width: '360px', bgcolor: '#fff', borderRight: '1px solid #e5e5e5', overflowY: 'auto', p: 2 }}>
+        <Typography variant="h5" sx={{ fontWeight: 600, color: '#050505', mb: 2, pl: 1 }}>
+          Chats
         </Typography>
         <List>
           {conversations.map((conv) => (
-            <ListItem
-              button
-              key={conv.id}
-              selected={selectedConversationId === conv.id}
-              onClick={() => {
-                console.log('Clicked conversation with id:', conv.id);
-                setSelectedConversationId(conv.id);
-              }}
-              sx={{ 
-                borderRadius: '8px', 
-                mb: 1, 
-                bgcolor: selectedConversationId === conv.id ? '#3498db' : 'transparent', 
-                color: selectedConversationId === conv.id ? '#ffffff' : '#34495e', 
-                '&:hover': { 
-                  bgcolor: selectedConversationId === conv.id ? '#2980b9' : '#ecf0f1', 
-                  transition: 'background-color 0.2s ease' 
-                },
-                py: 1.5 
-              }}
-            >
-              <ListItemText 
-                primary={conv.name} 
-                primaryTypographyProps={{ 
-                  fontWeight: selectedConversationId === conv.id ? 600 : 400, 
-                  fontSize: '1rem' 
-                }} 
-              />
-            </ListItem>
+            <Box key={conv.id} sx={{ display: 'flex', alignItems: 'center', position: 'relative' }}>
+              <ListItem
+                button
+                onClick={() => setSelectedConversationId(conv.id)}
+                sx={{
+                  borderRadius: '10px',
+                  mb: 0.5,
+                  bgcolor: selectedConversationId === conv.id ? '#e5efff' : 'transparent',
+                  '&:hover': { bgcolor: '#f5f5f5' },
+                  py: 1,
+                  transition: 'background-color 0.2s ease',
+                }}
+              >
+                <Avatar sx={{ mr: 2, bgcolor: '#ddd' }}>{conv.name[0]}</Avatar>
+                <ListItemText
+                  primary={conv.name}
+                  primaryTypographyProps={{ fontSize: '16px', fontWeight: 500, color: '#050505' }}
+                />
+              </ListItem>
+              <IconButton
+                onClick={(e) => handleOpenConversationMenu(e, conv.id)}
+                sx={{ color: '#65676b', '&:hover': { color: '#1877f2' } }}
+              >
+                <ArrowDropDown />
+              </IconButton>
+              <Menu
+                anchorEl={anchorElConversation}
+                open={Boolean(anchorElConversation) && selectedConversationIdForMenu === conv.id}
+                onClose={handleCloseConversationMenu}
+              >
+                <MenuItem onClick={() => deleteConversation(conv.id)}>Delete</MenuItem>
+              </Menu>
+            </Box>
           ))}
         </List>
       </Box>
 
       {/* Chatbox */}
-      <Box sx={{ 
-        width: '70%', 
-        p: 3, 
-        display: 'flex', 
-        flexDirection: 'column', 
-        bgcolor: '#ffffff', 
-        boxShadow: '0 4px 12px rgba(0,0,0,0.1)', 
-        borderRadius: '0 12px 12px 0' 
-      }}>
-        <Typography 
-          variant="h4" 
-          sx={{ 
-            fontWeight: 700, 
-            color: '#2c3e50', 
-            mb: 2, 
-            letterSpacing: '-0.5px' 
-          }}
-        >
-          {selectedConversationId ? `Chat with ${conversations.find(c => c.id === selectedConversationId)?.name || 'User'}` : 'Select a Conversation'}
-        </Typography>
-        {error && (
-          <Typography 
-            sx={{ 
-              color: '#e74c3c', 
-              mb: 2, 
-              fontSize: '0.9rem', 
-              bgcolor: '#ffebee', 
-              p: 1, 
-              borderRadius: '4px' 
-            }}
-          >
-            {error}
+      <Box sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column', bgcolor: '#fff' }}>
+        {/* Header */}
+        <Box sx={{ p: 2, borderBottom: '1px solid #e5e5e5', display: 'flex', alignItems: 'center' }}>
+          <Avatar sx={{ mr: 2, bgcolor: '#ddd' }}>
+            {userName[0]}
+          </Avatar>
+          <Typography variant="h6" sx={{ fontWeight: 600, color: '#050505' }}>
+            {selectedConversation?.name || 'Select a chat'}
           </Typography>
-        )}
-        <Box sx={{ 
-          flexGrow: 1, 
-          maxHeight: '70vh', 
-          overflowY: 'auto', 
-          mb: 2, 
-          bgcolor: '#f9f9f9', 
-          borderRadius: '8px', 
-          p: 2, 
-          boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.05)' 
-        }}>
+        </Box>
+
+        {/* Messages */}
+        <Box
+          ref={messagesContainerRef}
+          onScroll={handleScroll}
+          sx={{ flexGrow: 1, overflowY: 'auto', p: 3, bgcolor: '#f0f2f5' }}
+        >
+          {error && (
+            <Typography sx={{ color: '#d93025', textAlign: 'center', p: 1, bgcolor: '#fce8e6', borderRadius: '8px', mb: 2 }}>
+              {error}
+            </Typography>
+          )}
+          {/* Load More Button */}
+          {showLoadMore && (
+            <Box sx={{ display: 'flex', justifyContent: 'center', mb: 2 }}>
+              <Button
+                onClick={loadMoreMessages}
+                variant="outlined"
+                sx={{
+                  borderRadius: '20px',
+                  textTransform: 'none',
+                  color: '#1877f2',
+                  borderColor: '#1877f2',
+                  '&:hover': { bgcolor: '#e5efff', borderColor: '#1877f2' },
+                }}
+              >
+                Load More
+              </Button>
+            </Box>
+          )}
           {messages.map((msg, idx) => (
             <Box
-              key={idx}
+              key={msg.id || idx}
               sx={{
                 display: 'flex',
                 justifyContent: msg.direction === 'Outbound' ? 'flex-end' : 'flex-start',
-                mb: 1.5
+                mb: 2,
+                alignItems: 'flex-start',
               }}
+              onMouseEnter={() => setHoveredMessageId(msg.id)}
+              onMouseLeave={() => setHoveredMessageId(null)}
             >
-              <Typography 
-                sx={{ 
-                  display: 'inline-block', 
-                  bgcolor: msg.direction === 'Outbound' ? '#3498db' : '#ecf0f1', 
-                  color: msg.direction === 'Outbound' ? '#ffffff' : '#2c3e50', 
-                  p: 1.5, 
-                  borderRadius: '12px', 
-                  maxWidth: '70%', 
-                  wordBreak: 'break-word', 
-                  boxShadow: '0 2px 4px rgba(0,0,0,0.1)', 
-                  transition: 'all 0.2s ease' 
-                }}
+              <Box sx={{ maxWidth: '60%', display: 'flex', alignItems: 'flex-start' }}>
+                {msg.direction === 'Inbound' && (
+                  <Avatar sx={{ mr: 1, bgcolor: '#ddd', width: 32, height: 32 }}>
+                    {userName[0]}
+                  </Avatar>
+                )}
+                <Box sx={{ position: 'relative' }}>
+                  {msg.messageType === "Text" ? (
+                    <Typography
+                      sx={{
+                        bgcolor: msg.direction === 'Outbound' ? '#0084ff' : '#e9ecef',
+                        color: msg.direction === 'Outbound' ? '#fff' : '#050505',
+                        p: 1.5,
+                        borderRadius: '10px',
+                        wordBreak: 'break-word',
+                        fontSize: '15px',
+                        position: 'relative',
+                        zIndex: 1,
+                      }}
+                    >
+                      {msg.text}
+                    </Typography>
+                  ) : msg.messageType === "Image" ? (
+                    <Box
+                      sx={{ p: 0.5, bgcolor: msg.direction === 'Outbound' ? '#0084ff' : '#e9ecef', borderRadius: '10px', cursor: 'pointer' }}
+                      onClick={() => handleOpenModal('Image', msg.url)}
+                    >
+                      <img src={msg.url} alt="Sent image" style={{ maxWidth: '200px', borderRadius: '8px' }} />
+                    </Box>
+                  ) : msg.messageType === "Video" ? (
+                    <Box
+                      sx={{ p: 0.5, bgcolor: msg.direction === 'Outbound' ? '#0084ff' : '#e9ecef', borderRadius: '10px', cursor: 'pointer' }}
+                      onClick={() => handleOpenModal('Video', msg.url)}
+                    >
+                      <video src={msg.url} style={{ maxWidth: '200px', borderRadius: '8px' }} controls />
+                    </Box>
+                  ) : msg.messageType === "Document" ? (
+                    <Typography
+                      sx={{
+                        bgcolor: msg.direction === 'Outbound' ? '#0084ff' : '#e9ecef',
+                        color: msg.direction === 'Outbound' ? '#fff' : '#050505',
+                        p: 1.5,
+                        borderRadius: '10px',
+                        fontSize: '15px',
+                        position: 'relative',
+                        zIndex: 1,
+                      }}
+                    >
+                      <a href={msg.url} target="_blank" rel="noopener noreferrer" style={{ color: 'inherit' }}>Document</a>
+                    </Typography>
+                  ) : null}
+                  <Typography
+                    sx={{
+                      position: 'absolute',
+                      bottom: '-16px',
+                      right: '0',
+                      fontSize: '12px',
+                      color: '#65676b',
+                      zIndex: 0,
+                    }}
+                  >
+                    {new Date(msg.timestamp).toLocaleTimeString('en-US', { hour: 'numeric', minute: 'numeric', hour12: true })}
+                  </Typography>
+                  {msg.direction === 'Outbound' && hoveredMessageId === msg.id && (
+                    <IconButton
+                      onClick={(e) => handleOpenMessageMenu(e, msg.id)}
+                      sx={{
+                        position: 'absolute',
+                        top: '-18px',
+                        right: '-18px',
+                        color: '#65676b',
+                        '&:hover': { color: '#1877f2' },
+                        zIndex: 2,
+                      }}
+                    >
+                      <ArrowDropDown />
+                    </IconButton>
+                  )}
+                </Box>
+              </Box>
+              <Menu
+                anchorEl={anchorElMessage}
+                open={Boolean(anchorElMessage) && selectedMessageId === msg.id}
+                onClose={handleCloseMessageMenu}
+                anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
+                transformOrigin={{ vertical: 'top', horizontal: 'right' }}
               >
-                <strong>{msg.direction === 'Outbound' ? 'You' : 'Them'}: </strong>
-                {msg.text}
-              </Typography>
+                {msg.direction === 'Outbound' && <MenuItem onClick={() => deleteMessage(msg.id)}>Delete</MenuItem>}
+              </Menu>
             </Box>
           ))}
+          <div ref={messagesEndRef} />
         </Box>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+
+        {/* Media Modal */}
+        <Modal open={openModal} onClose={handleCloseModal}>
+          <Box sx={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', bgcolor: '#fff', borderRadius: '12px', p: 2, maxWidth: '80%', maxHeight: '80vh', overflow: 'auto' }}>
+            <IconButton onClick={handleCloseModal} sx={{ position: 'absolute', top: 8, right: 8, color: '#65676b' }}><Close /></IconButton>
+            {modalMedia.type === 'Image' ? (
+              <img src={modalMedia.url} alt="Full size" style={{ maxWidth: '100%', borderRadius: '8px' }} />
+            ) : modalMedia.type === 'Video' ? (
+              <video src={modalMedia.url} controls style={{ maxWidth: '100%', borderRadius: '8px' }} autoPlay />
+            ) : null}
+          </Box>
+        </Modal>
+
+        {/* File Preview */}
+        {filePreview && (
+          <Box sx={{ p: 2, bgcolor: '#fff', borderTop: '1px solid #e5e5e5', display: 'flex', alignItems: 'center' }}>
+            {filePreview.type === 'Image' ? (
+              <img src={filePreview.url} alt="Preview" style={{ maxWidth: '80px', borderRadius: '8px', mr: 2 }} />
+            ) : filePreview.type === 'Video' ? (
+              <video src={filePreview.url} style={{ maxWidth: '80px', borderRadius: '8px', mr: 2 }} controls />
+            ) : (
+              <Typography sx={{ mr: 2, color: '#050505' }}>{filePreview.name}</Typography>
+            )}
+            <IconButton onClick={removeFile} sx={{ color: '#d93025' }}><Close /></IconButton>
+          </Box>
+        )}
+
+        {/* Input */}
+        <Box sx={{ p: 2, bgcolor: '#fff', borderTop: '1px solid #e5e5e5', display: 'flex', alignItems: 'center' }}>
+          <IconButton component="label" sx={{ color: '#65676b', '&:hover': { color: '#1877f2' } }}>
+            <AttachFile />
+            <input type="file" hidden accept="image/*,video/*,application/pdf" onChange={handleFileChange} />
+          </IconButton>
           <TextField
             value={newMessage}
             onChange={(e) => setNewMessage(e.target.value)}
-            placeholder="Type a message"
+            placeholder="Aa"
             fullWidth
             variant="outlined"
-            disabled={!selectedConversationId}
-            sx={{ 
-              '& .MuiOutlinedInput-root': { 
-                borderRadius: '20px', 
-                bgcolor: '#ffffff', 
-                boxShadow: '0 2px 4px rgba(0,0,0,0.05)', 
-                '&:hover fieldset': { borderColor: '#3498db' }, 
-                '&.Mui-focused fieldset': { borderColor: '#2980b9' } 
+            disabled={!selectedConversationId || file}
+            sx={{
+              mr: 1,
+              '& .MuiOutlinedInput-root': {
+                borderRadius: '20px',
+                bgcolor: '#f0f2f5',
+                '& fieldset': { border: 'none' },
+                '&:hover fieldset': { border: 'none' },
+                '&.Mui-focused fieldset': { border: 'none' },
               },
-              '& .MuiInputBase-input': { 
-                py: 1.5, 
-                color: '#2c3e50' 
-              }
+              '& .MuiInputBase-input': { py: 1.2, color: '#050505', fontSize: '15px' },
             }}
           />
+          <IconButton
+            onClick={() => setShowEmojiPicker((prev) => !prev)}
+            disabled={!selectedConversationId || file}
+            sx={{ color: '#65676b', '&:hover': { color: '#1877f2' } }}
+          >
+            <SentimentSatisfiedAlt />
+          </IconButton>
           <Button
             onClick={sendMessage}
-            variant="contained"
-            color="primary"
-            disabled={!selectedConversationId || !newMessage.trim()}
-            sx={{ 
-              borderRadius: '20px', 
-              px: 4, 
-              py: 1.5, 
-              bgcolor: '#3498db', 
-              '&:hover': { bgcolor: '#2980b9' }, 
-              '&:disabled': { bgcolor: '#bdc3c7', cursor: 'not-allowed' }, 
-              textTransform: 'none', 
-              fontWeight: 600, 
-              boxShadow: '0 4px 8px rgba(0,0,0,0.1)' 
-            }}
+            disabled={!selectedConversationId || (!newMessage.trim() && !file)}
+            sx={{ minWidth: 0, p: 1, color: '#0084ff', '&:hover': { bgcolor: 'transparent', color: '#1877f2' }, '&:disabled': { color: '#b0b3b8' } }}
           >
-            Send
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />
+            </svg>
           </Button>
+          {showEmojiPicker && (
+            <Box sx={{ position: 'absolute', bottom: '60px', right: '20px', zIndex: 1000 }}>
+              <Picker onEmojiClick={onEmojiClick} />
+            </Box>
+          )}
         </Box>
       </Box>
     </Box>
