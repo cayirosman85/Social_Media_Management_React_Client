@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { Typography, TextField, Button, Box, List, ListItem, ListItemText, IconButton, Menu, MenuItem, Modal, Avatar, CircularProgress, Tabs, Tab, InputBase } from '@mui/material';
+import { Typography, TextField, Button, Box, List, ListItem, ListItemText, IconButton, Menu, MenuItem, Modal, Avatar, CircularProgress, Tabs, Tab, InputBase, Switch, FormControlLabel } from '@mui/material';
 import { Check, DoneAll, AttachFile, SentimentSatisfiedAlt, ArrowDropDown, Close, Mic, Image, InsertDriveFile, Link, Search, Notifications } from '@mui/icons-material';
 import * as signalR from '@microsoft/signalr';
 import { useNavigate } from 'react-router-dom';
@@ -36,6 +36,10 @@ const MessengerPage = () => {
   const [mediaItems, setMediaItems] = useState([]);
   const [fileItems, setFileItems] = useState([]);
   const [linkItems, setLinkItems] = useState([]);
+  const [playNotificationSound, setPlayNotificationSound] = useState(() => {
+    const saved = localStorage.get('playNotificationSound');
+    return saved !== null ? JSON.parse(saved) : true; // Default to true
+  });
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
   const timerRef = useRef(null);
@@ -128,6 +132,11 @@ const MessengerPage = () => {
       if (message.conversationId === selectedConversationId) {
         fetchMessages(1);
       }
+      // Play notification sound if enabled
+      if (playNotificationSound) {
+        const audio = new Audio('/audio/messenger-short-ringtone.mp3');
+        audio.play().catch((err) => console.error('Error playing notification sound:', err));
+      }
     });
 
     newConnection.on('MessageStatusUpdated', (data) => {
@@ -167,7 +176,7 @@ const MessengerPage = () => {
     });
 
     return () => newConnection.stop();
-  }, [selectedConversationId]);
+  }, [selectedConversationId, playNotificationSound]);
 
   useEffect(() => {
     const fetchConversations = async () => {
@@ -690,6 +699,12 @@ const MessengerPage = () => {
     setSearchResults([]);
   };
 
+  const handleNotificationSoundChange = (event) => {
+    const newValue = event.target.checked;
+    setPlayNotificationSound(newValue);
+    localStorage.set('playNotificationSound', JSON.stringify(newValue));
+  };
+
   const selectedConversation = conversations.find((c) => c.id === selectedConversationId);
   const userName = selectedConversation?.name || '?';
 
@@ -1147,7 +1162,20 @@ const MessengerPage = () => {
               </Box>
             ) : activeTab === 'notifications' ? (
               <Box>
-                <Typography>Notifications & Sounds settings will go here.</Typography>
+                <Typography variant="subtitle1" sx={{ mb: 2, fontWeight: 500 }}>
+                  Notifications & Sounds
+                </Typography>
+                <FormControlLabel
+                  control={
+                    <Switch
+                      checked={playNotificationSound}
+                      onChange={handleNotificationSoundChange}
+                      color="primary"
+                    />
+                  }
+                  label="Play notification sound"
+                  sx={{ mb: 1 }}
+                />
               </Box>
             ) : null}
           </Box>
