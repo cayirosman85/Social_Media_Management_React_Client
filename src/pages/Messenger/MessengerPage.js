@@ -5,6 +5,7 @@ import * as signalR from '@microsoft/signalr';
 import { useNavigate } from 'react-router-dom';
 import localStorage from 'local-storage';
 import Picker from 'emoji-picker-react';
+import { FFmpeg } from '@ffmpeg/ffmpeg'; // Changed import
 
 const MessengerPage = () => {
   const [conversations, setConversations] = useState([]);
@@ -49,7 +50,25 @@ const MessengerPage = () => {
   const messagesContainerRef = useRef(null);
   const messageRefs = useRef({});
   const navigate = useNavigate();
+  const ffmpegRef = useRef(new FFmpeg({ log: true })); // Changed from createFFmpeg to FFmpeg constructor
+  const [ffmpegLoaded, setFfmpegLoaded] = useState(false);
 
+  useEffect(() => {
+    const loadFFmpeg = async () => {
+      const ffmpeg = ffmpegRef.current;
+      try {
+        // Load FFmpeg if not already loaded
+        if (!ffmpegLoaded) {
+          await ffmpeg.load();
+          setFfmpegLoaded(true);
+        }
+      } catch (err) {
+        console.error('Failed to load FFmpeg:', err);
+        setError('Failed to initialize audio processing. Please try again later.');
+      }
+    };
+    loadFFmpeg();
+  }, [ffmpegLoaded]); // Dependency on ffmpegLoaded to prevent re-running unnecessarily
   useEffect(() => {
     const userId = localStorage.get('messengerUserId');
     const accessToken = localStorage.get('messengerAccessToken');
@@ -211,10 +230,15 @@ const MessengerPage = () => {
     newConnection.on('ReceiveMessage', (message) => {
       if (message.conversationId === selectedConversationId) {
         fetchMessages(1);
+console.log(message);
+        if (message.direction === "Inbound"){
+
         if (playNotificationSound) {
           const audio = new Audio('/audio/messenger-short-ringtone.mp3');
           audio.play().catch((err) => console.error('Error playing notification sound:', err));
         }
+      }
+
       }
   
     });
@@ -419,18 +443,25 @@ const MessengerPage = () => {
         audioChunksRef.current.push(event.data);
       };
 
-      mediaRecorder.onstop = () => {
-        const audioBlob = new Blob(audioChunksRef.current, { type: supportedMimeType });
-        if (audioBlob.size > 25 * 1024 * 1024) {
+      mediaRecorder.onstop = async () => {
+        const webmBlob = new Blob(audioChunksRef.current, { type: supportedMimeType });
+        if (webmBlob.size > 25 * 1024 * 1024) {
           setError('Audio exceeds 25 MB limit.');
           setAudioBlob(null);
           setFiles([]);
           setFilePreviews([]);
+        } else if (ffmpegLoaded) {
+          try {
+            const mp3Blob = await convertWebMToMP3(webmBlob);
+            setAudioBlob(mp3Blob);
+            const fileName = 'recording.mp3';
+            setFiles([new File([mp3Blob], fileName, { type: 'audio/mp3' })]);
+            setFilePreviews([{ type: 'Audio', url: URL.createObjectURL(mp3Blob), name: fileName }]);
+          } catch (err) {
+            setError('Failed to convert audio to MP3: ' + err.message);
+          }
         } else {
-          setAudioBlob(audioBlob);
-          const fileName = supportedMimeType.includes('webm') ? 'recording.webm' : 'recording.mp3';
-          setFiles([new File([audioBlob], fileName, { type: supportedMimeType })]);
-          setFilePreviews([{ type: 'Audio', url: URL.createObjectURL(audioBlob), name: fileName }]);
+          setError('Audio processing not ready. Please try again.');
         }
         stream.getTracks().forEach(track => track.stop());
         clearInterval(timerRef.current);
@@ -447,6 +478,33 @@ const MessengerPage = () => {
     } catch (err) {
       setError('Failed to access microphone: ' + err.message);
     }
+  };
+
+  const convertWebMToMP3 = async (webmBlob) => {
+    const ffmpeg = ffmpegRef.current;
+
+    // Write the WebM blob to FFmpeg's virtual filesystem
+    await ffmpeg.writeFile('input.webm', new Uint8Array(await webmBlob.arrayBuffer()));
+
+    // Run FFmpeg command to convert WebM to MP3
+    await ffmpeg.exec([
+      '-i', 'input.webm',
+      '-vn',           // No video
+      '-ar', '44100',  // Audio rate
+      '-ac', '2',      // Audio channels (stereo)
+      '-b:a', '192k',  // Bitrate
+      'output.mp3'
+    ]);
+
+    // Read the converted MP3 file
+    const mp3Data = await ffmpeg.readFile('output.mp3');
+    const mp3Blob = new Blob([mp3Data.buffer], { type: 'audio/mp3' });
+
+    // Clean up
+    await ffmpeg.deleteFile('input.webm');
+    await ffmpeg.deleteFile('output.mp3');
+
+    return mp3Blob;
   };
 
   const stopRecording = () => {
