@@ -1,9 +1,9 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { Typography, TextField, Button, Box, List, ListItem, ListItemText, IconButton, Menu, MenuItem, Modal, Avatar, CircularProgress } from '@mui/material';
+import { Check, DoneAll, AttachFile, SentimentSatisfiedAlt, ArrowDropDown, Close } from '@mui/icons-material';
 import * as signalR from '@microsoft/signalr';
 import { useNavigate } from 'react-router-dom';
 import localStorage from 'local-storage';
-import { AttachFile, SentimentSatisfiedAlt, ArrowDropDown, Close } from '@mui/icons-material';
 import Picker from 'emoji-picker-react';
 
 const MessengerPage = () => {
@@ -11,8 +11,8 @@ const MessengerPage = () => {
   const [selectedConversationId, setSelectedConversationId] = useState(null);
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState('');
-  const [file, setFile] = useState(null);
-  const [filePreview, setFilePreview] = useState(null);
+  const [files, setFiles] = useState([]);
+  const [filePreviews, setFilePreviews] = useState([]);
   const [connection, setConnection] = useState(null);
   const [error, setError] = useState(null);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
@@ -22,15 +22,14 @@ const MessengerPage = () => {
   const [selectedConversationIdForMenu, setSelectedConversationIdForMenu] = useState(null);
   const [openModal, setOpenModal] = useState(false);
   const [modalMedia, setModalMedia] = useState({ type: '', url: '' });
-  const [hoveredMessageId, setHoveredMessageId] = useState(null);
   const [page, setPage] = useState(1);
   const [totalMessages, setTotalMessages] = useState(0);
   const [showLoadMore, setShowLoadMore] = useState(false);
+  const [replyingTo, setReplyingTo] = useState(null);
   const messagesEndRef = useRef(null);
   const messagesContainerRef = useRef(null);
   const navigate = useNavigate();
 
-  // Check if logged in
   useEffect(() => {
     const userId = localStorage.get('messengerUserId');
     const accessToken = localStorage.get('messengerAccessToken');
@@ -40,72 +39,6 @@ const MessengerPage = () => {
     }
   }, [navigate]);
 
-  // Setup SignalR Connection
-  useEffect(() => {
-    const newConnection = new signalR.HubConnectionBuilder()
-      .withUrl('https://localhost:7099/messengerHub', { withCredentials: true })
-      .withAutomaticReconnect()
-      .configureLogging(signalR.LogLevel.Information)
-      .build();
-
-    setConnection(newConnection);
-
-    newConnection.start()
-      .then(() => console.log('SignalR Connected'))
-      .catch((err) => console.error('SignalR Connection Error:', err));
-
-    newConnection.on('ReceiveMessage', (message) => {
-      if (message.conversationId === selectedConversationId) {
-        setMessages((prev) => {
-          // Replace the temporary "sending" message with the actual message
-          const updatedMessages = prev.map((msg) =>
-            msg.tempId === message.tempId ? { ...message, status: 'sent' } : msg
-          );
-          // If the message wasn't in the list (e.g., sent from another client), add it
-          if (!updatedMessages.some((msg) => msg.tempId === message.tempId)) {
-            updatedMessages.push({ ...message, status: 'sent' });
-          }
-          return updatedMessages;
-        });
-        setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
-      }
-    });
-
-    newConnection.on('MessageDeleted', (data) => {
-      if (data.conversationId === selectedConversationId) {
-        setMessages((prev) => prev.filter((msg) => msg.id !== data.messageId));
-      }
-    });
-
-    newConnection.on('Conversation className="ConversationDeleted', (data) => {
-      setConversations((prev) => prev.filter((conv) => conv.id !== data.conversationId));
-      if (selectedConversationId === data.conversationId) {
-        setSelectedConversationId(null);
-        setMessages([]);
-      }
-    });
-
-    return () => newConnection.stop();
-  }, [selectedConversationId]);
-
-  // Fetch Conversations
-  useEffect(() => {
-    const fetchConversations = async () => {
-      try {
-        const response = await fetch('https://localhost:7099/api/messenger/conversations', { credentials: 'include' });
-        if (!response.ok) throw new Error(`HTTP error! Status: ${response.status}`);
-        const data = await response.json();
-        setConversations(data);
-        if (data.length > 0 && !selectedConversationId) setSelectedConversationId(data[0].id);
-      } catch (error) {
-        console.error('Error fetching conversations:', error);
-        setError('Failed to load conversations: ' + error.message);
-      }
-    };
-    fetchConversations();
-  }, []);
-
-  // Fetch Messages for Selected Conversation with Pagination
   const fetchMessages = async (pageToFetch = 1, append = false) => {
     if (!selectedConversationId) return;
     try {
@@ -118,7 +51,25 @@ const MessengerPage = () => {
         throw new Error(`HTTP error! Status: ${response.status}, Message: ${errorData.Error || 'Unknown error'}`);
       }
       const data = await response.json();
-      const fetchedMessages = data.messages || [];
+      console.log('Fetched messages:', data);
+
+      const fetchedMessages = (data.messages || []).map(msg => {
+        let urls = null;
+        if (msg.url) {
+          if (msg.messageType === 'Image') {
+            try {
+              urls = JSON.parse(msg.url);
+              if (!Array.isArray(urls)) urls = [urls];
+            } catch (e) {
+              urls = [msg.url];
+            }
+          } else {
+            urls = [msg.url];
+          }
+        }
+        return { ...msg, urls };
+      });
+
       setTotalMessages(data.totalMessages || 0);
 
       if (append) {
@@ -135,14 +86,88 @@ const MessengerPage = () => {
     }
   };
 
-  // Fetch messages when a conversation is selected
+  useEffect(() => {
+    const newConnection = new signalR.HubConnectionBuilder()
+      .withUrl('https://localhost:7099/messengerHub', { withCredentials: true })
+      .withAutomaticReconnect()
+      .configureLogging(signalR.LogLevel.Information)
+      .build();
+
+    setConnection(newConnection);
+
+    newConnection.start()
+      .then(() => console.log('SignalR Connected'))
+      .catch((err) => console.error('SignalR Connection Error:', err));
+
+    newConnection.on('ReceiveMessage', (message) => {
+      if (message.conversationId === selectedConversationId) {
+        console.log('Received message via SignalR:', message);
+        fetchMessages(1);
+      }
+    });
+
+    newConnection.on('MessageStatusUpdated', (data) => {
+      if (data.conversationId === selectedConversationId) {
+        console.log('Message status updated via SignalR:', data);
+        fetchMessages(1);
+      }
+    });
+
+    newConnection.on('MessageDeleted', (data) => {
+      if (data.conversationId === selectedConversationId) {
+        setMessages((prev) => prev.filter((msg) => msg.id !== data.messageId));
+      }
+    });
+
+    newConnection.on('ConversationDeleted', (data) => {
+      setConversations((prev) => prev.filter((conv) => conv.id !== data.conversationId));
+      if (selectedConversationId === data.conversationId) {
+        setSelectedConversationId(null);
+        setMessages([]);
+      }
+    });
+
+    newConnection.on('UserBlocked', (data) => {
+      setConversations((prev) =>
+        prev.map((conv) =>
+          conv.id === data.conversationId ? { ...conv, blocked: true } : conv
+        )
+      );
+    });
+
+    newConnection.on('UserUnblocked', (data) => {
+      setConversations((prev) =>
+        prev.map((conv) =>
+          conv.id === data.conversationId ? { ...conv, blocked: false } : conv
+        )
+      );
+    });
+
+    return () => newConnection.stop();
+  }, [selectedConversationId]);
+
+  useEffect(() => {
+    const fetchConversations = async () => {
+      try {
+        const response = await fetch('https://localhost:7099/api/messenger/conversations', { credentials: 'include' });
+        if (!response.ok) throw new Error(`HTTP error! Status: ${response.status}`);
+        const data = await response.json();
+        setConversations(data);
+        if (data.length > 0 && !selectedConversationId) setSelectedConversationId(data[0].id);
+      } catch (error) {
+        console.error('Error fetching conversations:', error);
+        setError('Failed to load conversations: ' + error.message);
+      }
+    };
+    fetchConversations();
+  }, []);
+
   useEffect(() => {
     setPage(1);
     setMessages([]);
     fetchMessages(1);
   }, [selectedConversationId]);
 
-  // Handle scroll to show "Load More" button
   const handleScroll = () => {
     if (messagesContainerRef.current) {
       const { scrollTop } = messagesContainerRef.current;
@@ -154,92 +179,137 @@ const MessengerPage = () => {
     }
   };
 
-  // Load more messages when the "Load More" button is clicked
   const loadMoreMessages = () => {
     const nextPage = page + 1;
     setPage(nextPage);
     fetchMessages(nextPage, true);
   };
 
-  // Handle file upload and preview
   const handleFileChange = (event) => {
-    const selectedFile = event.target.files[0];
-    if (selectedFile) {
-      setFile(selectedFile);
+    const selectedFiles = Array.from(event.target.files);
+    if (selectedFiles.length > 0) {
+      const hasNonImages = selectedFiles.some(file => !file.type.startsWith('image/'));
+      if (hasNonImages) {
+        const nonImageFile = selectedFiles.find(file => !file.type.startsWith('image/'));
+        if (nonImageFile) {
+          if (nonImageFile.size > 25 * 1024 * 1024) {
+            setError('File exceeds 25 MB limit. Please use a smaller file or upload it to Google Drive/Dropbox and share the link.');
+            setFiles([]);
+            setFilePreviews([]);
+          } else {
+            setFiles([nonImageFile]);
+            setFilePreviews([{
+              type: nonImageFile.type.startsWith('video/') ? 'Video' : 'Document',
+              url: URL.createObjectURL(nonImageFile),
+              name: nonImageFile.name,
+            }]);
+            setError(selectedFiles.length > 1 ? 'Only one non-image file can be sent at a time.' : null);
+          }
+        }
+      } else {
+        const oversizedImages = selectedFiles.filter(file => file.size > 25 * 1024 * 1024);
+        if (oversizedImages.length > 0) {
+          setError('One or more images exceed 25 MB. Please use smaller images.');
+          setFiles([]);
+          setFilePreviews([]);
+        } else {
+          setFiles(selectedFiles);
+          setFilePreviews(selectedFiles.map(file => ({
+            type: 'Image',
+            url: URL.createObjectURL(file),
+            name: file.name,
+          })));
+        }
+      }
       setNewMessage('');
-      const previewUrl = URL.createObjectURL(selectedFile);
-      setFilePreview({
-        type: selectedFile.type.startsWith('image/') ? 'Image' : selectedFile.type.startsWith('video/') ? 'Video' : 'Document',
-        url: previewUrl,
-        name: selectedFile.name,
-      });
     }
   };
 
-  const removeFile = () => {
-    if (filePreview?.url) URL.revokeObjectURL(filePreview.url);
-    setFile(null);
-    setFilePreview(null);
+  const removeFile = (index) => {
+    const updatedFiles = files.filter((_, i) => i !== index);
+    const updatedPreviews = filePreviews.filter((_, i) => i !== index);
+    updatedPreviews.forEach((preview, i) => {
+      if (i === index) URL.revokeObjectURL(preview.url);
+    });
+    setFiles(updatedFiles);
+    setFilePreviews(updatedPreviews);
   };
 
-  // Handle emoji selection
   const onEmojiClick = (emojiObject) => {
     setNewMessage((prev) => prev + emojiObject.emoji);
     setShowEmojiPicker(false);
   };
 
-  // Send Message
+  const handleReply = (message) => {
+    console.log('Replying to message:', message);
+    setReplyingTo(message);
+    handleCloseMessageMenu();
+  };
+
   const sendMessage = async () => {
-    if ((!newMessage.trim() && !file) || !connection || !selectedConversationId) return;
+    if ((!newMessage.trim() && files.length === 0) || !connection || !selectedConversationId) return;
     const selectedConversation = conversations.find((c) => c.id === selectedConversationId);
     if (!selectedConversation) return;
 
-    // Generate a temporary ID for the message
-    const tempId = Date.now().toString() + Math.random().toString(36).substr(2, 9);
+    if (selectedConversation.blocked) {
+      setError('Cannot send message: User is blocked');
+      return;
+    }
 
-    // Add a temporary "sending" message to the chat
+    const tempId = Date.now().toString() + Math.random().toString(36).substr(2, 9);
+    const isImage = files.length > 0 && files.every(file => file.type.startsWith('image/'));
+    const messageType = files.length > 0 ? (isImage ? 'Image' : files[0].type.startsWith('video/') ? 'Video' : 'Document') : 'Text';
+
     const tempMessage = {
       tempId,
       conversationId: selectedConversationId,
       senderId: "576837692181131",
       recipientId: selectedConversation.senderId,
-      text: file ? null : newMessage,
-      url: file ? URL.createObjectURL(file) : null,
-      messageType: file
-        ? file.type.startsWith('image/')
-          ? 'Image'
-          : file.type.startsWith('video/')
-          ? 'Video'
-          : 'Document'
-        : 'Text',
+      text: files.length > 0 ? null : newMessage,
+      urls: files.length > 0 ? files.map(file => URL.createObjectURL(file)) : null,
+      messageType,
       timestamp: new Date().toISOString(),
       direction: 'Outbound',
-      status: 'sending', // Add status to indicate the message is being sent
+      status: 'sending',
+      repliedId: replyingTo?.mid ? replyingTo.mid : null,
     };
+
+    console.log('Temporary message with repliedId:', tempMessage);
 
     setMessages((prev) => [...prev, tempMessage]);
     setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
 
+    const timeoutId = setTimeout(() => {
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg.tempId === tempId ? { ...msg, status: 'failed' } : msg
+        )
+      );
+      setError('Message send timed out.');
+    }, 10000);
+
     try {
       let request;
-      if (file) {
+      if (files.length > 0) {
         const formData = new FormData();
-        formData.append('file', file);
+        files.forEach(file => formData.append('files', file));
         const uploadResponse = await fetch('https://localhost:7099/api/messenger/upload-file', {
           method: 'POST',
           body: formData,
           credentials: 'include',
         });
+        if (!uploadResponse.ok) throw new Error('File upload failed');
         const uploadData = await uploadResponse.json();
-        const fileUrl = uploadData.url;
+        const fileUrls = uploadData.urls;
         request = {
           conversationId: selectedConversationId,
           senderId: "576837692181131",
           recipientId: selectedConversation.senderId,
           text: null,
-          url: fileUrl,
-          messageType: file.type.startsWith('image/') ? 'Image' : file.type.startsWith('video/') ? 'Video' : 'Document',
-          tempId, // Include tempId to match with the temporary message
+          urls: fileUrls,
+          messageType,
+          tempId,
+          repliedId: replyingTo?.mid ? replyingTo.mid : null,
         };
       } else {
         request = {
@@ -247,11 +317,14 @@ const MessengerPage = () => {
           senderId: "576837692181131",
           recipientId: selectedConversation.senderId,
           text: newMessage,
-          url: null,
+          urls: null,
           messageType: "Text",
-          tempId, // Include tempId to match with the temporary message
+          tempId,
+          repliedId: replyingTo?.mid ? replyingTo.mid : null,
         };
       }
+
+      console.log('Sending request to backend:', request);
 
       const response = await fetch('https://localhost:7099/api/messenger/send-message', {
         method: 'POST',
@@ -260,38 +333,40 @@ const MessengerPage = () => {
         credentials: 'include',
       });
 
+      clearTimeout(timeoutId);
       const data = await response.json();
+      console.log('Backend response:', data);
+
       if (response.ok) {
-        // Update the temporary message to "sent" status (SignalR will handle the actual message update)
         setMessages((prev) =>
           prev.map((msg) =>
-            msg.tempId === tempId ? { ...msg, status: 'sent' } : msg
+            msg.tempId === tempId ? { ...msg, status: 'Sent', id: data.MessageId, mid: data.FacebookMessageId, urls: request.urls } : msg
           )
         );
         setNewMessage('');
-        setFile(null);
-        setFilePreview(null);
+        setFiles([]);
+        setFilePreviews([]);
+        setReplyingTo(null);
       } else {
-        // Update the temporary message to "failed" status
         setMessages((prev) =>
           prev.map((msg) =>
             msg.tempId === tempId ? { ...msg, status: 'failed' } : msg
           )
         );
-        setError('Failed to send message: ' + (data.error || 'Unknown error'));
+        setError(`Failed to send ${messageType.toLowerCase()}: ${data.error || 'Unknown error'}`);
       }
     } catch (error) {
-      // Update the temporary message to "failed" status
+      clearTimeout(timeoutId);
+      console.error('Error sending message:', error);
       setMessages((prev) =>
         prev.map((msg) =>
           msg.tempId === tempId ? { ...msg, status: 'failed' } : msg
         )
       );
-      setError('Failed to send message: ' + error.message);
+      setError(`Failed to send ${messageType.toLowerCase()}: ${error.message}. If it’s a video or file, ensure it’s under 25 MB or share a link instead.`);
     }
   };
 
-  // Delete Message
   const deleteMessage = async (messageId) => {
     if (!window.confirm("Warning: This message will be deleted from this project only, not from the real Messenger. Are you sure?")) {
       handleCloseMessageMenu();
@@ -308,7 +383,29 @@ const MessengerPage = () => {
     handleCloseMessageMenu();
   };
 
-  // Delete Conversation
+  const handleDownload = (url) => {
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = url.split('/').pop() || 'downloaded_file';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    handleCloseMessageMenu();
+  };
+
+  const handleCopy = (text) => {
+    navigator.clipboard.writeText(text)
+      .then(() => {
+        console.log('Text copied to clipboard:', text);
+        handleCloseMessageMenu();
+      })
+      .catch((err) => {
+        console.error('Failed to copy text:', err);
+        setError('Failed to copy text');
+        handleCloseMessageMenu();
+      });
+  };
+
   const deleteConversation = async (conversationId) => {
     if (!window.confirm("Warning: This conversation will be deleted from this project only, not from the real Messenger. Are you sure?")) {
       handleCloseConversationMenu();
@@ -325,7 +422,46 @@ const MessengerPage = () => {
     handleCloseConversationMenu();
   };
 
-  // Dropdown Menu Handlers
+  const blockUser = async (conversationId) => {
+    if (!window.confirm("Are you sure you want to block this user? They will no longer be able to message this Page.")) {
+      handleCloseConversationMenu();
+      return;
+    }
+    try {
+      const response = await fetch(`https://localhost:7099/api/messenger/block-user/${conversationId}`, {
+        method: 'POST',
+        credentials: 'include',
+      });
+      if (!response.ok) {
+        const data = await response.json();
+        setError('Failed to block user: ' + (data.error || 'Unknown error'));
+      }
+    } catch (error) {
+      setError('Failed to block user: ' + error.message);
+    }
+    handleCloseConversationMenu();
+  };
+
+  const unblockUser = async (conversationId) => {
+    if (!window.confirm("Are you sure you want to unblock this user? They will be able to message this Page again.")) {
+      handleCloseConversationMenu();
+      return;
+    }
+    try {
+      const response = await fetch(`https://localhost:7099/api/messenger/unblock-user/${conversationId}`, {
+        method: 'POST',
+        credentials: 'include',
+      });
+      if (!response.ok) {
+        const data = await response.json();
+        setError('Failed to unblock user: ' + (data.error || 'Unknown error'));
+      }
+    } catch (error) {
+      setError('Failed to unblock user: ' + error.message);
+    }
+    handleCloseConversationMenu();
+  };
+
   const handleOpenMessageMenu = (event, messageId) => {
     setAnchorElMessage(event.currentTarget);
     setSelectedMessageId(messageId);
@@ -343,7 +479,6 @@ const MessengerPage = () => {
     setSelectedConversationIdForMenu(null);
   };
 
-  // Modal Handlers
   const handleOpenModal = (type, url) => {
     setModalMedia({ type, url });
     setOpenModal(true);
@@ -353,13 +488,18 @@ const MessengerPage = () => {
     setModalMedia({ type: '', url: '' });
   };
 
-  // Get the selected conversation's name for use in the message list
+  const handleKeyDown = (event) => {
+    if (event.key === 'Enter' && !event.shiftKey) {
+      event.preventDefault();
+      sendMessage();
+    }
+  };
+
   const selectedConversation = conversations.find((c) => c.id === selectedConversationId);
   const userName = selectedConversation?.name || '?';
 
   return (
     <Box sx={{ display: 'flex', height: '100vh', bgcolor: '#f0f2f5', fontFamily: '"Segoe UI", Roboto, sans-serif' }}>
-      {/* Conversation List */}
       <Box sx={{ width: '360px', bgcolor: '#fff', borderRight: '1px solid #e5e5e5', overflowY: 'auto', p: 2 }}>
         <Typography variant="h5" sx={{ fontWeight: 600, color: '#050505', mb: 2, pl: 1 }}>
           Chats
@@ -379,10 +519,10 @@ const MessengerPage = () => {
                   transition: 'background-color 0.2s ease',
                 }}
               >
-                <Avatar sx={{ mr: 2, bgcolor: '#ddd' }}>{conv.name[0]}</Avatar>
+                <Avatar sx={{ mr: 2, bgcolor: conv.blocked ? '#ff4444' : '#ddd' }}>{conv.name[0]}</Avatar>
                 <ListItemText
                   primary={conv.name}
-                  primaryTypographyProps={{ fontSize: '16px', fontWeight: 500, color: '#050505' }}
+                  primaryTypographyProps={{ fontSize: '16px', fontWeight: 500, color: conv.blocked ? '#ff4444' : '#050505' }}
                 />
               </ListItem>
               <IconButton
@@ -397,23 +537,28 @@ const MessengerPage = () => {
                 onClose={handleCloseConversationMenu}
               >
                 <MenuItem onClick={() => deleteConversation(conv.id)}>Delete</MenuItem>
+                {conv.blocked ? (
+                  <MenuItem onClick={() => unblockUser(conv.id)}>Unblock User</MenuItem>
+                ) : (
+                  <MenuItem onClick={() => blockUser(conv.id)}>Block User</MenuItem>
+                )}
               </Menu>
             </Box>
           ))}
         </List>
       </Box>
 
-      {/* Chatbox */}
       <Box sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column', bgcolor: '#fff' }}>
-        {/* Header */}
         <Box sx={{ p: 2, borderBottom: '1px solid #e5e5e5', display: 'flex', alignItems: 'center' }}>
-          <Avatar sx={{ mr: 2, bgcolor: '#ddd' }}>{userName[0]}</Avatar>
-          <Typography variant="h6" sx={{ fontWeight: 600, color: '#050505' }}>
+          <Avatar sx={{ mr: 2, bgcolor: selectedConversation?.blocked ? '#ff4444' : '#ddd' }}>
+            {userName[0]}
+          </Avatar>
+          <Typography variant="h6" sx={{ fontWeight: 600, color: selectedConversation?.blocked ? '#ff4444' : '#050505' }}>
             {selectedConversation?.name || 'Select a chat'}
+            {selectedConversation?.blocked && ' (Blocked)'}
           </Typography>
         </Box>
 
-        {/* Messages */}
         <Box
           ref={messagesContainerRef}
           onScroll={handleScroll}
@@ -424,7 +569,6 @@ const MessengerPage = () => {
               {error}
             </Typography>
           )}
-          {/* Load More Button */}
           {showLoadMore && (
             <Box sx={{ display: 'flex', justifyContent: 'center', mb: 2 }}>
               <Button
@@ -451,14 +595,26 @@ const MessengerPage = () => {
                 mb: 2,
                 alignItems: 'flex-start',
               }}
-              onMouseEnter={() => setHoveredMessageId(msg.id || msg.tempId)}
-              onMouseLeave={() => setHoveredMessageId(null)}
             >
               <Box sx={{ maxWidth: '60%', display: 'flex', alignItems: 'flex-start' }}>
                 {msg.direction === 'Inbound' && (
                   <Avatar sx={{ mr: 1, bgcolor: '#ddd', width: 32, height: 32 }}>{userName[0]}</Avatar>
                 )}
                 <Box sx={{ position: 'relative' }}>
+                  {msg.repliedId && (
+                    <Box
+                      sx={{
+                        bgcolor: '#e9ecef',
+                        p: 1,
+                        borderRadius: '8px',
+                        mb: 1,
+                        fontSize: '13px',
+                        color: '#65676b',
+                      }}
+                    >
+                      {messages.find((m) => m.mid === msg.repliedId)?.text || 'Original message not found'}
+                    </Box>
+                  )}
                   {msg.status === 'sending' ? (
                     <Box
                       sx={{
@@ -501,7 +657,28 @@ const MessengerPage = () => {
                         >
                           {msg.text}
                         </Typography>
-                      ) : msg.messageType === 'Image' ? (
+                      ) : msg.messageType === 'Image' && msg.urls ? (
+                        <Box
+                          sx={{
+                            p: 0.5,
+                            bgcolor: msg.direction === 'Outbound' ? '#0084ff' : '#e9ecef',
+                            borderRadius: '10px',
+                            display: 'flex',
+                            flexWrap: 'wrap',
+                            gap: 1,
+                          }}
+                        >
+                          {msg.urls.map((url, index) => (
+                            <Box
+                              key={index}
+                              sx={{ cursor: 'pointer' }}
+                              onClick={() => handleOpenModal('Image', url)}
+                            >
+                              <img src={url} alt={`Sent image ${index}`} style={{ maxWidth: '100px', borderRadius: '8px' }} />
+                            </Box>
+                          ))}
+                        </Box>
+                      ) : msg.messageType === 'Video' && msg.urls ? (
                         <Box
                           sx={{
                             p: 0.5,
@@ -509,23 +686,11 @@ const MessengerPage = () => {
                             borderRadius: '10px',
                             cursor: 'pointer',
                           }}
-                          onClick={() => handleOpenModal('Image', msg.url)}
+                          onClick={() => handleOpenModal('Video', msg.urls[0])}
                         >
-                          <img src={msg.url} alt="Sent image" style={{ maxWidth: '200px', borderRadius: '8px' }} />
+                          <video src={msg.urls[0]} style={{ maxWidth: '200px', borderRadius: '8px' }} controls />
                         </Box>
-                      ) : msg.messageType === 'Video' ? (
-                        <Box
-                          sx={{
-                            p: 0.5,
-                            bgcolor: msg.direction === 'Outbound' ? '#0084ff' : '#e9ecef',
-                            borderRadius: '10px',
-                            cursor: 'pointer',
-                          }}
-                          onClick={() => handleOpenModal('Video', msg.url)}
-                        >
-                          <video src={msg.url} style={{ maxWidth: '200px', borderRadius: '8px' }} controls />
-                        </Box>
-                      ) : msg.messageType === 'Document' ? (
+                      ) : msg.messageType === 'Document' && msg.urls ? (
                         <Typography
                           sx={{
                             bgcolor: msg.direction === 'Outbound' ? '#0084ff' : '#e9ecef',
@@ -537,26 +702,50 @@ const MessengerPage = () => {
                             zIndex: 1,
                           }}
                         >
-                          <a href={msg.url} target="_blank" rel="noopener noreferrer" style={{ color: 'inherit' }}>
+                          <a href={msg.urls[0]} target="_blank" rel="noopener noreferrer" style={{ color: 'inherit' }}>
                             Document
                           </a>
                         </Typography>
                       ) : null}
                     </>
                   )}
+                  {/* Always show timestamp */}
                   <Typography
                     sx={{
                       position: 'absolute',
                       bottom: '-16px',
-                      right: '0',
+                      right: msg.direction === 'Outbound' && msg.status !== 'sending' && msg.status !== 'failed' ? '40px' : '0',
                       fontSize: '12px',
                       color: '#65676b',
                       zIndex: 0,
                     }}
                   >
-                    {new Date(msg.timestamp).toLocaleTimeString('en-US', { hour: 'numeric', minute: 'numeric', hour12: true })}
+                    {msg.timestamp
+                      ? new Date(msg.timestamp).toLocaleTimeString('en-US', { hour: 'numeric', minute: 'numeric', hour12: true })
+                      : 'Time unavailable'}
                   </Typography>
-                  {msg.direction === 'Outbound' && (msg.status === 'sent' || !msg.status) && hoveredMessageId === (msg.id || msg.tempId) && (
+                  {/* Status icons for outbound messages */}
+                  {msg.direction === 'Outbound' && msg.status !== 'sending' && msg.status !== 'failed' && (
+                    <Typography
+                      sx={{
+                        position: 'absolute',
+                        bottom: '-16px',
+                        right: '0',
+                        fontSize: '12px',
+                        color: '#65676b',
+                        zIndex: 0,
+                      }}
+                    >
+                      {msg.status === 'Read' ? (
+                        <DoneAll sx={{ fontSize: '16px', color: '#0084ff' }} />
+                      ) : msg.status === 'Delivered' ? (
+                        <DoneAll sx={{ fontSize: '16px', color: '#65676b' }} />
+                      ) : (
+                        <Check sx={{ fontSize: '16px', color: '#65676b' }} />
+                      )}
+                    </Typography>
+                  )}
+                  {(msg.status === 'Sent' || msg.status === 'Delivered' || msg.status === 'Read' || !msg.status) && (
                     <IconButton
                       onClick={(e) => handleOpenMessageMenu(e, msg.id || msg.tempId)}
                       sx={{
@@ -565,7 +754,7 @@ const MessengerPage = () => {
                         right: '-18px',
                         color: '#65676b',
                         '&:hover': { color: '#1877f2' },
-                        zIndex: 2, 
+                        zIndex: 2,
                       }}
                     >
                       <ArrowDropDown />
@@ -581,13 +770,19 @@ const MessengerPage = () => {
                 transformOrigin={{ vertical: 'top', horizontal: 'right' }}
               >
                 {msg.direction === 'Outbound' && <MenuItem onClick={() => deleteMessage(msg.id)}>Delete</MenuItem>}
+                {msg.direction === 'Inbound' && <MenuItem onClick={() => handleReply(msg)}>Reply</MenuItem>}
+                {(msg.messageType === 'Document' || msg.messageType === 'Video') && msg.urls && (
+                  <MenuItem onClick={() => handleDownload(msg.urls[0])}>Download</MenuItem>
+                )}
+                {msg.messageType === 'Text' && msg.text && (
+                  <MenuItem onClick={() => handleCopy(msg.text)}>Copy</MenuItem>
+                )}
               </Menu>
             </Box>
           ))}
           <div ref={messagesEndRef} />
         </Box>
 
-        {/* Media Modal */}
         <Modal open={openModal} onClose={handleCloseModal}>
           <Box
             sx={{
@@ -614,35 +809,49 @@ const MessengerPage = () => {
           </Box>
         </Modal>
 
-        {/* File Preview */}
-        {filePreview && (
-          <Box sx={{ p: 2, bgcolor: '#fff', borderTop: '1px solid #e5e5e5', display: 'flex', alignItems: 'center' }}>
-            {filePreview.type === 'Image' ? (
-              <img src={filePreview.url} alt="Preview" style={{ maxWidth: '80px', borderRadius: '8px', mr: 2 }} />
-            ) : filePreview.type === 'Video' ? (
-              <video src={filePreview.url} style={{ maxWidth: '80px', borderRadius: '8px', mr: 2 }} controls />
-            ) : (
-              <Typography sx={{ mr: 2, color: '#050505' }}>{filePreview.name}</Typography>
-            )}
-            <IconButton onClick={removeFile} sx={{ color: '#d93025' }}>
+        {filePreviews.length > 0 && (
+          <Box sx={{ p: 2, bgcolor: '#fff', borderTop: '1px solid #e5e5e5', display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+            {filePreviews.map((preview, index) => (
+              <Box key={index} sx={{ display: 'flex', alignItems: 'center' }}>
+                {preview.type === 'Image' ? (
+                  <img src={preview.url} alt="Preview" style={{ maxWidth: '80px', borderRadius: '8px', mr: 1 }} />
+                ) : preview.type === 'Video' ? (
+                  <video src={preview.url} style={{ maxWidth: '80px', borderRadius: '8px', mr: 1 }} controls />
+                ) : (
+                  <Typography sx={{ mr: 1, color: '#050505' }}>{preview.name}</Typography>
+                )}
+                <IconButton onClick={() => removeFile(index)} sx={{ color: '#d93025' }}>
+                  <Close />
+                </IconButton>
+              </Box>
+            ))}
+          </Box>
+        )}
+
+        {replyingTo && (
+          <Box sx={{ p: 1, bgcolor: '#f0f2f5', borderTop: '1px solid #e5e5e5', display: 'flex', alignItems: 'center' }}>
+            <Typography sx={{ flexGrow: 1, color: '#65676b', fontSize: '14px' }}>
+              Replying to: {replyingTo.text || replyingTo.messageType}
+            </Typography>
+            <IconButton onClick={() => setReplyingTo(null)} sx={{ color: '#d93025' }}>
               <Close />
             </IconButton>
           </Box>
         )}
 
-        {/* Input */}
         <Box sx={{ p: 2, bgcolor: '#fff', borderTop: '1px solid #e5e5e5', display: 'flex', alignItems: 'center' }}>
           <IconButton component="label" sx={{ color: '#65676b', '&:hover': { color: '#1877f2' } }}>
             <AttachFile />
-            <input type="file" hidden accept="image/*,video/*,application/pdf" onChange={handleFileChange} />
+            <input type="file" hidden multiple accept="image/*,video/*,application/pdf" onChange={handleFileChange} />
           </IconButton>
           <TextField
             value={newMessage}
             onChange={(e) => setNewMessage(e.target.value)}
+            onKeyDown={handleKeyDown}
             placeholder="Aa"
             fullWidth
             variant="outlined"
-            disabled={!selectedConversationId || file}
+            disabled={!selectedConversationId || files.length > 0 || selectedConversation?.blocked}
             sx={{
               mr: 1,
               '& .MuiOutlinedInput-root': {
@@ -657,14 +866,14 @@ const MessengerPage = () => {
           />
           <IconButton
             onClick={() => setShowEmojiPicker((prev) => !prev)}
-            disabled={!selectedConversationId || file}
+            disabled={!selectedConversationId || files.length > 0 || selectedConversation?.blocked}
             sx={{ color: '#65676b', '&:hover': { color: '#1877f2' } }}
           >
             <SentimentSatisfiedAlt />
           </IconButton>
           <Button
             onClick={sendMessage}
-            disabled={!selectedConversationId || (!newMessage.trim() && !file)}
+            disabled={!selectedConversationId || (!newMessage.trim() && files.length === 0) || selectedConversation?.blocked}
             sx={{
               minWidth: 0,
               p: 1,

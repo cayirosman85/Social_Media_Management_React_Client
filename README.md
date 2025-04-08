@@ -65,3 +65,4 @@ Do not forget to convert the .env.example file to .env.
 
 
  npm run start-https  
+ ngrok http https://localhost:7099
