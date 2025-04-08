@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { Typography, TextField, Button, Box, List, ListItem, ListItemText, IconButton, Menu, MenuItem, Modal, Avatar, CircularProgress, Tabs, Tab, InputBase, Switch, FormControlLabel } from '@mui/material';
-import { Check, DoneAll, AttachFile, SentimentSatisfiedAlt, ArrowDropDown, Close, Mic, Image, InsertDriveFile, Link, Search, Notifications } from '@mui/icons-material';
+import { Check, DoneAll, AttachFile, SentimentSatisfiedAlt, ArrowDropDown, Close, Mic, Image, InsertDriveFile, Link, Search, Notifications, ThumbUp } from '@mui/icons-material';
 import * as signalR from '@microsoft/signalr';
 import { useNavigate } from 'react-router-dom';
 import localStorage from 'local-storage';
@@ -70,11 +70,11 @@ const MessengerPage = () => {
         throw new Error(`HTTP error! Status: ${response.status}, Message: ${errorData.Error || 'Unknown error'}`);
       }
       const data = await response.json();
-
+  
       const fetchedMessages = (data.messages || []).map(msg => {
         let urls = null;
         if (msg.url) {
-          if (msg.messageType === 'Image') {
+          if (msg.messageType === 'Image' || msg.messageType === 'Sticker') { // Add Sticker here
             try {
               urls = JSON.parse(msg.url);
               if (!Array.isArray(urls)) urls = [urls];
@@ -87,9 +87,9 @@ const MessengerPage = () => {
         }
         return { ...msg, urls };
       });
-
+  
       setTotalMessages(data.totalMessages || 0);
-
+  
       if (append) {
         setMessages((prev) => [...fetchedMessages, ...prev]);
       } else {
@@ -107,7 +107,7 @@ const MessengerPage = () => {
           }
         }, 100);
       }
-
+  
       setShowLoadMore(pageToFetch * 5 < data.totalMessages);
     } catch (error) {
       console.error('Error fetching messages:', error);
@@ -132,7 +132,6 @@ const MessengerPage = () => {
       if (message.conversationId === selectedConversationId) {
         fetchMessages(1);
       }
-      // Play notification sound if enabled
       if (playNotificationSound) {
         const audio = new Audio('/audio/messenger-short-ringtone.mp3');
         audio.play().catch((err) => console.error('Error playing notification sound:', err));
@@ -461,6 +460,110 @@ const MessengerPage = () => {
     }
   };
 
+  const sendOkaySticker = async () => {
+    if (!connection || !selectedConversationId) return;
+    const selectedConversation = conversations.find((c) => c.id === selectedConversationId);
+    if (!selectedConversation) return;
+  
+    if (selectedConversation.blocked) {
+      setError('Cannot send message: User is blocked');
+      return;
+    }
+  
+    const tempId = Date.now().toString() + Math.random().toString(36).substr(2, 9);
+    const okayStickerPath = '/images/thumbup.png'; // Path to the image in the public folder
+  
+    const tempMessage = {
+      tempId,
+      conversationId: selectedConversationId,
+      senderId: "576837692181131",
+      recipientId: selectedConversation.senderId,
+      text: null,
+      urls: [okayStickerPath], // Temporary URL for display in the UI
+      messageType: 'Sticker', // Use 'Sticker' instead of 'Image'
+      timestamp: new Date().toISOString(),
+      direction: 'Outbound',
+      status: 'sending',
+      repliedId: replyingTo?.mid ? replyingTo.mid : null,
+    };
+  
+    setMessages((prev) => [...prev, tempMessage]);
+    setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
+  
+    const timeoutId = setTimeout(() => {
+      setMessages((prev) =>
+        prev.map((msg) => (msg.tempId === tempId ? { ...msg, status: 'failed' } : msg))
+      );
+      setError('Message send timed out.');
+    }, 10000);
+  
+    try {
+      // Step 1: Fetch the thumbup.png image as a blob from the public folder
+      const response = await fetch(okayStickerPath);
+      if (!response.ok) throw new Error('Failed to fetch thumbup.png from public folder');
+      const blob = await response.blob();
+      const file = new File([blob], 'thumbup.png', { type: 'image/png' });
+  
+      // Step 2: Upload the image to your backend server
+      const formData = new FormData();
+      formData.append('files', file);
+      const uploadResponse = await fetch('https://localhost:7099/api/messenger/upload-file', {
+        method: 'POST',
+        body: formData,
+        credentials: 'include',
+      });
+  
+      if (!uploadResponse.ok) {
+        const errorData = await uploadResponse.json();
+        throw new Error(`File upload failed: ${errorData.error || 'Unknown error'}`);
+      }
+  
+      const uploadData = await uploadResponse.json();
+      const fileUrls = uploadData.urls; // This should be a publicly accessible URL
+  
+      // Step 3: Send the message with the uploaded URL
+      const request = {
+        conversationId: selectedConversationId,
+        senderId: "576837692181131",
+        recipientId: selectedConversation.senderId,
+        text: null,
+        urls: fileUrls, // Use the URL returned by the backend
+        messageType: 'Sticker', // Use 'Sticker' instead of 'Image'
+        tempId,
+        repliedId: replyingTo?.mid ? replyingTo.mid : null,
+      };
+  
+      const sendResponse = await fetch('https://localhost:7099/api/messenger/send-message', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(request),
+        credentials: 'include',
+      });
+  
+      clearTimeout(timeoutId);
+      const data = await sendResponse.json();
+  
+      if (sendResponse.ok) {
+        setMessages((prev) =>
+          prev.map((msg) =>
+            msg.tempId === tempId ? { ...msg, status: 'Sent', id: data.MessageId, mid: data.FacebookMessageId, urls: request.urls } : msg
+          )
+        );
+        setReplyingTo(null);
+      } else {
+        setMessages((prev) =>
+          prev.map((msg) => (msg.tempId === tempId ? { ...msg, status: 'failed' } : msg))
+        );
+        setError(`Failed to send sticker: ${data.error || 'Unknown error'}`);
+      }
+    } catch (error) {
+      clearTimeout(timeoutId);
+      setMessages((prev) =>
+        prev.map((msg) => (msg.tempId === tempId ? { ...msg, status: 'failed' } : msg))
+      );
+      setError(`Failed to send sticker: ${error.message}`);
+    }
+  };
   const deleteMessage = async (messageId) => {
     if (!window.confirm("Warning: This message will be deleted from this project only, not from the real Messenger. Are you sure?")) {
       handleCloseMessageMenu();
@@ -664,14 +767,14 @@ const MessengerPage = () => {
       if (!response.ok) throw new Error('Failed to fetch messages');
       const data = await response.json();
       return data.messages.filter(msg => {
-        if (type === 'media') return ['Image', 'Video', 'Audio'].includes(msg.messageType);
+        if (type === 'media') return ['Image', 'Video', 'Audio', 'Sticker'].includes(msg.messageType); // Add Sticker here
         if (type === 'files') return msg.messageType === 'Document';
         if (type === 'links') return msg.messageType === 'Text' && msg.text.includes('http');
         return false;
       }).map(msg => {
         let urls = null;
         if (msg.url) {
-          if (msg.messageType === 'Image') {
+          if (msg.messageType === 'Image' || msg.messageType === 'Sticker') { // Add Sticker here
             try {
               urls = JSON.parse(msg.url);
               if (!Array.isArray(urls)) urls = [urls];
@@ -707,6 +810,7 @@ const MessengerPage = () => {
 
   const selectedConversation = conversations.find((c) => c.id === selectedConversationId);
   const userName = selectedConversation?.name || '?';
+  const showSendIcon = newMessage.trim() || files.length > 0 || audioBlob;
 
   return (
     <Box sx={{ display: 'flex', height: '100vh', bgcolor: '#f0f2f5', fontFamily: '"Segoe UI", Roboto, sans-serif' }}>
@@ -804,102 +908,128 @@ const MessengerPage = () => {
               </Button>
             </Box>
           )}
-          {messages.map((msg, idx) => (
-            <Box
-              key={msg.id || msg.tempId || idx}
-              ref={(el) => (messageRefs.current[msg.id] = el)}
-              sx={{
-                display: 'flex',
-                justifyContent: msg.direction === 'Outbound' ? 'flex-end' : 'flex-start',
-                mb: 2,
-                alignItems: 'flex-start',
-              }}
-            >
-              <Box sx={{ maxWidth: '60%', display: 'flex', alignItems: 'flex-start' }}>
-                {msg.direction === 'Inbound' && (
-                  <Avatar sx={{ mr: 1, bgcolor: '#ddd', width: 32, height: 32 }}>{userName[0]}</Avatar>
-                )}
-                <Box sx={{ position: 'relative' }}>
-                  {msg.repliedId && (
-                    <Box sx={{ bgcolor: '#e9ecef', p: 1, borderRadius: '8px', mb: 1, fontSize: '13px', color: '#65676b' }}>
-                      {messages.find((m) => m.mid === msg.repliedId)?.text || 'Original message not found'}
-                    </Box>
-                  )}
-                  {msg.status === 'sending' ? (
-                    <Box sx={{ bgcolor: '#0084ff', color: '#fff', p: 1.5, borderRadius: '10px', display: 'flex', alignItems: 'center' }}>
-                      <CircularProgress size={16} sx={{ color: '#fff', mr: 1 }} />
-                      <Typography sx={{ fontSize: '15px' }}>Sending...</Typography>
-                    </Box>
-                  ) : msg.status === 'failed' ? (
-                    <Box sx={{ bgcolor: '#d93025', color: '#fff', p: 1.5, borderRadius: '10px' }}>
-                      <Typography sx={{ fontSize: '15px' }}>Failed to send</Typography>
-                    </Box>
-                  ) : (
-                    <>
-                      {msg.messageType === 'Text' ? (
-                        <Typography sx={{ bgcolor: msg.direction === 'Outbound' ? '#0084ff' : '#e9ecef', color: msg.direction === 'Outbound' ? '#fff' : '#050505', p: 1.5, borderRadius: '10px', fontSize: '15px', minWidth: 100 }}>
-                          {msg.text}
-                        </Typography>
-                      ) : msg.messageType === 'Image' && msg.urls ? (
-                        <Box sx={{ p: 0.5, bgcolor: msg.direction === 'Outbound' ? '#0084ff' : '#e9ecef', borderRadius: '10px', display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-                          {msg.urls.map((url, index) => (
-                            <Box key={index} sx={{ cursor: 'pointer' }} onClick={() => handleOpenModal('Image', url)}>
-                              <img src={url} alt={`Sent image ${index}`} style={{ maxWidth: '100px', borderRadius: '8px' }} />
-                            </Box>
-                          ))}
-                        </Box>
-                      ) : msg.messageType === 'Video' && msg.urls ? (
-                        <Box sx={{ p: 0.5, bgcolor: msg.direction === 'Outbound' ? '#0084ff' : '#e9ecef', borderRadius: '10px' }} onClick={() => handleOpenModal('Video', msg.urls[0])}>
-                          <video src={msg.urls[0]} style={{ maxWidth: '200px', borderRadius: '8px' }} controls />
-                        </Box>
-                      ) : msg.messageType === 'Document' && msg.urls ? (
-                        <Typography sx={{ bgcolor: msg.direction === 'Outbound' ? '#0084ff' : '#e9ecef', color: msg.direction === 'Outbound' ? '#fff' : '#050505', p: 1.5, borderRadius: '10px', fontSize: '15px' }}>
-                          <a href={msg.urls[0]} target="_blank" rel="noopener noreferrer" style={{ color: 'inherit' }}>Document</a>
-                        </Typography>
-                      ) : msg.messageType === 'Audio' && msg.urls ? (
-                        <Box sx={{ bgcolor: msg.direction === 'Outbound' ? '#0084ff' : '#e9ecef', p: 1.5, borderRadius: '10px' }}>
-                          <audio src={msg.urls[0]} controls style={{ maxWidth: '200px' }} />
-                        </Box>
-                      ) : null}
-                    </>
-                  )}
-                  <Typography
+    {messages.map((msg, idx) => (
+  <Box
+    key={msg.id || msg.tempId || idx}
+    ref={(el) => (messageRefs.current[msg.id] = el)}
+    sx={{
+      display: 'flex',
+      justifyContent: msg.direction === 'Outbound' ? 'flex-end' : 'flex-start',
+      mb: 2,
+      alignItems: 'flex-start',
+    }}
+  >
+    <Box sx={{ maxWidth: '60%', display: 'flex', alignItems: 'flex-start' }}>
+      {msg.direction === 'Inbound' && (
+        <Avatar sx={{ mr: 1, bgcolor: '#ddd', width: 32, height: 32 }}>{userName[0]}</Avatar>
+      )}
+      <Box sx={{ position: 'relative' }}>
+        {msg.repliedId && (
+          <Box sx={{ bgcolor: '#e9ecef', p: 1, borderRadius: '8px', mb: 1, fontSize: '13px', color: '#65676b' }}>
+            {messages.find((m) => m.mid === msg.repliedId)?.text || 'Original message not found'}
+          </Box>
+        )}
+        {msg.status === 'sending' ? (
+          <Box sx={{ bgcolor: '#0084ff', color: '#fff', p: 1.5, borderRadius: '10px', display: 'flex', alignItems: 'center' }}>
+            <CircularProgress size={16} sx={{ color: '#fff', mr: 1 }} />
+            <Typography sx={{ fontSize: '15px' }}>Sending...</Typography>
+          </Box>
+        ) : msg.status === 'failed' ? (
+          <Box sx={{ bgcolor: '#d93025', color: '#fff', p: 1.5, borderRadius: '10px' }}>
+            <Typography sx={{ fontSize: '15px' }}>Failed to send</Typography>
+          </Box>
+        ) : (
+          <>
+            {msg.messageType === 'Text' ? (
+              <Typography sx={{ bgcolor: msg.direction === 'Outbound' ? '#0084ff' : '#e9ecef', color: msg.direction === 'Outbound' ? '#fff' : '#050505', p: 1.5, borderRadius: '10px', fontSize: '15px', minWidth: 100 }}>
+                {msg.text}
+              </Typography>
+            ) : msg.messageType === 'Sticker' && msg.urls ? (
+              <Box sx={{ p: 0.5, bgcolor: 'transparent', display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                {msg.urls.map((url, index) => (
+                  <Box
+                    key={index}
                     sx={{
-                      position: 'absolute',
-                      bottom: '-16px',
-                      right: msg.direction === 'Outbound' && msg.status !== 'sending' && msg.status !== 'failed' ? '40px' : '0',
-                      fontSize: '12px',
-                      color: '#65676b',
+                      cursor: 'default',
+                      display: 'inline-flex',
+                      alignItems: 'center',
                     }}
                   >
-                    {msg.timestamp ? new Date(msg.timestamp).toLocaleTimeString('en-US', { hour: 'numeric', minute: 'numeric', hour12: true }) : 'Time unavailable'}
-                  </Typography>
-                  {msg.direction === 'Outbound' && msg.status !== 'sending' && msg.status !== 'failed' && (
-                    <Typography sx={{ position: 'absolute', bottom: '-16px', right: '0', fontSize: '12px', color: '#65676b' }}>
-                      {msg.status === 'Read' ? <DoneAll sx={{ fontSize: '16px', color: '#0084ff' }} /> : msg.status === 'Delivered' ? <DoneAll sx={{ fontSize: '16px', color: '#65676b' }} /> : <Check sx={{ fontSize: '16px', color: '#65676b' }} />}
-                    </Typography>
-                  )}
-                  {(msg.status === 'Sent' || msg.status === 'Delivered' || msg.status === 'Read' || !msg.status) && (
-                    <IconButton onClick={(e) => handleOpenMessageMenu(e, msg.id || msg.tempId)} sx={{ position: 'absolute', top: '-18px', right: '-18px', color: '#65676b', '&:hover': { color: '#1877f2' } }}>
-                      <ArrowDropDown />
-                    </IconButton>
-                  )}
-                </Box>
+                    <img
+                      src={url}
+                      alt={`Sticker ${index}`}
+                      style={{
+                        maxWidth: '32px',
+                        height: '32px',
+                        borderRadius: '50%',
+                        backgroundColor: '#fff',
+                        padding: '4px',
+                        boxShadow: '0 1px 2px rgba(0, 0, 0, 0.1)',
+                      }}
+                    />
+                  </Box>
+                ))}
               </Box>
-              <Menu
-                anchorEl={anchorElMessage}
-                open={Boolean(anchorElMessage) && selectedMessageId === (msg.id || msg.tempId)}
-                onClose={handleCloseMessageMenu}
-              >
-                {msg.direction === 'Outbound' && <MenuItem onClick={() => deleteMessage(msg.id)}>Delete</MenuItem>}
-                {msg.direction === 'Inbound' && <MenuItem onClick={() => handleReply(msg)}>Reply</MenuItem>}
-                {(msg.messageType === 'Document' || msg.messageType === 'Video' || msg.messageType === 'Audio') && msg.urls && (
-                  <MenuItem onClick={() => handleDownload(msg.urls[0])}>Download</MenuItem>
-                )}
-                {msg.messageType === 'Text' && msg.text && <MenuItem onClick={() => handleCopy(msg.text)}>Copy</MenuItem>}
-              </Menu>
-            </Box>
-          ))}
+            ) : msg.messageType === 'Image' && msg.urls ? (
+              <Box sx={{ p: 0.5, bgcolor: msg.direction === 'Outbound' ? '#0084ff' : '#e9ecef', borderRadius: '10px', display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                {msg.urls.map((url, index) => (
+                  <Box key={index} sx={{ cursor: 'pointer' }} onClick={() => handleOpenModal('Image', url)}>
+                    <img src={url} alt={`Sent image ${index}`} style={{ maxWidth: '100px', borderRadius: '8px' }} />
+                  </Box>
+                ))}
+              </Box>
+            ) : msg.messageType === 'Video' && msg.urls ? (
+              <Box sx={{ p: 0.5, bgcolor: msg.direction === 'Outbound' ? '#0084ff' : '#e9ecef', borderRadius: '10px' }} onClick={() => handleOpenModal('Video', msg.urls[0])}>
+                <video src={msg.urls[0]} style={{ maxWidth: '200px', borderRadius: '8px' }} controls />
+              </Box>
+            ) : msg.messageType === 'Document' && msg.urls ? (
+              <Typography sx={{ bgcolor: msg.direction === 'Outbound' ? '#0084ff' : '#e9ecef', color: msg.direction === 'Outbound' ? '#fff' : '#050505', p: 1.5, borderRadius: '10px', fontSize: '15px' }}>
+                <a href={msg.urls[0]} target="_blank" rel="noopener noreferrer" style={{ color: 'inherit' }}>Document</a>
+              </Typography>
+            ) : msg.messageType === 'Audio' && msg.urls ? (
+              <Box sx={{ bgcolor: msg.direction === 'Outbound' ? '#0084ff' : '#e9ecef', p: 1.5, borderRadius: '10px' }}>
+                <audio src={msg.urls[0]} controls style={{ maxWidth: '200px' }} />
+              </Box>
+            ) : null}
+          </>
+        )}
+        <Typography
+          sx={{
+            position: 'absolute',
+            bottom: '-16px',
+            right: msg.direction === 'Outbound' && msg.status !== 'sending' && msg.status !== 'failed' ? '40px' : '0',
+            fontSize: '12px',
+            color: '#65676b',
+          }}
+        >
+          {msg.timestamp ? new Date(msg.timestamp).toLocaleTimeString('en-US', { hour: 'numeric', minute: 'numeric', hour12: true }) : 'Time unavailable'}
+        </Typography>
+        {msg.direction === 'Outbound' && msg.status !== 'sending' && msg.status !== 'failed' && (
+          <Typography sx={{ position: 'absolute', bottom: '-16px', right: '0', fontSize: '12px', color: '#65676b' }}>
+            {msg.status === 'Read' ? <DoneAll sx={{ fontSize: '16px', color: '#0084ff' }} /> : msg.status === 'Delivered' ? <DoneAll sx={{ fontSize: '16px', color: '#65676b' }} /> : <Check sx={{ fontSize: '16px', color: '#65676b' }} />}
+          </Typography>
+        )}
+        {(msg.status === 'Sent' || msg.status === 'Delivered' || msg.status === 'Read' || !msg.status) && (
+          <IconButton onClick={(e) => handleOpenMessageMenu(e, msg.id || msg.tempId)} sx={{ position: 'absolute', top: '-18px', right: '-18px', color: '#65676b', '&:hover': { color: '#1877f2' } }}>
+            <ArrowDropDown />
+          </IconButton>
+        )}
+      </Box>
+    </Box>
+    <Menu
+      anchorEl={anchorElMessage}
+      open={Boolean(anchorElMessage) && selectedMessageId === (msg.id || msg.tempId)}
+      onClose={handleCloseMessageMenu}
+    >
+      {msg.direction === 'Outbound' && <MenuItem onClick={() => deleteMessage(msg.id)}>Delete</MenuItem>}
+      {msg.direction === 'Inbound' && <MenuItem onClick={() => handleReply(msg)}>Reply</MenuItem>}
+      {(msg.messageType === 'Document' || msg.messageType === 'Video' || msg.messageType === 'Audio') && msg.urls && (
+        <MenuItem onClick={() => handleDownload(msg.urls[0])}>Download</MenuItem>
+      )}
+      {msg.messageType === 'Text' && msg.text && <MenuItem onClick={() => handleCopy(msg.text)}>Copy</MenuItem>}
+    </Menu>
+  </Box>
+))}
           <div ref={messagesEndRef} />
         </Box>
 
@@ -949,56 +1079,65 @@ const MessengerPage = () => {
                   <Tab label="Links" value="links" sx={{ textTransform: 'none', fontWeight: 500 }} />
                 </Tabs>
                 {activeTab === 'media' && (
-                  <Box sx={{ maxHeight: '70vh', overflowY: 'auto' }}>
-                    {mediaItems.length > 0 ? (
-                      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-                        {mediaItems.map((item, idx) => (
-                          <Box
-                            key={idx}
-                            sx={{
-                              width: '120px',
-                              bgcolor: '#f5f5f5',
-                              borderRadius: '8px',
-                              p: 1,
-                              '&:hover': { bgcolor: '#e5efff', cursor: 'pointer' },
-                            }}
-                          >
-                            {item.messageType === 'Image' && item.urls ? (
-                              item.urls.map((url, i) => (
-                                <img
-                                  key={i}
-                                  src={url}
-                                  alt={`Media ${i}`}
-                                  style={{ width: '100%', height: '80px', objectFit: 'cover', borderRadius: '6px' }}
-                                  onClick={() => handleOpenModal('Image', url)}
-                                />
-                              ))
-                            ) : item.messageType === 'Video' && item.urls ? (
-                              <video
-                                src={item.urls[0]}
-                                controls
-                                style={{ width: '100%', height: '80px', borderRadius: '6px' }}
-                                onClick={(e) => {
-                                  e.preventDefault();
-                                  handleOpenModal('Video', item.urls[0]);
-                                }}
-                              />
-                            ) : item.messageType === 'Audio' && item.urls ? (
-                              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                <audio src={item.urls[0]} controls style={{ width: '100%' }} />
-                              </Box>
-                            ) : null}
-                            <Typography sx={{ fontSize: '12px', color: '#65676b', mt: 0.5 }}>
-                              {new Date(item.timestamp).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: 'numeric', hour12: true })}
-                            </Typography>
-                          </Box>
-                        ))}
-                      </Box>
-                    ) : (
-                      <Typography sx={{ color: '#65676b', textAlign: 'center', py: 2 }}>No media found.</Typography>
-                    )}
-                  </Box>
-                )}
+  <Box sx={{ maxHeight: '70vh', overflowY: 'auto' }}>
+    {mediaItems.length > 0 ? (
+      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+        {mediaItems.map((item, idx) => (
+          <Box
+            key={idx}
+            sx={{
+              width: '120px',
+              bgcolor: '#f5f5f5',
+              borderRadius: '8px',
+              p: 1,
+              '&:hover': { bgcolor: '#e5efff', cursor: 'pointer' },
+            }}
+          >
+            {item.messageType === 'Image' && item.urls ? (
+              item.urls.map((url, i) => (
+                <img
+                  key={i}
+                  src={url}
+                  alt={`Media ${i}`}
+                  style={{ width: '100%', height: '80px', objectFit: 'cover', borderRadius: '6px' }}
+                  onClick={() => handleOpenModal('Image', url)}
+                />
+              ))
+            ) : item.messageType === 'Sticker' && item.urls ? (
+              item.urls.map((url, i) => (
+                <img
+                  key={i}
+                  src={url}
+                  alt={`Sticker ${i}`}
+                  style={{ width: '100%', height: '80px', objectFit: 'contain', borderRadius: '6px' }}
+                />
+              ))
+            ) : item.messageType === 'Video' && item.urls ? (
+              <video
+                src={item.urls[0]}
+                controls
+                style={{ width: '100%', height: '80px', borderRadius: '6px' }}
+                onClick={(e) => {
+                  e.preventDefault();
+                  handleOpenModal('Video', item.urls[0]);
+                }}
+              />
+            ) : item.messageType === 'Audio' && item.urls ? (
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <audio src={item.urls[0]} controls style={{ width: '100%' }} />
+              </Box>
+            ) : null}
+            <Typography sx={{ fontSize: '12px', color: '#65676b', mt: 0.5 }}>
+              {new Date(item.timestamp).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: 'numeric', hour12: true })}
+            </Typography>
+          </Box>
+        ))}
+      </Box>
+    ) : (
+      <Typography sx={{ color: '#65676b', textAlign: 'center', py: 2 }}>No media found.</Typography>
+    )}
+  </Box>
+)}
                 {activeTab === 'files' && (
                   <Box sx={{ maxHeight: '70vh', overflowY: 'auto' }}>
                     {fileItems.length > 0 ? (
@@ -1286,15 +1425,25 @@ const MessengerPage = () => {
           >
             <SentimentSatisfiedAlt />
           </IconButton>
-          <Button
-            onClick={sendMessage}
-            disabled={!selectedConversationId || (!newMessage.trim() && files.length === 0 && !audioBlob) || selectedConversation?.blocked}
-            sx={{ minWidth: 0, p: 1, color: '#0084ff', '&:hover': { bgcolor: 'transparent', color: '#1877f2' }, '&:disabled': { color: '#b0b3b8' } }}
-          >
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />
-            </svg>
-          </Button>
+          {showSendIcon ? (
+            <Button
+              onClick={sendMessage}
+              disabled={!selectedConversationId || (!newMessage.trim() && files.length === 0 && !audioBlob) || selectedConversation?.blocked}
+              sx={{ minWidth: 0, p: 1, color: '#0084ff', '&:hover': { bgcolor: 'transparent', color: '#1877f2' }, '&:disabled': { color: '#b0b3b8' } }}
+            >
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />
+              </svg>
+            </Button>
+          ) : (
+            <IconButton
+              onClick={sendOkaySticker}
+              disabled={!selectedConversationId || selectedConversation?.blocked || isRecording}
+              sx={{ color: '#0084ff', '&:hover': { color: '#1877f2' }, '&:disabled': { color: '#b0b3b8' } }}
+            >
+              <ThumbUp />
+            </IconButton>
+          )}
           {showEmojiPicker && (
             <Box sx={{ position: 'absolute', bottom: '60px', right: '20px', zIndex: 1000 }}>
               <Picker onEmojiClick={onEmojiClick} />
