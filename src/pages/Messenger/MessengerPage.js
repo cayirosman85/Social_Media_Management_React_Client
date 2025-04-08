@@ -18,7 +18,10 @@ import {
   InputBase,
   Switch,
   FormControlLabel,
+  Accordion, AccordionSummary, AccordionDetails
 } from '@mui/material';
+
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import {
   Check,
   DoneAll,
@@ -2042,7 +2045,7 @@ return (
 </Modal>
 
 <Modal open={openOtnModal} onClose={handleCloseOtnModal}>
-  <Box
+<Box
     sx={{
       position: 'absolute',
       top: '50%',
@@ -2053,11 +2056,38 @@ return (
       borderRadius: '12px',
       boxShadow: 24,
       p: 3,
+      maxHeight: '90vh',
+      overflowY: 'auto',
     }}
   >
     <Typography variant="h6" sx={{ fontWeight: 600, color: '#050505', mb: 2 }}>
       Request Follow-Up Permission
     </Typography>
+
+    {/* Explanation */}
+    <Typography variant="body2" sx={{ mb: 2, color: '#444' }}>
+      To comply with Facebook Messenger rules, we need your permission to send you a one-time follow-up message.
+      After clicking “Send Request,” you’ll receive a “Notify Me” message in Messenger. If you click “Notify Me,” we’ll be allowed to send you one more update related to this request.
+    </Typography>
+
+    {/* Rules Accordion */}
+    <Accordion sx={{ mb: 3 }}>
+      <AccordionSummary expandIcon={<ExpandMoreIcon />} sx={{ bgcolor: '#f1f1f1' }}>
+        <Typography variant="body2" fontWeight={600}>What are the rules?</Typography>
+      </AccordionSummary>
+      <AccordionDetails>
+        <Typography variant="body2" sx={{ color: '#333' }}>
+          • You must click "Notify Me" in Messenger to grant permission.<br />
+          • We can only send you <strong>one follow-up message</strong> using this permission.<br />
+          • The follow-up message must be sent <strong>within 1 year</strong> of your approval.<br />
+          • We can’t use this for promotions or unrelated messages.<br />
+          • You can revoke this permission anytime from Messenger.<br />
+          <strong>• OTN must be requested during an active 24-hour messaging window.</strong>
+        </Typography>
+      </AccordionDetails>
+    </Accordion>
+
+    {/* Input Field */}
     <TextField
       label="Notification Title"
       value={otnTitle}
@@ -2068,6 +2098,8 @@ return (
       helperText="Enter a brief title for the follow-up request (max 65 characters)."
       inputProps={{ maxLength: 65 }}
     />
+
+    {/* Buttons */}
     <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 2 }}>
       <Button
         onClick={handleCloseOtnModal}
