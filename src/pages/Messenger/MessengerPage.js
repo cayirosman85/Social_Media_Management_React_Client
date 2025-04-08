@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { Typography, TextField, Button, Box, List, ListItem, ListItemText, IconButton, Menu, MenuItem, Modal, Avatar, CircularProgress } from '@mui/material';
-import { Check, DoneAll, AttachFile, SentimentSatisfiedAlt, ArrowDropDown, Close } from '@mui/icons-material';
+import { Check, DoneAll, AttachFile, SentimentSatisfiedAlt, ArrowDropDown, Close, Mic } from '@mui/icons-material';
 import * as signalR from '@microsoft/signalr';
 import { useNavigate } from 'react-router-dom';
 import localStorage from 'local-storage';
@@ -26,6 +26,12 @@ const MessengerPage = () => {
   const [totalMessages, setTotalMessages] = useState(0);
   const [showLoadMore, setShowLoadMore] = useState(false);
   const [replyingTo, setReplyingTo] = useState(null);
+  const [isRecording, setIsRecording] = useState(false);
+  const [audioBlob, setAudioBlob] = useState(null);
+  const [recordingTime, setRecordingTime] = useState(0); // New state for recording time
+  const mediaRecorderRef = useRef(null);
+  const audioChunksRef = useRef([]);
+  const timerRef = useRef(null); // Ref to store the timer interval
   const messagesEndRef = useRef(null);
   const messagesContainerRef = useRef(null);
   const navigate = useNavigate();
@@ -51,7 +57,6 @@ const MessengerPage = () => {
         throw new Error(`HTTP error! Status: ${response.status}, Message: ${errorData.Error || 'Unknown error'}`);
       }
       const data = await response.json();
-      console.log('Fetched messages:', data);
 
       const fetchedMessages = (data.messages || []).map(msg => {
         let urls = null;
@@ -101,14 +106,12 @@ const MessengerPage = () => {
 
     newConnection.on('ReceiveMessage', (message) => {
       if (message.conversationId === selectedConversationId) {
-        console.log('Received message via SignalR:', message);
         fetchMessages(1);
       }
     });
 
     newConnection.on('MessageStatusUpdated', (data) => {
       if (data.conversationId === selectedConversationId) {
-        console.log('Message status updated via SignalR:', data);
         fetchMessages(1);
       }
     });
@@ -233,6 +236,7 @@ const MessengerPage = () => {
     });
     setFiles(updatedFiles);
     setFilePreviews(updatedPreviews);
+    setAudioBlob(null); // Clear audio blob if removed
   };
 
   const onEmojiClick = (emojiObject) => {
@@ -241,13 +245,53 @@ const MessengerPage = () => {
   };
 
   const handleReply = (message) => {
-    console.log('Replying to message:', message);
     setReplyingTo(message);
     handleCloseMessageMenu();
   };
 
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mediaRecorder = new MediaRecorder(stream);
+      mediaRecorderRef.current = mediaRecorder;
+      audioChunksRef.current = [];
+
+      mediaRecorder.ondataavailable = (event) => {
+        audioChunksRef.current.push(event.data);
+      };
+
+      mediaRecorder.onstop = () => {
+        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/mp3' });
+        setAudioBlob(audioBlob);
+        setFiles([audioBlob]);
+        setFilePreviews([{ type: 'Audio', url: URL.createObjectURL(audioBlob), name: 'Audio recording.mp3' }]);
+        stream.getTracks().forEach(track => track.stop());
+        clearInterval(timerRef.current); // Clear the timer when recording stops
+        setRecordingTime(0); // Reset recording time
+      };
+
+      mediaRecorder.start();
+      setIsRecording(true);
+
+      // Start the recording timer
+      setRecordingTime(0);
+      timerRef.current = setInterval(() => {
+        setRecordingTime((prev) => prev + 1);
+      }, 1000);
+    } catch (err) {
+      setError('Failed to access microphone: ' + err.message);
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && isRecording) {
+      mediaRecorderRef.current.stop();
+      setIsRecording(false);
+    }
+  };
+
   const sendMessage = async () => {
-    if ((!newMessage.trim() && files.length === 0) || !connection || !selectedConversationId) return;
+    if ((!newMessage.trim() && files.length === 0 && !audioBlob) || !connection || !selectedConversationId) return;
     const selectedConversation = conversations.find((c) => c.id === selectedConversationId);
     if (!selectedConversation) return;
 
@@ -258,7 +302,10 @@ const MessengerPage = () => {
 
     const tempId = Date.now().toString() + Math.random().toString(36).substr(2, 9);
     const isImage = files.length > 0 && files.every(file => file.type.startsWith('image/'));
-    const messageType = files.length > 0 ? (isImage ? 'Image' : files[0].type.startsWith('video/') ? 'Video' : 'Document') : 'Text';
+    const isAudio = files.length > 0 && files[0].type === 'audio/mp3';
+    const messageType = files.length > 0 
+      ? (isImage ? 'Image' : isAudio ? 'Audio' : files[0].type.startsWith('video/') ? 'Video' : 'Document') 
+      : 'Text';
 
     const tempMessage = {
       tempId,
@@ -274,16 +321,12 @@ const MessengerPage = () => {
       repliedId: replyingTo?.mid ? replyingTo.mid : null,
     };
 
-    console.log('Temporary message with repliedId:', tempMessage);
-
     setMessages((prev) => [...prev, tempMessage]);
     setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
 
     const timeoutId = setTimeout(() => {
       setMessages((prev) =>
-        prev.map((msg) =>
-          msg.tempId === tempId ? { ...msg, status: 'failed' } : msg
-        )
+        prev.map((msg) => (msg.tempId === tempId ? { ...msg, status: 'failed' } : msg))
       );
       setError('Message send timed out.');
     }, 10000);
@@ -324,8 +367,6 @@ const MessengerPage = () => {
         };
       }
 
-      console.log('Sending request to backend:', request);
-
       const response = await fetch('https://localhost:7099/api/messenger/send-message', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -335,7 +376,6 @@ const MessengerPage = () => {
 
       clearTimeout(timeoutId);
       const data = await response.json();
-      console.log('Backend response:', data);
 
       if (response.ok) {
         setMessages((prev) =>
@@ -346,24 +386,20 @@ const MessengerPage = () => {
         setNewMessage('');
         setFiles([]);
         setFilePreviews([]);
+        setAudioBlob(null);
         setReplyingTo(null);
       } else {
         setMessages((prev) =>
-          prev.map((msg) =>
-            msg.tempId === tempId ? { ...msg, status: 'failed' } : msg
-          )
+          prev.map((msg) => (msg.tempId === tempId ? { ...msg, status: 'failed' } : msg))
         );
         setError(`Failed to send ${messageType.toLowerCase()}: ${data.error || 'Unknown error'}`);
       }
     } catch (error) {
       clearTimeout(timeoutId);
-      console.error('Error sending message:', error);
       setMessages((prev) =>
-        prev.map((msg) =>
-          msg.tempId === tempId ? { ...msg, status: 'failed' } : msg
-        )
+        prev.map((msg) => (msg.tempId === tempId ? { ...msg, status: 'failed' } : msg))
       );
-      setError(`Failed to send ${messageType.toLowerCase()}: ${error.message}. If it’s a video or file, ensure it’s under 25 MB or share a link instead.`);
+      setError(`Failed to send ${messageType.toLowerCase()}: ${error.message}`);
     }
   };
 
@@ -395,12 +431,8 @@ const MessengerPage = () => {
 
   const handleCopy = (text) => {
     navigator.clipboard.writeText(text)
-      .then(() => {
-        console.log('Text copied to clipboard:', text);
-        handleCloseMessageMenu();
-      })
+      .then(() => handleCloseMessageMenu())
       .catch((err) => {
-        console.error('Failed to copy text:', err);
         setError('Failed to copy text');
         handleCloseMessageMenu();
       });
@@ -466,14 +498,17 @@ const MessengerPage = () => {
     setAnchorElMessage(event.currentTarget);
     setSelectedMessageId(messageId);
   };
+
   const handleCloseMessageMenu = () => {
     setAnchorElMessage(null);
     setSelectedMessageId(null);
   };
+
   const handleOpenConversationMenu = (event, conversationId) => {
     setAnchorElConversation(event.currentTarget);
     setSelectedConversationIdForMenu(conversationId);
   };
+
   const handleCloseConversationMenu = () => {
     setAnchorElConversation(null);
     setSelectedConversationIdForMenu(null);
@@ -483,6 +518,7 @@ const MessengerPage = () => {
     setModalMedia({ type, url });
     setOpenModal(true);
   };
+
   const handleCloseModal = () => {
     setOpenModal(false);
     setModalMedia({ type: '', url: '' });
@@ -493,6 +529,13 @@ const MessengerPage = () => {
       event.preventDefault();
       sendMessage();
     }
+  };
+
+  // Format recording time as MM:SS
+  const formatRecordingTime = (seconds) => {
+    const minutes = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
   const selectedConversation = conversations.find((c) => c.id === selectedConversationId);
@@ -516,7 +559,6 @@ const MessengerPage = () => {
                   bgcolor: selectedConversationId === conv.id ? '#e5efff' : 'transparent',
                   '&:hover': { bgcolor: '#f5f5f5' },
                   py: 1,
-                  transition: 'background-color 0.2s ease',
                 }}
               >
                 <Avatar sx={{ mr: 2, bgcolor: conv.blocked ? '#ff4444' : '#ddd' }}>{conv.name[0]}</Avatar>
@@ -602,114 +644,48 @@ const MessengerPage = () => {
                 )}
                 <Box sx={{ position: 'relative' }}>
                   {msg.repliedId && (
-                    <Box
-                      sx={{
-                        bgcolor: '#e9ecef',
-                        p: 1,
-                        borderRadius: '8px',
-                        mb: 1,
-                        fontSize: '13px',
-                        color: '#65676b',
-                      }}
-                    >
+                    <Box sx={{ bgcolor: '#e9ecef', p: 1, borderRadius: '8px', mb: 1, fontSize: '13px', color: '#65676b' }}>
                       {messages.find((m) => m.mid === msg.repliedId)?.text || 'Original message not found'}
                     </Box>
                   )}
                   {msg.status === 'sending' ? (
-                    <Box
-                      sx={{
-                        bgcolor: '#0084ff',
-                        color: '#fff',
-                        p: 1.5,
-                        borderRadius: '10px',
-                        display: 'flex',
-                        alignItems: 'center',
-                      }}
-                    >
+                    <Box sx={{ bgcolor: '#0084ff', color: '#fff', p: 1.5, borderRadius: '10px', display: 'flex', alignItems: 'center' }}>
                       <CircularProgress size={16} sx={{ color: '#fff', mr: 1 }} />
                       <Typography sx={{ fontSize: '15px' }}>Sending...</Typography>
                     </Box>
                   ) : msg.status === 'failed' ? (
-                    <Box
-                      sx={{
-                        bgcolor: '#d93025',
-                        color: '#fff',
-                        p: 1.5,
-                        borderRadius: '10px',
-                      }}
-                    >
+                    <Box sx={{ bgcolor: '#d93025', color: '#fff', p: 1.5, borderRadius: '10px' }}>
                       <Typography sx={{ fontSize: '15px' }}>Failed to send</Typography>
                     </Box>
                   ) : (
                     <>
                       {msg.messageType === 'Text' ? (
-                        <Typography
-                          sx={{
-                            bgcolor: msg.direction === 'Outbound' ? '#0084ff' : '#e9ecef',
-                            color: msg.direction === 'Outbound' ? '#fff' : '#050505',
-                            p: 1.5,
-                            borderRadius: '10px',
-                            wordBreak: 'break-word',
-                            fontSize: '15px',
-                            position: 'relative',
-                            zIndex: 1,
-                          }}
-                        >
+                        <Typography sx={{ bgcolor: msg.direction === 'Outbound' ? '#0084ff' : '#e9ecef', color: msg.direction === 'Outbound' ? '#fff' : '#050505', p: 1.5, borderRadius: '10px', fontSize: '15px', minWidth: 100 }}>
                           {msg.text}
                         </Typography>
                       ) : msg.messageType === 'Image' && msg.urls ? (
-                        <Box
-                          sx={{
-                            p: 0.5,
-                            bgcolor: msg.direction === 'Outbound' ? '#0084ff' : '#e9ecef',
-                            borderRadius: '10px',
-                            display: 'flex',
-                            flexWrap: 'wrap',
-                            gap: 1,
-                          }}
-                        >
+                        <Box sx={{ p: 0.5, bgcolor: msg.direction === 'Outbound' ? '#0084ff' : '#e9ecef', borderRadius: '10px', display: 'flex', flexWrap: 'wrap', gap: 1 }}>
                           {msg.urls.map((url, index) => (
-                            <Box
-                              key={index}
-                              sx={{ cursor: 'pointer' }}
-                              onClick={() => handleOpenModal('Image', url)}
-                            >
+                            <Box key={index} sx={{ cursor: 'pointer' }} onClick={() => handleOpenModal('Image', url)}>
                               <img src={url} alt={`Sent image ${index}`} style={{ maxWidth: '100px', borderRadius: '8px' }} />
                             </Box>
                           ))}
                         </Box>
                       ) : msg.messageType === 'Video' && msg.urls ? (
-                        <Box
-                          sx={{
-                            p: 0.5,
-                            bgcolor: msg.direction === 'Outbound' ? '#0084ff' : '#e9ecef',
-                            borderRadius: '10px',
-                            cursor: 'pointer',
-                          }}
-                          onClick={() => handleOpenModal('Video', msg.urls[0])}
-                        >
+                        <Box sx={{ p: 0.5, bgcolor: msg.direction === 'Outbound' ? '#0084ff' : '#e9ecef', borderRadius: '10px' }} onClick={() => handleOpenModal('Video', msg.urls[0])}>
                           <video src={msg.urls[0]} style={{ maxWidth: '200px', borderRadius: '8px' }} controls />
                         </Box>
                       ) : msg.messageType === 'Document' && msg.urls ? (
-                        <Typography
-                          sx={{
-                            bgcolor: msg.direction === 'Outbound' ? '#0084ff' : '#e9ecef',
-                            color: msg.direction === 'Outbound' ? '#fff' : '#050505',
-                            p: 1.5,
-                            borderRadius: '10px',
-                            fontSize: '15px',
-                            position: 'relative',
-                            zIndex: 1,
-                          }}
-                        >
-                          <a href={msg.urls[0]} target="_blank" rel="noopener noreferrer" style={{ color: 'inherit' }}>
-                            Document
-                          </a>
+                        <Typography sx={{ bgcolor: msg.direction === 'Outbound' ? '#0084ff' : '#e9ecef', color: msg.direction === 'Outbound' ? '#fff' : '#050505', p: 1.5, borderRadius: '10px', fontSize: '15px' }}>
+                          <a href={msg.urls[0]} target="_blank" rel="noopener noreferrer" style={{ color: 'inherit' }}>Document</a>
                         </Typography>
+                      ) : msg.messageType === 'Audio' && msg.urls ? (
+                        <Box sx={{ bgcolor: msg.direction === 'Outbound' ? '#0084ff' : '#e9ecef', p: 1.5, borderRadius: '10px' }}>
+                          <audio src={msg.urls[0]} controls style={{ maxWidth: '200px' }} />
+                        </Box>
                       ) : null}
                     </>
                   )}
-                  {/* Always show timestamp */}
                   <Typography
                     sx={{
                       position: 'absolute',
@@ -717,46 +693,17 @@ const MessengerPage = () => {
                       right: msg.direction === 'Outbound' && msg.status !== 'sending' && msg.status !== 'failed' ? '40px' : '0',
                       fontSize: '12px',
                       color: '#65676b',
-                      zIndex: 0,
                     }}
                   >
-                    {msg.timestamp
-                      ? new Date(msg.timestamp).toLocaleTimeString('en-US', { hour: 'numeric', minute: 'numeric', hour12: true })
-                      : 'Time unavailable'}
+                    {msg.timestamp ? new Date(msg.timestamp).toLocaleTimeString('en-US', { hour: 'numeric', minute: 'numeric', hour12: true }) : 'Time unavailable'}
                   </Typography>
-                  {/* Status icons for outbound messages */}
                   {msg.direction === 'Outbound' && msg.status !== 'sending' && msg.status !== 'failed' && (
-                    <Typography
-                      sx={{
-                        position: 'absolute',
-                        bottom: '-16px',
-                        right: '0',
-                        fontSize: '12px',
-                        color: '#65676b',
-                        zIndex: 0,
-                      }}
-                    >
-                      {msg.status === 'Read' ? (
-                        <DoneAll sx={{ fontSize: '16px', color: '#0084ff' }} />
-                      ) : msg.status === 'Delivered' ? (
-                        <DoneAll sx={{ fontSize: '16px', color: '#65676b' }} />
-                      ) : (
-                        <Check sx={{ fontSize: '16px', color: '#65676b' }} />
-                      )}
+                    <Typography sx={{ position: 'absolute', bottom: '-16px', right: '0', fontSize: '12px', color: '#65676b' }}>
+                      {msg.status === 'Read' ? <DoneAll sx={{ fontSize: '16px', color: '#0084ff' }} /> : msg.status === 'Delivered' ? <DoneAll sx={{ fontSize: '16px', color: '#65676b' }} /> : <Check sx={{ fontSize: '16px', color: '#65676b' }} />}
                     </Typography>
                   )}
                   {(msg.status === 'Sent' || msg.status === 'Delivered' || msg.status === 'Read' || !msg.status) && (
-                    <IconButton
-                      onClick={(e) => handleOpenMessageMenu(e, msg.id || msg.tempId)}
-                      sx={{
-                        position: 'absolute',
-                        top: '-18px',
-                        right: '-18px',
-                        color: '#65676b',
-                        '&:hover': { color: '#1877f2' },
-                        zIndex: 2,
-                      }}
-                    >
+                    <IconButton onClick={(e) => handleOpenMessageMenu(e, msg.id || msg.tempId)} sx={{ position: 'absolute', top: '-18px', right: '-18px', color: '#65676b', '&:hover': { color: '#1877f2' } }}>
                       <ArrowDropDown />
                     </IconButton>
                   )}
@@ -766,17 +713,13 @@ const MessengerPage = () => {
                 anchorEl={anchorElMessage}
                 open={Boolean(anchorElMessage) && selectedMessageId === (msg.id || msg.tempId)}
                 onClose={handleCloseMessageMenu}
-                anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
-                transformOrigin={{ vertical: 'top', horizontal: 'right' }}
               >
                 {msg.direction === 'Outbound' && <MenuItem onClick={() => deleteMessage(msg.id)}>Delete</MenuItem>}
                 {msg.direction === 'Inbound' && <MenuItem onClick={() => handleReply(msg)}>Reply</MenuItem>}
-                {(msg.messageType === 'Document' || msg.messageType === 'Video') && msg.urls && (
+                {(msg.messageType === 'Document' || msg.messageType === 'Video' || msg.messageType === 'Audio') && msg.urls && (
                   <MenuItem onClick={() => handleDownload(msg.urls[0])}>Download</MenuItem>
                 )}
-                {msg.messageType === 'Text' && msg.text && (
-                  <MenuItem onClick={() => handleCopy(msg.text)}>Copy</MenuItem>
-                )}
+                {msg.messageType === 'Text' && msg.text && <MenuItem onClick={() => handleCopy(msg.text)}>Copy</MenuItem>}
               </Menu>
             </Box>
           ))}
@@ -817,6 +760,8 @@ const MessengerPage = () => {
                   <img src={preview.url} alt="Preview" style={{ maxWidth: '80px', borderRadius: '8px', mr: 1 }} />
                 ) : preview.type === 'Video' ? (
                   <video src={preview.url} style={{ maxWidth: '80px', borderRadius: '8px', mr: 1 }} controls />
+                ) : preview.type === 'Audio' ? (
+                  <audio src={preview.url} controls style={{ maxWidth: '200px', mr: 1 }} />
                 ) : (
                   <Typography sx={{ mr: 1, color: '#050505' }}>{preview.name}</Typography>
                 )}
@@ -839,10 +784,25 @@ const MessengerPage = () => {
           </Box>
         )}
 
+        {isRecording && (
+          <Box sx={{ p: 1, bgcolor: '#fff', borderTop: '1px solid #e5e5e5', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <Typography sx={{ color: '#d93025', fontSize: '14px', fontWeight: 500 }}>
+              Recording: {formatRecordingTime(recordingTime)}
+            </Typography>
+          </Box>
+        )}
+
         <Box sx={{ p: 2, bgcolor: '#fff', borderTop: '1px solid #e5e5e5', display: 'flex', alignItems: 'center' }}>
           <IconButton component="label" sx={{ color: '#65676b', '&:hover': { color: '#1877f2' } }}>
             <AttachFile />
             <input type="file" hidden multiple accept="image/*,video/*,application/pdf" onChange={handleFileChange} />
+          </IconButton>
+          <IconButton
+            onClick={isRecording ? stopRecording : startRecording}
+            disabled={!selectedConversationId || selectedConversation?.blocked}
+            sx={{ color: isRecording ? '#d93025' : '#65676b', '&:hover': { color: isRecording ? '#ff4444' : '#1877f2' } }}
+          >
+            <Mic />
           </IconButton>
           <TextField
             value={newMessage}
@@ -851,7 +811,7 @@ const MessengerPage = () => {
             placeholder="Aa"
             fullWidth
             variant="outlined"
-            disabled={!selectedConversationId || files.length > 0 || selectedConversation?.blocked}
+            disabled={!selectedConversationId || files.length > 0 || selectedConversation?.blocked || isRecording}
             sx={{
               mr: 1,
               '& .MuiOutlinedInput-root': {
@@ -866,21 +826,15 @@ const MessengerPage = () => {
           />
           <IconButton
             onClick={() => setShowEmojiPicker((prev) => !prev)}
-            disabled={!selectedConversationId || files.length > 0 || selectedConversation?.blocked}
+            disabled={!selectedConversationId || files.length > 0 || selectedConversation?.blocked || isRecording}
             sx={{ color: '#65676b', '&:hover': { color: '#1877f2' } }}
           >
             <SentimentSatisfiedAlt />
           </IconButton>
           <Button
             onClick={sendMessage}
-            disabled={!selectedConversationId || (!newMessage.trim() && files.length === 0) || selectedConversation?.blocked}
-            sx={{
-              minWidth: 0,
-              p: 1,
-              color: '#0084ff',
-              '&:hover': { bgcolor: 'transparent', color: '#1877f2' },
-              '&:disabled': { color: '#b0b3b8' },
-            }}
+            disabled={!selectedConversationId || (!newMessage.trim() && files.length === 0 && !audioBlob) || selectedConversation?.blocked}
+            sx={{ minWidth: 0, p: 1, color: '#0084ff', '&:hover': { bgcolor: 'transparent', color: '#1877f2' }, '&:disabled': { color: '#b0b3b8' } }}
           >
             <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
               <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />
