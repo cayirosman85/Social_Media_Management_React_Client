@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { Typography, TextField, Button, Box, List, ListItem, ListItemText, IconButton, Menu, MenuItem, Modal, Avatar, CircularProgress } from '@mui/material';
-import { Check, DoneAll, AttachFile, SentimentSatisfiedAlt, ArrowDropDown, Close, Mic } from '@mui/icons-material';
+import { Typography, TextField, Button, Box, List, ListItem, ListItemText, IconButton, Menu, MenuItem, Modal, Avatar, CircularProgress, Tabs, Tab, InputBase } from '@mui/material';
+import { Check, DoneAll, AttachFile, SentimentSatisfiedAlt, ArrowDropDown, Close, Mic, Image, InsertDriveFile, Link, Search, Notifications } from '@mui/icons-material';
 import * as signalR from '@microsoft/signalr';
 import { useNavigate } from 'react-router-dom';
 import localStorage from 'local-storage';
@@ -28,12 +28,20 @@ const MessengerPage = () => {
   const [replyingTo, setReplyingTo] = useState(null);
   const [isRecording, setIsRecording] = useState(false);
   const [audioBlob, setAudioBlob] = useState(null);
-  const [recordingTime, setRecordingTime] = useState(0); // New state for recording time
+  const [recordingTime, setRecordingTime] = useState(0);
+  const [showSidebar, setShowSidebar] = useState(false);
+  const [activeTab, setActiveTab] = useState(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState([]);
+  const [mediaItems, setMediaItems] = useState([]);
+  const [fileItems, setFileItems] = useState([]);
+  const [linkItems, setLinkItems] = useState([]);
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
-  const timerRef = useRef(null); // Ref to store the timer interval
+  const timerRef = useRef(null);
   const messagesEndRef = useRef(null);
   const messagesContainerRef = useRef(null);
+  const messageRefs = useRef({});
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -45,13 +53,14 @@ const MessengerPage = () => {
     }
   }, [navigate]);
 
-  const fetchMessages = async (pageToFetch = 1, append = false) => {
+  const fetchMessages = async (pageToFetch = 1, append = false, targetMessageId = null) => {
     if (!selectedConversationId) return;
     try {
-      const response = await fetch(
-        `https://localhost:7099/api/messenger/conversation-messages/${selectedConversationId}?page=${pageToFetch}&pageSize=5`,
-        { credentials: 'include' }
-      );
+      let url = `https://localhost:7099/api/messenger/conversation-messages/${selectedConversationId}?page=${pageToFetch}&pageSize=5`;
+      if (targetMessageId) {
+        url += `&targetMessageId=${targetMessageId}`;
+      }
+      const response = await fetch(url, { credentials: 'include' });
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(`HTTP error! Status: ${response.status}, Message: ${errorData.Error || 'Unknown error'}`);
@@ -81,7 +90,18 @@ const MessengerPage = () => {
         setMessages((prev) => [...fetchedMessages, ...prev]);
       } else {
         setMessages(fetchedMessages);
-        setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
+        setTimeout(() => {
+          if (targetMessageId) {
+            const targetMessageRef = messageRefs.current[targetMessageId];
+            if (targetMessageRef) {
+              targetMessageRef.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            } else {
+              messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+            }
+          } else {
+            messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+          }
+        }, 100);
       }
 
       setShowLoadMore(pageToFetch * 5 < data.totalMessages);
@@ -171,6 +191,25 @@ const MessengerPage = () => {
     fetchMessages(1);
   }, [selectedConversationId]);
 
+  useEffect(() => {
+    if (!selectedConversationId || !showSidebar || !activeTab) return;
+
+    const fetchSidebarData = async () => {
+      try {
+        const media = await fetchMediaFilesLinks('media');
+        const files = await fetchMediaFilesLinks('files');
+        const links = await fetchMediaFilesLinks('links');
+        setMediaItems(media);
+        setFileItems(files);
+        setLinkItems(links);
+      } catch (error) {
+        setError('Failed to load sidebar data: ' + error.message);
+      }
+    };
+
+    fetchSidebarData();
+  }, [selectedConversationId, showSidebar, activeTab]);
+
   const handleScroll = () => {
     if (messagesContainerRef.current) {
       const { scrollTop } = messagesContainerRef.current;
@@ -236,7 +275,7 @@ const MessengerPage = () => {
     });
     setFiles(updatedFiles);
     setFilePreviews(updatedPreviews);
-    setAudioBlob(null); // Clear audio blob if removed
+    setAudioBlob(null);
   };
 
   const onEmojiClick = (emojiObject) => {
@@ -252,7 +291,10 @@ const MessengerPage = () => {
   const startRecording = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mediaRecorder = new MediaRecorder(stream);
+      const supportedMimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus' : 'audio/webm';
+      console.log(`Using MIME type for recording: ${supportedMimeType}`);
+
+      const mediaRecorder = new MediaRecorder(stream, { mimeType: supportedMimeType });
       mediaRecorderRef.current = mediaRecorder;
       audioChunksRef.current = [];
 
@@ -261,19 +303,26 @@ const MessengerPage = () => {
       };
 
       mediaRecorder.onstop = () => {
-        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/mp3' });
-        setAudioBlob(audioBlob);
-        setFiles([audioBlob]);
-        setFilePreviews([{ type: 'Audio', url: URL.createObjectURL(audioBlob), name: 'Audio recording.mp3' }]);
+        const audioBlob = new Blob(audioChunksRef.current, { type: supportedMimeType });
+        if (audioBlob.size > 25 * 1024 * 1024) {
+          setError('Audio exceeds 25 MB limit.');
+          setAudioBlob(null);
+          setFiles([]);
+          setFilePreviews([]);
+        } else {
+          setAudioBlob(audioBlob);
+          const fileName = supportedMimeType.includes('webm') ? 'recording.webm' : 'recording.mp3';
+          setFiles([new File([audioBlob], fileName, { type: supportedMimeType })]);
+          setFilePreviews([{ type: 'Audio', url: URL.createObjectURL(audioBlob), name: fileName }]);
+        }
         stream.getTracks().forEach(track => track.stop());
-        clearInterval(timerRef.current); // Clear the timer when recording stops
-        setRecordingTime(0); // Reset recording time
+        clearInterval(timerRef.current);
+        setRecordingTime(0);
       };
 
       mediaRecorder.start();
       setIsRecording(true);
 
-      // Start the recording timer
       setRecordingTime(0);
       timerRef.current = setInterval(() => {
         setRecordingTime((prev) => prev + 1);
@@ -302,7 +351,7 @@ const MessengerPage = () => {
 
     const tempId = Date.now().toString() + Math.random().toString(36).substr(2, 9);
     const isImage = files.length > 0 && files.every(file => file.type.startsWith('image/'));
-    const isAudio = files.length > 0 && files[0].type === 'audio/mp3';
+    const isAudio = files.length > 0 && files[0].type.includes('audio');
     const messageType = files.length > 0 
       ? (isImage ? 'Image' : isAudio ? 'Audio' : files[0].type.startsWith('video/') ? 'Video' : 'Document') 
       : 'Text';
@@ -531,11 +580,114 @@ const MessengerPage = () => {
     }
   };
 
-  // Format recording time as MM:SS
   const formatRecordingTime = (seconds) => {
     const minutes = Math.floor(seconds / 60);
     const secs = seconds % 60;
     return `${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  const handleOpenSidebar = () => {
+    setShowSidebar(true);
+  };
+
+  const handleCloseSidebar = () => {
+    setShowSidebar(false);
+    setActiveTab(null);
+    setSearchQuery('');
+    setSearchResults([]);
+  };
+
+  const handleSidebarOption = (option) => {
+    if (option === 'viewMedia') {
+      setActiveTab('media');
+    } else if (option === 'search') {
+      setActiveTab('search');
+    } else if (option === 'notifications') {
+      setActiveTab('notifications');
+    }
+  };
+
+  const handleTabChange = (event, newValue) => {
+    setActiveTab(newValue);
+  };
+
+  const handleSearch = async () => {
+    if (!searchQuery.trim() || !selectedConversationId) return;
+    try {
+      const response = await fetch(
+        `https://localhost:7099/api/messenger/search-messages/${selectedConversationId}?query=${encodeURIComponent(searchQuery)}`,
+        { credentials: 'include' }
+      );
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(`HTTP error! Status: ${response.status}, Message: ${errorData.Error || 'Unknown error'}`);
+      }
+      const data = await response.json();
+      const results = data.messages.map(msg => {
+        let urls = null;
+        if (msg.url) {
+          if (msg.messageType === 'Image') {
+            try {
+              urls = JSON.parse(msg.url);
+              if (!Array.isArray(urls)) urls = [urls];
+            } catch (e) {
+              urls = [msg.url];
+            }
+          } else {
+            urls = [msg.url];
+          }
+        }
+        return { ...msg, urls };
+      });
+      setSearchResults(results);
+    } catch (error) {
+      setError('Failed to search messages: ' + error.message);
+    }
+  };
+
+  const fetchMediaFilesLinks = async (type) => {
+    if (!selectedConversationId) return [];
+    try {
+      const response = await fetch(
+        `https://localhost:7099/api/messenger/conversation-messages/${selectedConversationId}?page=1&pageSize=1000`,
+        { credentials: 'include' }
+      );
+      if (!response.ok) throw new Error('Failed to fetch messages');
+      const data = await response.json();
+      return data.messages.filter(msg => {
+        if (type === 'media') return ['Image', 'Video', 'Audio'].includes(msg.messageType);
+        if (type === 'files') return msg.messageType === 'Document';
+        if (type === 'links') return msg.messageType === 'Text' && msg.text.includes('http');
+        return false;
+      }).map(msg => {
+        let urls = null;
+        if (msg.url) {
+          if (msg.messageType === 'Image') {
+            try {
+              urls = JSON.parse(msg.url);
+              if (!Array.isArray(urls)) urls = [urls];
+            } catch (e) {
+              urls = [msg.url];
+            }
+          } else {
+            urls = [msg.url];
+          }
+        }
+        return { ...msg, urls };
+      });
+    } catch (error) {
+      setError('Failed to load media/files/links: ' + error.message);
+      return [];
+    }
+  };
+
+  const handleSearchResultClick = (messageId) => {
+    setPage(1);
+    fetchMessages(1, false, messageId);
+    setShowSidebar(false);
+    setActiveTab(null);
+    setSearchQuery('');
+    setSearchResults([]);
   };
 
   const selectedConversation = conversations.find((c) => c.id === selectedConversationId);
@@ -590,8 +742,17 @@ const MessengerPage = () => {
         </List>
       </Box>
 
-      <Box sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column', bgcolor: '#fff' }}>
-        <Box sx={{ p: 2, borderBottom: '1px solid #e5e5e5', display: 'flex', alignItems: 'center' }}>
+      <Box sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column', bgcolor: '#fff', position: 'relative' }}>
+        <Box
+          sx={{
+            p: 2,
+            borderBottom: '1px solid #e5e5e5',
+            display: 'flex',
+            alignItems: 'center',
+            cursor: 'pointer',
+          }}
+          onClick={handleOpenSidebar}
+        >
           <Avatar sx={{ mr: 2, bgcolor: selectedConversation?.blocked ? '#ff4444' : '#ddd' }}>
             {userName[0]}
           </Avatar>
@@ -631,6 +792,7 @@ const MessengerPage = () => {
           {messages.map((msg, idx) => (
             <Box
               key={msg.id || msg.tempId || idx}
+              ref={(el) => (messageRefs.current[msg.id] = el)}
               sx={{
                 display: 'flex',
                 justifyContent: msg.direction === 'Outbound' ? 'flex-end' : 'flex-start',
@@ -725,6 +887,271 @@ const MessengerPage = () => {
           ))}
           <div ref={messagesEndRef} />
         </Box>
+
+        {showSidebar && (
+          <Box
+            sx={{
+              position: 'absolute',
+              top: 0,
+              right: 0,
+              width: '300px',
+              height: '100%',
+              bgcolor: '#fff',
+              borderLeft: '1px solid #e5e5e5',
+              p: 2,
+              overflowY: 'auto',
+              zIndex: 1000,
+            }}
+          >
+            <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+              <IconButton onClick={handleCloseSidebar} sx={{ mr: 1 }}>
+                <Close />
+              </IconButton>
+              <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                {userName}
+              </Typography>
+            </Box>
+            {!activeTab ? (
+              <List>
+                <ListItem button onClick={() => handleSidebarOption('viewMedia')}>
+                  <Image sx={{ mr: 2, color: '#65676b' }} />
+                  <ListItemText primary="View media, files and links" />
+                </ListItem>
+                <ListItem button onClick={() => handleSidebarOption('search')}>
+                  <Search sx={{ mr: 2, color: '#65676b' }} />
+                  <ListItemText primary="Search in conversation" />
+                </ListItem>
+                <ListItem button onClick={() => handleSidebarOption('notifications')}>
+                  <Notifications sx={{ mr: 2, color: '#65676b' }} />
+                  <ListItemText primary="Notifications & sounds" />
+                </ListItem>
+              </List>
+            ) : activeTab === 'media' || activeTab === 'files' || activeTab === 'links' ? (
+              <>
+                <Tabs value={activeTab} onChange={handleTabChange} sx={{ mb: 2, borderBottom: '1px solid #e5e5e5' }}>
+                  <Tab label="Media" value="media" sx={{ textTransform: 'none', fontWeight: 500 }} />
+                  <Tab label="Files" value="files" sx={{ textTransform: 'none', fontWeight: 500 }} />
+                  <Tab label="Links" value="links" sx={{ textTransform: 'none', fontWeight: 500 }} />
+                </Tabs>
+                {activeTab === 'media' && (
+                  <Box sx={{ maxHeight: '70vh', overflowY: 'auto' }}>
+                    {mediaItems.length > 0 ? (
+                      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                        {mediaItems.map((item, idx) => (
+                          <Box
+                            key={idx}
+                            sx={{
+                              width: '120px',
+                              bgcolor: '#f5f5f5',
+                              borderRadius: '8px',
+                              p: 1,
+                              '&:hover': { bgcolor: '#e5efff', cursor: 'pointer' },
+                            }}
+                          >
+                            {item.messageType === 'Image' && item.urls ? (
+                              item.urls.map((url, i) => (
+                                <img
+                                  key={i}
+                                  src={url}
+                                  alt={`Media ${i}`}
+                                  style={{ width: '100%', height: '80px', objectFit: 'cover', borderRadius: '6px' }}
+                                  onClick={() => handleOpenModal('Image', url)}
+                                />
+                              ))
+                            ) : item.messageType === 'Video' && item.urls ? (
+                              <video
+                                src={item.urls[0]}
+                                controls
+                                style={{ width: '100%', height: '80px', borderRadius: '6px' }}
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  handleOpenModal('Video', item.urls[0]);
+                                }}
+                              />
+                            ) : item.messageType === 'Audio' && item.urls ? (
+                              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                <audio src={item.urls[0]} controls style={{ width: '100%' }} />
+                              </Box>
+                            ) : null}
+                            <Typography sx={{ fontSize: '12px', color: '#65676b', mt: 0.5 }}>
+                              {new Date(item.timestamp).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: 'numeric', hour12: true })}
+                            </Typography>
+                          </Box>
+                        ))}
+                      </Box>
+                    ) : (
+                      <Typography sx={{ color: '#65676b', textAlign: 'center', py: 2 }}>No media found.</Typography>
+                    )}
+                  </Box>
+                )}
+                {activeTab === 'files' && (
+                  <Box sx={{ maxHeight: '70vh', overflowY: 'auto' }}>
+                    {fileItems.length > 0 ? (
+                      fileItems.map((item, idx) => (
+                        <Box
+                          key={idx}
+                          sx={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            p: 1,
+                            borderBottom: '1px solid #e5e5e5',
+                            '&:hover': { bgcolor: '#f5f5f5' },
+                          }}
+                        >
+                          <InsertDriveFile sx={{ color: '#1877f2', mr: 1 }} />
+                          <Box sx={{ flexGrow: 1 }}>
+                            <Typography
+                              component="a"
+                              href={item.urls[0]}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              sx={{ fontSize: '14px', color: '#1877f2', textDecoration: 'none', '&:hover': { textDecoration: 'underline' } }}
+                            >
+                              {item.urls[0].split('/').pop() || 'Unnamed File'}
+                            </Typography>
+                            <Typography sx={{ fontSize: '12px', color: '#65676b' }}>
+                              {new Date(item.timestamp).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: 'numeric', hour12: true })}
+                            </Typography>
+                          </Box>
+                        </Box>
+                      ))
+                    ) : (
+                      <Typography sx={{ color: '#65676b', textAlign: 'center', py: 2 }}>No files found.</Typography>
+                    )}
+                  </Box>
+                )}
+                {activeTab === 'links' && (
+                  <Box sx={{ maxHeight: '70vh', overflowY: 'auto' }}>
+                    {linkItems.length > 0 ? (
+                      linkItems.map((item, idx) => (
+                        <Box
+                          key={idx}
+                          sx={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            p: 1,
+                            borderBottom: '1px solid #e5e5e5',
+                            '&:hover': { bgcolor: '#f5f5f5' },
+                          }}
+                        >
+                          <Link sx={{ color: '#1877f2', mr: 1 }} />
+                          <Box sx={{ flexGrow: 1 }}>
+                            <Typography
+                              component="a"
+                              href={item.text}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              sx={{ fontSize: '14px', color: '#1877f2', textDecoration: 'none', '&:hover': { textDecoration: 'underline' }, wordBreak: 'break-all' }}
+                            >
+                              {item.text.length > 30 ? `${item.text.substring(0, 27)}...` : item.text}
+                            </Typography>
+                            <Typography sx={{ fontSize: '12px', color: '#65676b' }}>
+                              {new Date(item.timestamp).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: 'numeric', hour12: true })}
+                            </Typography>
+                          </Box>
+                        </Box>
+                      ))
+                    ) : (
+                      <Typography sx={{ color: '#65676b', textAlign: 'center', py: 2 }}>No links found.</Typography>
+                    )}
+                  </Box>
+                )}
+              </>
+            ) : activeTab === 'search' ? (
+              <Box>
+                <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+                  <InputBase
+                    placeholder="Search in conversation..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
+                    sx={{ flexGrow: 1, bgcolor: '#f0f2f5', p: 1, borderRadius: '20px' }}
+                  />
+                  <IconButton onClick={handleSearch}>
+                    <Search />
+                  </IconButton>
+                </Box>
+                {searchResults.length > 0 ? (
+                  searchResults.map((msg, idx) => (
+                    <Box
+                      key={idx}
+                      onClick={() => handleSearchResultClick(msg.id)}
+                      sx={{
+                        mb: 2,
+                        p: 1,
+                        bgcolor: '#e9ecef',
+                        borderRadius: '8px',
+                        cursor: 'pointer',
+                        '&:hover': { bgcolor: '#d5d8dc' },
+                      }}
+                    >
+                      {msg.messageType === 'Text' ? (
+                        <Typography sx={{ fontSize: '15px', color: '#050505' }}>{msg.text}</Typography>
+                      ) : msg.messageType === 'Image' && msg.urls ? (
+                        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                          {msg.urls.map((url, i) => (
+                            <img
+                              key={i}
+                              src={url}
+                              alt={`Search result image ${i}`}
+                              style={{ maxWidth: '80px', borderRadius: '8px', cursor: 'pointer' }}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleOpenModal('Image', url);
+                              }}
+                            />
+                          ))}
+                        </Box>
+                      ) : msg.messageType === 'Video' && msg.urls ? (
+                        <video
+                          src={msg.urls[0]}
+                          controls
+                          style={{ maxWidth: '120px', borderRadius: '8px' }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleOpenModal('Video', msg.urls[0]);
+                          }}
+                        />
+                      ) : msg.messageType === 'Audio' && msg.urls ? (
+                        <audio src={msg.urls[0]} controls style={{ maxWidth: '200px' }} />
+                      ) : msg.messageType === 'Document' && msg.urls ? (
+                        <Typography sx={{ fontSize: '15px', color: '#050505' }}>
+                          <a
+                            href={msg.urls[0]}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style={{ color: '#1877f2' }}
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            {msg.urls[0].split('/').pop() || 'Document'}
+                          </a>
+                        </Typography>
+                      ) : (
+                        <Typography sx={{ fontSize: '15px', color: '#65676b' }}>Unsupported message type</Typography>
+                      )}
+                      <Typography sx={{ fontSize: '12px', color: '#65676b', mt: 1 }}>
+                        {new Date(msg.timestamp).toLocaleString('en-US', {
+                          year: 'numeric',
+                          month: 'short',
+                          day: 'numeric',
+                          hour: 'numeric',
+                          minute: 'numeric',
+                          hour12: true,
+                        })}
+                      </Typography>
+                    </Box>
+                  ))
+                ) : (
+                  <Typography>No results found.</Typography>
+                )}
+              </Box>
+            ) : activeTab === 'notifications' ? (
+              <Box>
+                <Typography>Notifications & Sounds settings will go here.</Typography>
+              </Box>
+            ) : null}
+          </Box>
+        )}
 
         <Modal open={openModal} onClose={handleCloseModal}>
           <Box
