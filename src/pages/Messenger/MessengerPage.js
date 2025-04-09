@@ -99,6 +99,10 @@ const MessengerPage = () => {
   const [userId, setUserId] = useState(localStorage.get('messengerUserId') || null);
   const [humanAgentModalOpen, setHumanAgentModalOpen] = useState(false);
   const [humanAgentMessage, setHumanAgentMessage] = useState('');
+  const [confirmModalOpen, setConfirmModalOpen] = useState(false); 
+  const [confirmAction, setConfirmAction] = useState(null); 
+  const [confirmMessage, setConfirmMessage] = useState(''); 
+
   useEffect(() => {
     const loadFFmpeg = async () => {
       const ffmpeg = ffmpegRef.current;
@@ -1048,26 +1052,24 @@ const stopRecording = () => {
 };
 
 const deleteMessage = async (messageId) => {
-  if (
-    !window.confirm(
-      'Warning: This message will be deleted from this project only, not from the real Messenger. Are you sure?'
-    )
-  ) {
+  setConfirmMessage(
+    'Warning: This message will be deleted from this project only, not from the real Messenger. Are you sure?'
+  );
+  setConfirmAction(() => async () => {
+    try {
+      const response = await fetch(`https://localhost:7099/api/messenger/delete-message/${messageId}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+      if (!response.ok) throw new Error('Failed to delete message');
+      setMessages((prev) => prev.filter((msg) => msg.id !== messageId));
+    } catch (error) {
+      setError('Failed to delete message: ' + error.message);
+      setErrorModalOpen(true);
+    }
     handleCloseMessageMenu();
-    return;
-  }
-  try {
-    const response = await fetch(`https://localhost:7099/api/messenger/delete-message/${messageId}`, {
-      method: 'DELETE',
-      credentials: 'include',
-    });
-    if (!response.ok) throw new Error('Failed to delete message');
-    setMessages((prev) => prev.filter((msg) => msg.id !== messageId));
-  } catch (error) {
-    setError('Failed to delete message: ' + error.message);
-    setErrorModalOpen(true);
-  }
-  handleCloseMessageMenu();
+  });
+  setConfirmModalOpen(true);
 };
 
 const handleDownload = (url) => {
@@ -1092,31 +1094,47 @@ const handleCopy = (text) => {
 };
 
 const deleteConversation = async (conversationId) => {
-  if (
-    !window.confirm(
-      'Warning: This conversation will be deleted from this project only, not from the real Messenger. Are you sure?'
-    )
-  ) {
-    handleCloseConversationMenu();
-    return;
-  }
-  try {
-    const response = await fetch(`https://localhost:7099/api/messenger/delete-conversation/${conversationId}`, {
-      method: 'DELETE',
-      credentials: 'include',
-    });
-    if (!response.ok) throw new Error('Failed to delete conversation');
-    setConversations((prev) => prev.filter((conv) => conv.id !== conversationId));
-    if (selectedConversationId === conversationId) {
-      setSelectedConversationId(null);
-      setMessages([]);
+  setConfirmMessage(
+    'Warning: This conversation will be deleted from this project only, not from the real Messenger. Are you sure?'
+  );
+  setConfirmAction(() => async () => {
+    try {
+      const response = await fetch(`https://localhost:7099/api/messenger/delete-conversation/${conversationId}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+      if (!response.ok) throw new Error('Failed to delete conversation');
+      setConversations((prev) => prev.filter((conv) => conv.id !== conversationId));
+      if (selectedConversationId === conversationId) {
+        setSelectedConversationId(null);
+        setMessages([]);
+      }
+    } catch (error) {
+      setError('Failed to delete conversation: ' + error.message);
+      setErrorModalOpen(true);
     }
-  } catch (error) {
-    setError('Failed to delete conversation: ' + error.message);
-    setErrorModalOpen(true);
-  }
-  handleCloseConversationMenu();
+    handleCloseConversationMenu();
+  });
+  setConfirmModalOpen(true);
 };
+
+const handleConfirm = async () => {
+  if (confirmAction) {
+    await confirmAction();
+  }
+  setConfirmModalOpen(false);
+  setConfirmAction(null);
+  setConfirmMessage('');
+};
+
+const handleCancelConfirm = () => {
+  setConfirmModalOpen(false);
+  setConfirmAction(null);
+  setConfirmMessage('');
+  handleCloseMessageMenu();
+  handleCloseConversationMenu(); 
+};
+
 
 const blockUser = async (conversationId) => {
   if (
@@ -2513,6 +2531,57 @@ return (
               }}
             >
               Request More OTN
+            </Button>
+          </Box>
+        </Box>
+      </Modal>
+      
+      {/* New Confirmation Modal */}
+      <Modal open={confirmModalOpen} onClose={handleCancelConfirm}>
+        <Box
+          sx={{
+            position: 'absolute',
+            top: '50%',
+            left: '50%',
+            transform_second_message: 'translate(-50%, -50%)',
+            width: 400,
+            bgcolor: '#fff',
+            borderRadius: '12px',
+            boxShadow: 24,
+            p: 3,
+            textAlign: 'center',
+          }}
+        >
+          <Typography variant="h6" sx={{ fontWeight: 600, color: '#d93025', mb: 2 }}>
+            Confirm Action
+          </Typography>
+          <Typography sx={{ fontSize: '15px', color: '#050505', mb: 3 }}>{confirmMessage}</Typography>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 2 }}>
+            <Button
+              onClick={handleCancelConfirm}
+              variant="outlined"
+              sx={{
+                borderColor: '#65676b',
+                color: '#65676b',
+                borderRadius: '8px',
+                textTransform: 'none',
+                '&:hover': { borderColor: '#1877f2', color: '#1877f2' },
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleConfirm}
+              variant="contained"
+              sx={{
+                bgcolor: '#d93025',
+                color: '#fff',
+                borderRadius: '8px',
+                textTransform: 'none',
+                '&:hover': { bgcolor: '#b71c1c' },
+              }}
+            >
+              Confirm
             </Button>
           </Box>
         </Box>
