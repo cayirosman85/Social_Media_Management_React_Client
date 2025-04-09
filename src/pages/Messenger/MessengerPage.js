@@ -102,6 +102,8 @@ const MessengerPage = () => {
   const [confirmModalOpen, setConfirmModalOpen] = useState(false); 
   const [confirmAction, setConfirmAction] = useState(null); 
   const [confirmMessage, setConfirmMessage] = useState(''); 
+  const [infoMessage, setInfoMessage] = useState(null);
+const [infoModalOpen, setInfoModalOpen] = useState(false);
 
   useEffect(() => {
     const loadFFmpeg = async () => {
@@ -621,86 +623,116 @@ const sendHumanAgentMessage = async () => {
 
   const sendMessage = async () => {
     if ((!newMessage.trim() && files.length === 0 && !audioBlob) || !connection || !selectedConversationId) return;
-  
     const selectedConversation = conversations.find((c) => c.id === selectedConversationId);
     if (!selectedConversation || selectedConversation.blocked) return;
   
     const sessionStatus = await checkSessionStatus();
+    console.log("sessionStatus:", sessionStatus);
     if (sessionStatus.isExpired && !useOtnForMessage) {
       setSessionExpiredModalOpen(true);
       return;
     }
   
     const tempId = Date.now().toString();
-    const messageType = audioBlob ? 'Audio' : files.length > 0 ? 'File' : 'Text';
-    let request = null;
+  
+    // Temporary messageType for UI
+    const uiMessageType = audioBlob ? 'Audio' : files.length > 0 ? 'File' : 'Text';
   
     setMessages((prev) => [
       ...prev,
       {
         id: null,
         tempId,
-        senderId: userId,
+        senderId: "576837692181131",
         conversationId: selectedConversationId,
         text: newMessage,
         urls: files.length > 0 ? filePreviews : null,
         audioUrl: audioBlob ? URL.createObjectURL(audioBlob) : null,
         timestamp: new Date().toISOString(),
         status: 'Sending',
-        type: messageType,
+        type: uiMessageType,
         replyToId: replyingTo?.id || null,
+        isHumanAgent: false,
       },
     ]);
-  
     scrollToBottom();
   
     const timeoutId = setTimeout(() => {
-      setMessages((prev) =>
-        prev.map((msg) => (msg.tempId === tempId ? { ...msg, status: 'failed' } : msg))
-      );
-      setError(`Sending ${messageType.toLowerCase()} timed out`);
+      setMessages((prev) => prev.map((msg) => (msg.tempId === tempId ? { ...msg, status: 'failed' } : msg)));
+      setError(`Sending timed out`);
       setErrorModalOpen(true);
     }, 10000);
   
+    // Declare messageType here with a default value
+    let messageType = 'Text'; // Default, will be overridden if files or audioBlob exist
+  
     try {
+      let request;
+  
       if (files.length > 0) {
         request = { conversationId: selectedConversationId, text: newMessage, urls: [] };
         for (const file of files) {
           const formData = new FormData();
-          formData.append('file', file);
-          const uploadResponse = await fetch('https://localhost:7099/api/messenger/upload', {
+          formData.append('files', file);
+          const uploadResponse = await fetch('https://localhost:7099/api/messenger/upload-file', {
             method: 'POST',
             body: formData,
             credentials: 'include',
           });
           if (!uploadResponse.ok) throw new Error('File upload failed');
           const uploadData = await uploadResponse.json();
-          request.urls.push(uploadData.url);
+          request.urls.push(uploadData.urls[0]); // Use urls[0] since backend returns a list
         }
+        const fileType = files[0].type;
+        messageType = fileType.startsWith('image/') ? 'Image' :
+                      fileType.startsWith('video/') ? 'Video' :
+                      fileType.includes('audio') ? 'Audio' :
+                      'Document';
+        request.senderId = userId;
+        request.recipientId = selectedConversation.senderId;
+        request.messageType = messageType;
+        request.tempId = tempId;
+        request.repliedId = replyingTo?.id || null;
       } else if (audioBlob) {
         const formData = new FormData();
-        formData.append('file', audioBlob, 'audio-message.wav');
-        const uploadResponse = await fetch('https://localhost:7099/api/messenger/upload', {
+        formData.append('files', audioBlob, 'audio-message.wav');
+        const uploadResponse = await fetch('https://localhost:7099/api/messenger/upload-file', {
           method: 'POST',
           body: formData,
           credentials: 'include',
         });
         if (!uploadResponse.ok) throw new Error('Audio upload failed');
         const uploadData = await uploadResponse.json();
-        request = { conversationId: selectedConversationId, text: newMessage, urls: [uploadData.url] };
+        messageType = 'Audio';
+        request = {
+          conversationId: selectedConversationId,
+          senderId: userId,
+          recipientId: selectedConversation.senderId,
+          text: newMessage,
+          urls: uploadData.urls,
+          messageType: messageType,
+          tempId: tempId,
+          repliedId: replyingTo?.id || null,
+        };
       } else {
-        request = { conversationId: selectedConversationId, text: newMessage };
+        messageType = 'Text';
+        request = {
+          conversationId: selectedConversationId,
+          senderId: userId,
+          recipientId: selectedConversation.senderId,
+          text: newMessage,
+          urls: null,
+          messageType: messageType,
+          tempId: tempId,
+          repliedId: replyingTo?.id || null,
+        };
       }
   
       const endpoint = useOtnForMessage
         ? 'https://localhost:7099/api/messenger/send-otn-message'
         : 'https://localhost:7099/api/messenger/send-message';
       const body = useOtnForMessage
-        ? JSON.stringify({
-            conversationId: selectedConversationId,
-            token: otnTokens[selectedConversationId], // Use the token from state
-            text: newMessage,
-          })
+        ? JSON.stringify({ conversationId: selectedConversationId, token: otnTokens[selectedConversationId], text: newMessage })
         : JSON.stringify(request);
   
       const response = await fetch(endpoint, {
@@ -716,9 +748,7 @@ const sendHumanAgentMessage = async () => {
       if (response.ok) {
         setMessages((prev) =>
           prev.map((msg) =>
-            msg.tempId === tempId
-              ? { ...msg, status: 'Sent', id: data.MessageId, mid: data.FacebookMessageId, urls: request?.urls }
-              : msg
+            msg.tempId === tempId ? { ...msg, status: 'Sent', id: data.MessageId, mid: data.FacebookMessageId, urls: request?.urls } : msg
           )
         );
         setNewMessage('');
@@ -727,17 +757,15 @@ const sendHumanAgentMessage = async () => {
         setAudioBlob(null);
         setReplyingTo(null);
         if (useOtnForMessage) {
-          setOtnTokens((prev) => ({ ...prev, [selectedConversationId]: null })); // Clear used OTN token
-          setUseOtnForMessage(false); // Reset OTN usage flag
+          setOtnTokens((prev) => ({ ...prev, [selectedConversationId]: null }));
+          setUseOtnForMessage(false);
         }
       } else {
         throw new Error(data.error || 'Unknown error');
       }
     } catch (error) {
       clearTimeout(timeoutId);
-      setMessages((prev) =>
-        prev.map((msg) => (msg.tempId === tempId ? { ...msg, status: 'failed' } : msg))
-      );
+      setMessages((prev) => prev.map((msg) => (msg.tempId === tempId ? { ...msg, status: 'failed' } : msg)));
       setError(`Failed to send ${messageType.toLowerCase()}: ${error.message}`);
       setErrorModalOpen(true);
     }
@@ -747,6 +775,7 @@ const sendHumanAgentMessage = async () => {
     setOtnConfirmationModalOpen(false);
     sendMessage();
   };
+
 const sendOkaySticker = async () => {
   if (!connection || !selectedConversationId) return;
   const selectedConversation = conversations.find((c) => c.id === selectedConversationId);
@@ -877,9 +906,10 @@ const requestOTN = async () => {
       return;
     }
 
-    setError('OTN request sent. Waiting for user approval...');
-    setErrorModalOpen(true);
-    setOpenOtnModal(false);
+// Change this from error to info
+setInfoMessage('OTN request sent. Waiting for user approval...');
+setInfoModalOpen(true);
+setOpenOtnModal(false);
   } catch (error) {
     console.error('Error requesting OTN:', error);
     setError('Failed to request OTN: ' + error.message);
@@ -1133,55 +1163,55 @@ const handleCancelConfirm = () => {
   setConfirmMessage('');
   handleCloseMessageMenu();
   handleCloseConversationMenu(); 
+  
 };
+
 
 
 const blockUser = async (conversationId) => {
-  if (
-    !window.confirm(
-      'Are you sure you want to block this user? They will no longer be able to message this Page.'
-    )
-  ) {
+  setConfirmMessage(
+    'Are you sure you want to block this user? They will no longer be able to message this Page.'
+  );
+  setConfirmAction(() => async () => {
+    try {
+      const response = await fetch(`https://localhost:7099/api/messenger/block-user/${conversationId}`, {
+        method: 'POST',
+        credentials: 'include',
+      });
+      if (!response.ok) throw new Error('Failed to block user');
+      setConversations((prev) =>
+        prev.map((conv) => (conv.id === conversationId ? { ...conv, blocked: true } : conv))
+      );
+    } catch (error) {
+      setError('Failed to block user: ' + error.message);
+      setErrorModalOpen(true);
+    }
     handleCloseConversationMenu();
-    return;
-  }
-  try {
-    const response = await fetch(`https://localhost:7099/api/messenger/block-user/${conversationId}`, {
-      method: 'POST',
-      credentials: 'include',
-    });
-    if (!response.ok) throw new Error('Failed to block user');
-    setConversations((prev) =>
-      prev.map((conv) => (conv.id === conversationId ? { ...conv, blocked: true } : conv))
-    );
-  } catch (error) {
-    setError('Failed to block user: ' + error.message);
-    setErrorModalOpen(true);
-  }
-  handleCloseConversationMenu();
+  });
+  setConfirmModalOpen(true);
 };
 
 const unblockUser = async (conversationId) => {
-  if (
-    !window.confirm('Are you sure you want to unblock this user? They will be able to message this Page again.')
-  ) {
+  setConfirmMessage(
+    'Are you sure you want to unblock this user? They will be able to message this Page again.'
+  );
+  setConfirmAction(() => async () => {
+    try {
+      const response = await fetch(`https://localhost:7099/api/messenger/unblock-user/${conversationId}`, {
+        method: 'POST',
+        credentials: 'include',
+      });
+      if (!response.ok) throw new Error('Failed to unblock user');
+      setConversations((prev) =>
+        prev.map((conv) => (conv.id === conversationId ? { ...conv, blocked: false } : conv))
+      );
+    } catch (error) {
+      setError('Failed to unblock user: ' + error.message);
+      setErrorModalOpen(true);
+    }
     handleCloseConversationMenu();
-    return;
-  }
-  try {
-    const response = await fetch(`https://localhost:7099/api/messenger/unblock-user/${conversationId}`, {
-      method: 'POST',
-      credentials: 'include',
-    });
-    if (!response.ok) throw new Error('Failed to unblock user');
-    setConversations((prev) =>
-      prev.map((conv) => (conv.id === conversationId ? { ...conv, blocked: false } : conv))
-    );
-  } catch (error) {
-    setError('Failed to unblock user: ' + error.message);
-    setErrorModalOpen(true);
-  }
-  handleCloseConversationMenu();
+  });
+  setConfirmModalOpen(true);
 };
 
 const handleOpenMessageMenu = (event, messageId) => {
@@ -2536,7 +2566,6 @@ return (
         </Box>
       </Modal>
       
-      {/* New Confirmation Modal */}
       <Modal open={confirmModalOpen} onClose={handleCancelConfirm}>
         <Box
           sx={{
@@ -2586,6 +2615,42 @@ return (
           </Box>
         </Box>
       </Modal>
+      <Modal open={infoModalOpen} onClose={() => setInfoModalOpen(false)}>
+  <Box
+    sx={{
+      position: 'absolute',
+      top: '50%',
+      left: '50%',
+      transform: 'translate(-50%, -50%)',
+      width: 400,
+      bgcolor: '#fff',
+      borderRadius: '12px',
+      boxShadow: 24,
+      p: 3,
+      textAlign: 'center',
+    }}
+  >
+    <Typography variant="h6" sx={{ fontWeight: 600, color: '#1877f2', mb: 2 }}>
+      Information
+    </Typography>
+    <Typography sx={{ fontSize: '15px', color: '#050505', mb: 3 }}>
+      {infoMessage || 'Processing your request...'}
+    </Typography>
+    <Button
+      onClick={() => setInfoModalOpen(false)}
+      variant="contained"
+      sx={{
+        bgcolor: '#1877f2',
+        color: '#fff',
+        borderRadius: '8px',
+        textTransform: 'none',
+        '&:hover': { bgcolor: '#0056b3' },
+      }}
+    >
+      Okay
+    </Button>
+  </Box>
+</Modal>
       </Box>
     </Box>
   );
