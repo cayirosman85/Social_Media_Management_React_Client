@@ -663,8 +663,7 @@ const sendHumanAgentMessage = async () => {
       setErrorModalOpen(true);
     }, 10000);
   
-    // Declare messageType here with a default value
-    let messageType = 'Text'; // Default, will be overridden if files or audioBlob exist
+    let messageType = 'Text'; 
   
     try {
       let request;
@@ -681,7 +680,7 @@ const sendHumanAgentMessage = async () => {
           });
           if (!uploadResponse.ok) throw new Error('File upload failed');
           const uploadData = await uploadResponse.json();
-          request.urls.push(uploadData.urls[0]); // Use urls[0] since backend returns a list
+          request.urls.push(uploadData.urls[0]); 
         }
         const fileType = files[0].type;
         messageType = fileType.startsWith('image/') ? 'Image' :
@@ -906,7 +905,6 @@ const requestOTN = async () => {
       return;
     }
 
-// Change this from error to info
 setInfoMessage('OTN request sent. Waiting for user approval...');
 setInfoModalOpen(true);
 setOpenOtnModal(false);
@@ -1400,79 +1398,97 @@ return (
         Chats
       </Typography>
       <List>
-        {conversations.map((conv) => (
-          <Box key={conv.id} sx={{ display: 'flex', alignItems: 'center', position: 'relative' }}>
-            <ListItem
-              button
-              onClick={() => setSelectedConversationId(conv.id)}
-              sx={{
-                borderRadius: '10px',
-                mb: 0.5,
-                bgcolor: selectedConversationId === conv.id ? '#e5efff' : 'transparent',
-                '&:hover': { bgcolor: '#f5f5f5' },
-                py: 1,
-              }}
-            >
-              <Avatar sx={{ mr: 2, bgcolor: conv.blocked ? '#ff4444' : '#ddd' }}>{conv.name[0]}</Avatar>
-              <ListItemText
-                primary={
-                  <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                    <Typography
-                      sx={{
-                        fontSize: '16px',
-                        fontWeight: conv.unviewedCount > 0 ? 600 : 500,
-                        color: conv.blocked ? '#ff4444' : '#050505',
-                      }}
-                    >
-                      {conv.name}
-                    </Typography>
-                    {conv.unviewedCount > 0 && (
-                      <Box
-                        sx={{
-                          ml: 1,
-                          bgcolor: '#1877f2',
-                          color: '#fff',
-                          borderRadius: '50%',
-                          width: '20px',
-                          height: '20px',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          fontSize: '12px',
-                          fontWeight: 600,
-                        }}
-                      >
-                        {conv.unviewedCount}
-                      </Box>
-                    )}
-                  </Box>
-                }
-              />
-            </ListItem>
-            <IconButton
-              onClick={(e) => handleOpenConversationMenu(e, conv.id)}
-              sx={{ color: '#65676b', '&:hover': { color: '#1877f2' } }}
-            >
-              <ArrowDropDown />
-            </IconButton>
-            <Menu
-              anchorEl={anchorElConversation}
-              open={Boolean(anchorElConversation) && selectedConversationIdForMenu === conv.id}
-              onClose={handleCloseConversationMenu}
-            >
-              <MenuItem onClick={() => deleteConversation(conv.id)}>Delete</MenuItem>
-              {conv.blocked ? (
-                <MenuItem onClick={() => unblockUser(conv.id)}>Unblock User</MenuItem>
-              ) : (
-                <MenuItem onClick={() => blockUser(conv.id)}>Block User</MenuItem>
+  {conversations.map((conv) => (
+    <Box
+      key={conv.id}
+      sx={{
+        display: 'flex',
+        alignItems: 'center',
+        position: 'relative',
+        borderRadius: '10px', // Apply border radius to the entire row
+        mb: 0.5,
+        bgcolor: selectedConversationId === conv.id ? '#e5efff' : 'transparent',
+        '&:hover': { bgcolor: '#f5f5f5' }, // Hover effect for the entire row
+      }}
+    >
+      <ListItem
+        button
+        onClick={() => setSelectedConversationId(conv.id)}
+        sx={{
+          py: 1,
+          flex: 1, // Ensure ListItem takes up remaining space
+          bgcolor: 'transparent', // Remove individual hover effect from ListItem
+          '&:hover': { bgcolor: 'transparent' }, // Prevent ListItem's hover from overriding
+        }}
+      >
+        <Avatar sx={{ mr: 2, bgcolor: conv.blocked ? '#ff4444' : '#ddd' }}>
+          {conv.name[0]}
+        </Avatar>
+        <ListItemText
+          primary={
+            <Box sx={{ display: 'flex', alignItems: 'center' }}>
+              <Typography
+                sx={{
+                  fontSize: '16px',
+                  fontWeight: conv.unviewedCount > 0 ? 600 : 500,
+                  color: conv.blocked ? '#ff4444' : '#050505',
+                }}
+              >
+                {conv.name}
+              </Typography>
+              {conv.unviewedCount > 0 && (
+                <Box
+                  sx={{
+                    ml: 1,
+                    bgcolor: '#1877f2',
+                    color: '#fff',
+                    borderRadius: '50%',
+                    width: '20px',
+                    height: '20px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: '12px',
+                    fontWeight: 600,
+                  }}
+                >
+                  {conv.unviewedCount}
+                </Box>
               )}
-              <MenuItem onClick={handleOpenOtnModal} disabled={otnTokens[conv.id]}>
-                Request Follow-Up
-              </MenuItem>
-            </Menu>
-          </Box>
-        ))}
-      </List>
+            </Box>
+          }
+        />
+      </ListItem>
+      <IconButton
+        onClick={(e) => handleOpenConversationMenu(e, conv.id)}
+        sx={{
+          color: '#65676b',
+          '&:hover': {
+            color: '#1877f2',
+            bgcolor: 'transparent', // Remove individual hover background from IconButton
+          },
+        }}
+      >
+        <ArrowDropDown />
+      </IconButton>
+      <Menu
+        anchorEl={anchorElConversation}
+        open={Boolean(anchorElConversation) && selectedConversationIdForMenu === conv.id}
+        onClose={handleCloseConversationMenu}
+      >
+        <MenuItem onClick={() => deleteConversation(conv.id)}>Delete</MenuItem>
+        {conv.blocked ? (
+          <MenuItem onClick={() => unblockUser(conv.id)}>Unblock User</MenuItem>
+        ) : (
+          <MenuItem onClick={() => blockUser(conv.id)}>Block User</MenuItem>
+        )}
+        <MenuItem onClick={handleOpenOtnModal} disabled={otnTokens[conv.id]}>
+          Request Follow-Up
+        </MenuItem>
+      </Menu>
+    </Box>
+  ))}
+</List>
     </Box>
 
     <Box sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column', bgcolor: '#fff', position: 'relative' }}>
