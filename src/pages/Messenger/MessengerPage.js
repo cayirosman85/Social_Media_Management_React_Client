@@ -93,7 +93,12 @@ const MessengerPage = () => {
   const navigate = useNavigate();
   const ffmpegRef = useRef(new FFmpeg({ log: true }));
   const [ffmpegLoaded, setFfmpegLoaded] = useState(false);
-
+  const [sessionExpiredModalOpen, setSessionExpiredModalOpen] = useState(false);
+  const [useOtnForMessage, setUseOtnForMessage] = useState(false);
+  const [otnConfirmationModalOpen, setOtnConfirmationModalOpen] = useState(false);
+  const [userId, setUserId] = useState(localStorage.get('messengerUserId') || null);
+  const [humanAgentModalOpen, setHumanAgentModalOpen] = useState(false);
+  const [humanAgentMessage, setHumanAgentMessage] = useState('');
   useEffect(() => {
     const loadFFmpeg = async () => {
       const ffmpeg = ffmpegRef.current;
@@ -203,13 +208,7 @@ const MessengerPage = () => {
       }
     });
 
-    newConnection.on('OTNTokenReceived', (data) => {
-      setOtnTokens((prev) => ({ ...prev, [data.conversationId]: data.token }));
-      console.log(`OTN Token received for conversation ${data.conversationId}: ${data.token}`);
-      if (data.conversationId === selectedConversationId) {
-        setError(null);
-      }
-    });
+
 
     return () => newConnection.stop();
   }, [selectedConversationId, playNotificationSound]);
@@ -257,6 +256,151 @@ const MessengerPage = () => {
     };
     fetchSidebarData();
   }, [selectedConversationId, showSidebar, activeTab]);
+
+
+// Add this new function to send a message as a human agent
+const sendHumanAgentMessage = async () => {
+  if (!humanAgentMessage.trim() || !selectedConversationId || !connection) return;
+
+  const selectedConversation = conversations.find((c) => c.id === selectedConversationId);
+  if (!selectedConversation || selectedConversation.blocked) return;
+
+  const tempId = Date.now().toString();
+  const messageType = 'Text';
+
+  setMessages((prev) => [
+    ...prev,
+    {
+      id: null,
+      tempId,
+      senderId: userId,
+      conversationId: selectedConversationId,
+      text: humanAgentMessage,
+      urls: null,
+      timestamp: new Date().toISOString(),
+      status: 'Sending',
+      type: messageType,
+      replyToId: replyingTo?.id || null,
+      isHumanAgent: true, // Flag to indicate this is a human agent message
+    },
+  ]);
+
+  scrollToBottom();
+
+  const timeoutId = setTimeout(() => {
+    setMessages((prev) =>
+      prev.map((msg) => (msg.tempId === tempId ? { ...msg, status: 'failed' } : msg))
+    );
+    setError('Sending human agent message timed out');
+    setErrorModalOpen(true);
+  }, 10000);
+
+  try {
+    const response = await fetch('https://localhost:7099/api/messenger/send-human-agent-message', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        conversationId: selectedConversationId,
+        text: humanAgentMessage,
+        recipientId: selectedConversation.senderId,
+      }),
+      credentials: 'include',
+    });
+
+    clearTimeout(timeoutId);
+    const data = await response.json();
+
+    if (response.ok) {
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg.tempId === tempId
+            ? { ...msg, status: 'Sent', id: data.MessageId, mid: data.FacebookMessageId }
+            : msg
+        )
+      );
+      setHumanAgentMessage('');
+      setHumanAgentModalOpen(false);
+    } else {
+      throw new Error(data.error || 'Unknown error');
+    }
+  } catch (error) {
+    clearTimeout(timeoutId);
+    setMessages((prev) =>
+      prev.map((msg) => (msg.tempId === tempId ? { ...msg, status: 'failed' } : msg))
+    );
+    setError(`Failed to send human agent message: ${error.message}`);
+    setErrorModalOpen(true);
+  }
+};
+
+
+  const checkSessionStatus = async () => {
+    if (!selectedConversationId || !connection) return { isExpired: false };
+    const selectedConversation = conversations.find((c) => c.id === selectedConversationId);
+    if (!selectedConversation || selectedConversation.blocked) return { isExpired: false };
+
+    try {
+      const response = await fetch(
+        `https://localhost:7099/api/messenger/check-session/${selectedConversationId}`,
+        { credentials: 'include' }
+      );
+      if (!response.ok) throw new Error('Failed to check session status');
+      const data = await response.json();
+      const lastInboundTimestamp = data.lastInboundTimestamp;
+      if (!lastInboundTimestamp) return { isExpired: true }; // No inbound messages yet
+
+      const lastMessageDate = new Date(lastInboundTimestamp);
+      const now = new Date();
+      const hoursDiff = (now - lastMessageDate) / (1000 * 60 * 60);
+      const isExpired = hoursDiff > 24;
+
+      return {
+        isExpired,
+        hasOtnToken: !!otnTokens[selectedConversationId],
+      };
+    } catch (error) {
+      console.error('Error checking session status:', error);
+      setError('Failed to check session status: ' + error.message);
+      setErrorModalOpen(true);
+      return { isExpired: false };
+    }
+  };
+  const handleUseOtnToken = async () => {
+    try {
+      const response = await fetch(`https://localhost:7099/api/messenger/check-otn-token/${selectedConversationId}`, {
+        method: 'GET',
+        credentials: 'include',
+      });
+  
+      if (!response.ok) {
+        throw new Error('Failed to check OTN token status');
+      }
+  
+      const data = await response.json();
+  
+      if (data.hasValidToken) {
+        // Token exists and is valid, proceed to confirmation modal
+        setOtnTokens((prev) => ({ ...prev, [selectedConversationId]: data.token }));
+        setSessionExpiredModalOpen(false);
+        setOtnConfirmationModalOpen(true);
+      } else {
+        // No valid token found
+        setSessionExpiredModalOpen(false);
+        setError("We are sorry, you don't have a valid token to use.");
+        setErrorModalOpen(true);
+      }
+    } catch (error) {
+      console.error('Error checking OTN token:', error);
+      setSessionExpiredModalOpen(false);
+      setError('Failed to verify OTN token: ' + error.message);
+      setErrorModalOpen(true);
+    }
+  };
+  const scrollToBottom = () => {
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  };
 
   const sendSenderAction = async (action) => {
     if (!selectedConversationId || !connection) return;
@@ -473,99 +617,103 @@ const MessengerPage = () => {
 
   const sendMessage = async () => {
     if ((!newMessage.trim() && files.length === 0 && !audioBlob) || !connection || !selectedConversationId) return;
+  
     const selectedConversation = conversations.find((c) => c.id === selectedConversationId);
     if (!selectedConversation || selectedConversation.blocked) return;
-
-    const tempId = Date.now().toString() + Math.random().toString(36).substr(2, 9);
-    const isImage = files.length > 0 && files.every((file) => file.type.startsWith('image/'));
-    const isAudio = files.length > 0 && files[0].type.includes('audio');
-    const messageType = files.length > 0
-      ? isImage
-        ? 'Image'
-        : isAudio
-        ? 'Audio'
-        : files[0].type.startsWith('video/')
-        ? 'Video'
-        : 'Document'
-      : 'Text';
-
-    const tempMessage = {
-      tempId,
-      conversationId: selectedConversationId,
-      senderId: '576837692181131',
-      recipientId: selectedConversation.senderId,
-      text: files.length > 0 ? null : newMessage,
-      urls: files.length > 0 ? files.map((file) => URL.createObjectURL(file)) : null,
-      messageType,
-      timestamp: new Date().toISOString(),
-      direction: 'Outbound',
-      status: 'sending',
-      repliedId: replyingTo?.mid ? replyingTo.mid : null,
-      viewed: true,
-    };
-
-    setMessages((prev) => [...prev, tempMessage]);
-    setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
-
+  
+    const sessionStatus = await checkSessionStatus();
+    if (sessionStatus.isExpired && !useOtnForMessage) {
+      setSessionExpiredModalOpen(true);
+      return;
+    }
+  
+    const tempId = Date.now().toString();
+    const messageType = audioBlob ? 'Audio' : files.length > 0 ? 'File' : 'Text';
+    let request = null;
+  
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: null,
+        tempId,
+        senderId: userId,
+        conversationId: selectedConversationId,
+        text: newMessage,
+        urls: files.length > 0 ? filePreviews : null,
+        audioUrl: audioBlob ? URL.createObjectURL(audioBlob) : null,
+        timestamp: new Date().toISOString(),
+        status: 'Sending',
+        type: messageType,
+        replyToId: replyingTo?.id || null,
+      },
+    ]);
+  
+    scrollToBottom();
+  
     const timeoutId = setTimeout(() => {
       setMessages((prev) =>
         prev.map((msg) => (msg.tempId === tempId ? { ...msg, status: 'failed' } : msg))
       );
-      setError('Message send timed out.');
+      setError(`Sending ${messageType.toLowerCase()} timed out`);
       setErrorModalOpen(true);
     }, 10000);
-
+  
     try {
-      let request;
       if (files.length > 0) {
+        request = { conversationId: selectedConversationId, text: newMessage, urls: [] };
+        for (const file of files) {
+          const formData = new FormData();
+          formData.append('file', file);
+          const uploadResponse = await fetch('https://localhost:7099/api/messenger/upload', {
+            method: 'POST',
+            body: formData,
+            credentials: 'include',
+          });
+          if (!uploadResponse.ok) throw new Error('File upload failed');
+          const uploadData = await uploadResponse.json();
+          request.urls.push(uploadData.url);
+        }
+      } else if (audioBlob) {
         const formData = new FormData();
-        files.forEach((file) => formData.append('files', file));
-        const uploadResponse = await fetch('https://localhost:7099/api/messenger/upload-file', {
+        formData.append('file', audioBlob, 'audio-message.wav');
+        const uploadResponse = await fetch('https://localhost:7099/api/messenger/upload', {
           method: 'POST',
           body: formData,
           credentials: 'include',
         });
-        if (!uploadResponse.ok) throw new Error('File upload failed');
+        if (!uploadResponse.ok) throw new Error('Audio upload failed');
         const uploadData = await uploadResponse.json();
-        const fileUrls = uploadData.urls;
-        request = {
-          conversationId: selectedConversationId,
-          senderId: '576837692181131',
-          recipientId: selectedConversation.senderId,
-          text: null,
-          urls: fileUrls,
-          messageType,
-          tempId,
-          repliedId: replyingTo?.mid ? replyingTo.mid : null,
-        };
+        request = { conversationId: selectedConversationId, text: newMessage, urls: [uploadData.url] };
       } else {
-        request = {
-          conversationId: selectedConversationId,
-          senderId: '576837692181131',
-          recipientId: selectedConversation.senderId,
-          text: newMessage,
-          urls: null,
-          messageType: 'Text',
-          tempId,
-          repliedId: replyingTo?.mid ? replyingTo.mid : null,
-        };
+        request = { conversationId: selectedConversationId, text: newMessage };
       }
-
-      const response = await fetch('https://localhost:7099/api/messenger/send-message', {
+  
+      const endpoint = useOtnForMessage
+        ? 'https://localhost:7099/api/messenger/send-otn-message'
+        : 'https://localhost:7099/api/messenger/send-message';
+      const body = useOtnForMessage
+        ? JSON.stringify({
+            conversationId: selectedConversationId,
+            token: otnTokens[selectedConversationId], // Use the token from state
+            text: newMessage,
+          })
+        : JSON.stringify(request);
+  
+      const response = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(request),
+        body,
         credentials: 'include',
       });
-
+  
       clearTimeout(timeoutId);
       const data = await response.json();
-
+  
       if (response.ok) {
         setMessages((prev) =>
           prev.map((msg) =>
             msg.tempId === tempId
-              ? { ...msg, status: 'Sent', id: data.MessageId, mid: data.FacebookMessageId, urls: request.urls }
+              ? { ...msg, status: 'Sent', id: data.MessageId, mid: data.FacebookMessageId, urls: request?.urls }
               : msg
           )
         );
@@ -574,12 +722,12 @@ const MessengerPage = () => {
         setFilePreviews([]);
         setAudioBlob(null);
         setReplyingTo(null);
+        if (useOtnForMessage) {
+          setOtnTokens((prev) => ({ ...prev, [selectedConversationId]: null })); // Clear used OTN token
+          setUseOtnForMessage(false); // Reset OTN usage flag
+        }
       } else {
-        setMessages((prev) =>
-          prev.map((msg) => (msg.tempId === tempId ? { ...msg, status: 'failed' } : msg))
-        );
-        setError(`Failed to send ${messageType.toLowerCase()}: ${data.error || 'Unknown error'}`);
-        setErrorModalOpen(true);
+        throw new Error(data.error || 'Unknown error');
       }
     } catch (error) {
       clearTimeout(timeoutId);
@@ -589,6 +737,11 @@ const MessengerPage = () => {
       setError(`Failed to send ${messageType.toLowerCase()}: ${error.message}`);
       setErrorModalOpen(true);
     }
+  };
+  const confirmOtnUsage = () => {
+    setUseOtnForMessage(true);
+    setOtnConfirmationModalOpen(false);
+    sendMessage();
   };
 const sendOkaySticker = async () => {
   if (!connection || !selectedConversationId) return;
@@ -1044,11 +1197,16 @@ const handleCloseOtnModal = () => {
   setOtnTitle('Can we contact you later with an update?');
 };
 
-const handleKeyDown = (event) => {
+const handleKeyDown = async (event) => {
   if (event.key === 'Enter' && !event.shiftKey) {
     event.preventDefault();
-    if (otnTokens[selectedConversationId]) sendOTNMessage();
-    else sendMessage();
+    const sessionStatus = await checkSessionStatus();
+    if (sessionStatus.isExpired && !useOtnForMessage) {
+      setSessionExpiredModalOpen(true);
+    } else {
+      if (otnTokens[selectedConversationId] && useOtnForMessage) sendOTNMessage();
+      else sendMessage();
+    }
   }
 };
 
@@ -2042,10 +2200,154 @@ return (
       Close
     </Button>
   </Box>
-</Modal>
+      </Modal>
 
-<Modal open={openOtnModal} onClose={handleCloseOtnModal}>
-<Box
+      <Modal open={openOtnModal} onClose={handleCloseOtnModal}>
+      <Box
+          sx={{
+            position: 'absolute',
+            top: '50%',
+            left: '50%',
+            transform: 'translate(-50%, -50%)',
+            width: 400,
+            bgcolor: '#fff',
+            borderRadius: '12px',
+            boxShadow: 24,
+            p: 3,
+            maxHeight: '90vh',
+            overflowY: 'auto',
+          }}
+        >
+          <Typography variant="h6" sx={{ fontWeight: 600, color: '#050505', mb: 2 }}>
+            Request Follow-Up Permission
+          </Typography>
+
+          {/* Explanation */}
+          <Typography variant="body2" sx={{ mb: 2, color: '#444' }}>
+            To comply with Facebook Messenger rules, we need your permission to send you a one-time follow-up message.
+            After clicking “Send Request,” you’ll receive a “Notify Me” message in Messenger. If you click “Notify Me,” we’ll be allowed to send you one more update related to this request.
+          </Typography>
+
+          {/* Rules Accordion */}
+          <Accordion sx={{ mb: 3 }}>
+            <AccordionSummary expandIcon={<ExpandMoreIcon />} sx={{ bgcolor: '#f1f1f1' }}>
+              <Typography variant="body2" fontWeight={600}>What are the rules?</Typography>
+            </AccordionSummary>
+            <AccordionDetails>
+              <Typography variant="body2" sx={{ color: '#333' }}>
+                • You must click "Notify Me" in Messenger to grant permission.<br />
+                • We can only send you <strong>one follow-up message</strong> using this permission.<br />
+                • The follow-up message must be sent <strong>within 1 year</strong> of your approval.<br />
+                • We can’t use this for promotions or unrelated messages.<br />
+                • You can revoke this permission anytime from Messenger.<br />
+                <strong>• OTN must be requested during an active 24-hour messaging window.</strong>
+              </Typography>
+            </AccordionDetails>
+          </Accordion>
+
+          {/* Input Field */}
+          <TextField
+            label="Notification Title"
+            value={otnTitle}
+            onChange={(e) => setOtnTitle(e.target.value)}
+            fullWidth
+            variant="outlined"
+            sx={{ mb: 3 }}
+            helperText="Enter a brief title for the follow-up request (max 65 characters)."
+            inputProps={{ maxLength: 65 }}
+          />
+
+          {/* Buttons */}
+          <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 2 }}>
+            <Button
+              onClick={handleCloseOtnModal}
+              variant="outlined"
+              sx={{
+                borderColor: '#65676b',
+                color: '#65676b',
+                borderRadius: '8px',
+                textTransform: 'none',
+                '&:hover': { borderColor: '#1877f2', color: '#1877f2' },
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={requestOTN}
+              variant="contained"
+              disabled={!otnTitle.trim()}
+              sx={{
+                bgcolor: '#1877f2',
+                color: '#fff',
+                borderRadius: '8px',
+                textTransform: 'none',
+                '&:hover': { bgcolor: '#0056b3' },
+                '&:disabled': { bgcolor: '#b0b0b0' },
+              }}
+            >
+              Send Request
+            </Button>
+          </Box>
+        </Box>
+      </Modal>
+
+      <Modal open={sessionExpiredModalOpen} onClose={() => setSessionExpiredModalOpen(false)}>
+        <Box
+          sx={{
+            position: 'absolute',
+            top: '50%',
+            left: '50%',
+            transform: 'translate(-50%, -50%)',
+            width: 400,
+            bgcolor: '#fff',
+            borderRadius: '12px',
+            boxShadow: 24,
+            p: 3,
+            textAlign: 'center',
+          }}
+        >
+          <Typography variant="h6" sx={{ fontWeight: 600, color: '#d93025', mb: 2 }}>
+            24-Hour Session Expired
+          </Typography>
+          <Typography sx={{ fontSize: '15px', color: '#050505', mb: 3 }}>
+            The 24-hour messaging window has expired. To contact the customer, choose an option below:
+          </Typography>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <Button
+              onClick={handleUseOtnToken}
+              variant="outlined"
+              sx={{
+                borderColor: '#1877f2',
+                color: '#1877f2',
+                borderRadius: '8px',
+                textTransform: 'none',
+                '&:hover': { bgcolor: '#e5efff', borderColor: '#1877f2' },
+              }}
+            >
+              Use OTN Token
+            </Button>
+            <Button
+              onClick={() => {
+                setSessionExpiredModalOpen(false);
+                setError('Please contact a human agent to proceed.');
+                setErrorModalOpen(true);
+              }}
+              variant="outlined"
+              sx={{
+                borderColor: '#65676b',
+                color: '#65676b',
+                borderRadius: '8px',
+                textTransform: 'none',
+                '&:hover': { borderColor: '#1877f2', color: '#1877f2' },
+              }}
+            >
+              Use Human Agent
+            </Button>
+          </Box>
+        </Box>
+      </Modal>
+      <Modal open={sessionExpiredModalOpen} onClose={() => setSessionExpiredModalOpen(false)}>
+  <Box
     sx={{
       position: 'absolute',
       top: '50%',
@@ -2056,53 +2358,78 @@ return (
       borderRadius: '12px',
       boxShadow: 24,
       p: 3,
-      maxHeight: '90vh',
-      overflowY: 'auto',
+      textAlign: 'center',
     }}
   >
-    <Typography variant="h6" sx={{ fontWeight: 600, color: '#050505', mb: 2 }}>
-      Request Follow-Up Permission
+    <Typography variant="h6" sx={{ fontWeight: 600, color: '#d93025', mb: 2 }}>
+      24-Hour Session Expired
     </Typography>
-
-    {/* Explanation */}
-    <Typography variant="body2" sx={{ mb: 2, color: '#444' }}>
-      To comply with Facebook Messenger rules, we need your permission to send you a one-time follow-up message.
-      After clicking “Send Request,” you’ll receive a “Notify Me” message in Messenger. If you click “Notify Me,” we’ll be allowed to send you one more update related to this request.
+    <Typography sx={{ fontSize: '15px', color: '#050505', mb: 3 }}>
+      The 24-hour messaging window has expired. To contact the customer, choose an option below:
     </Typography>
-
-    {/* Rules Accordion */}
-    <Accordion sx={{ mb: 3 }}>
-      <AccordionSummary expandIcon={<ExpandMoreIcon />} sx={{ bgcolor: '#f1f1f1' }}>
-        <Typography variant="body2" fontWeight={600}>What are the rules?</Typography>
-      </AccordionSummary>
-      <AccordionDetails>
-        <Typography variant="body2" sx={{ color: '#333' }}>
-          • You must click "Notify Me" in Messenger to grant permission.<br />
-          • We can only send you <strong>one follow-up message</strong> using this permission.<br />
-          • The follow-up message must be sent <strong>within 1 year</strong> of your approval.<br />
-          • We can’t use this for promotions or unrelated messages.<br />
-          • You can revoke this permission anytime from Messenger.<br />
-          <strong>• OTN must be requested during an active 24-hour messaging window.</strong>
-        </Typography>
-      </AccordionDetails>
-    </Accordion>
-
-    {/* Input Field */}
+    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+      <Button
+        onClick={handleUseOtnToken}
+        variant="outlined"
+        sx={{
+          borderColor: '#1877f2',
+          color: '#1877f2',
+          borderRadius: '8px',
+          textTransform: 'none',
+          '&:hover': { bgcolor: '#e5efff', borderColor: '#1877f2' },
+        }}
+      >
+        Use OTN Token
+      </Button>
+      <Button
+        onClick={() => {
+          setSessionExpiredModalOpen(false);
+          setHumanAgentModalOpen(true); // Open human agent modal instead of showing error
+        }}
+        variant="outlined"
+        sx={{
+          borderColor: '#65676b',
+          color: '#65676b',
+          borderRadius: '8px',
+          textTransform: 'none',
+          '&:hover': { borderColor: '#1877f2', color: '#1877f2' },
+        }}
+      >
+        Use Human Agent
+      </Button>
+    </Box>
+  </Box>
+</Modal>
+<Modal open={humanAgentModalOpen} onClose={() => setHumanAgentModalOpen(false)}>
+  <Box
+    sx={{
+      position: 'absolute',
+      top: '50%',
+      left: '50%',
+      transform: 'translate(-50%, -50%)',
+      width: 400,
+      bgcolor: '#fff',
+      borderRadius: '12px',
+      boxShadow: 24,
+      p: 3,
+    }}
+  >
+    <Typography variant="h6" sx={{ fontWeight: 600, color: '#1877f2', mb: 2 }}>
+      Send Message as Human Agent
+    </Typography>
     <TextField
-      label="Notification Title"
-      value={otnTitle}
-      onChange={(e) => setOtnTitle(e.target.value)}
-      fullWidth
+      value={humanAgentMessage}
+      onChange={(e) => setHumanAgentMessage(e.target.value)}
+      placeholder="Type your message..."
       variant="outlined"
-      sx={{ mb: 3 }}
-      helperText="Enter a brief title for the follow-up request (max 65 characters)."
-      inputProps={{ maxLength: 65 }}
+      fullWidth
+      multiline
+      rows={4}
+      sx={{ mb: 2 }}
     />
-
-    {/* Buttons */}
     <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 2 }}>
       <Button
-        onClick={handleCloseOtnModal}
+        onClick={() => setHumanAgentModalOpen(false)}
         variant="outlined"
         sx={{
           borderColor: '#65676b',
@@ -2115,9 +2442,9 @@ return (
         Cancel
       </Button>
       <Button
-        onClick={requestOTN}
+        onClick={sendHumanAgentMessage}
         variant="contained"
-        disabled={!otnTitle.trim()}
+        disabled={!humanAgentMessage.trim()}
         sx={{
           bgcolor: '#1877f2',
           color: '#fff',
@@ -2127,11 +2454,69 @@ return (
           '&:disabled': { bgcolor: '#b0b0b0' },
         }}
       >
-        Send Request
+        Send
       </Button>
     </Box>
   </Box>
 </Modal>
+      <Modal open={otnConfirmationModalOpen} onClose={() => setOtnConfirmationModalOpen(false)}>
+        <Box
+          sx={{
+            position: 'absolute',
+            top: '50%',
+            left: '50%',
+            transform: 'translate(-50%, -50%)',
+            width: 400,
+            bgcolor: '#fff',
+            borderRadius: '12px',
+            boxShadow: 24,
+            p: 3,
+            textAlign: 'center',
+          }}
+        >
+          <Typography variant="h6" sx={{ fontWeight: 600, color: '#1877f2', mb: 2 }}>
+            Use One-Time Notification
+          </Typography>
+          <Typography sx={{ fontSize: '15px', color: '#050505', mb: 3 }}>
+            Using current OTN token to send this message. Would you like to request another OTN for later?
+          </Typography>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 2 }}>
+            <Button
+              onClick={() => {
+                setOtnConfirmationModalOpen(false);
+                confirmOtnUsage();
+              }}
+              variant="contained"
+              sx={{
+                bgcolor: '#1877f2',
+                color: '#fff',
+                borderRadius: '8px',
+                textTransform: 'none',
+                '&:hover': { bgcolor: '#0056b3' },
+              }}
+            >
+              Okay (Send Now)
+            </Button>
+            <Button
+              onClick={() => {
+                setOtnConfirmationModalOpen(false);
+                confirmOtnUsage();
+                requestOTN();
+              }}
+              variant="outlined"
+              sx={{
+                borderColor: '#1877f2',
+                color: '#1877f2',
+                borderRadius: '8px',
+                textTransform: 'none',
+                '&:hover': { bgcolor: '#e5efff', borderColor: '#1877f2' },
+              }}
+            >
+              Request More OTN
+            </Button>
+          </Box>
+        </Box>
+      </Modal>
       </Box>
     </Box>
   );
