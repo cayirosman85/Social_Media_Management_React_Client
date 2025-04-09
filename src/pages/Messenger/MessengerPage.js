@@ -104,6 +104,7 @@ const MessengerPage = () => {
   const [confirmMessage, setConfirmMessage] = useState(''); 
   const [infoMessage, setInfoMessage] = useState(null);
 const [infoModalOpen, setInfoModalOpen] = useState(false);
+const [conversationSearchQuery, setConversationSearchQuery] = useState('');
 
   useEffect(() => {
     const loadFFmpeg = async () => {
@@ -433,6 +434,10 @@ const sendHumanAgentMessage = async () => {
       setErrorModalOpen(true);
     }
   };
+
+  const filteredConversations = conversations.filter((conv) =>
+    conv.name.toLowerCase().includes(conversationSearchQuery.toLowerCase())
+  );
 
   const handleTypingStart = () => {
     if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
@@ -1393,103 +1398,127 @@ const showSendIcon = newMessage.trim() || files.length > 0 || audioBlob;
 
 return (
   <Box sx={{ display: 'flex', height: '100vh', bgcolor: '#f0f2f5', fontFamily: '"Segoe UI", Roboto, sans-serif' }}>
-    <Box sx={{ width: '360px', bgcolor: '#fff', borderRight: '1px solid #e5e5e5', overflowY: 'auto', p: 2 }}>
-      <Typography variant="h5" sx={{ fontWeight: 600, color: '#050505', mb: 2, pl: 1 }}>
-        Chats
-      </Typography>
-      <List>
-  {conversations.map((conv) => (
-    <Box
-      key={conv.id}
+<Box sx={{ width: '360px', bgcolor: '#fff', borderRight: '1px solid #e5e5e5', overflowY: 'auto', p: 2 }}>
+  <Typography variant="h5" sx={{ fontWeight: 600, color: '#050505', mb: 2, pl: 1 }}>
+    Chats
+  </Typography>
+  {/* Search Input */}
+  <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+    <InputBase
+      placeholder="Search conversations..."
+      value={conversationSearchQuery}
+      onChange={(e) => setConversationSearchQuery(e.target.value)}
       sx={{
-        display: 'flex',
-        alignItems: 'center',
-        position: 'relative',
-        borderRadius: '10px', // Apply border radius to the entire row
-        mb: 0.5,
-        bgcolor: selectedConversationId === conv.id ? '#e5efff' : 'transparent',
-        '&:hover': { bgcolor: '#f5f5f5' }, // Hover effect for the entire row
+        flexGrow: 1,
+        bgcolor: '#f0f2f5',
+        p: 1,
+        borderRadius: '20px',
+        fontSize: '15px',
       }}
-    >
-      <ListItem
-        button
-        onClick={() => setSelectedConversationId(conv.id)}
-        sx={{
-          py: 1,
-          flex: 1, // Ensure ListItem takes up remaining space
-          bgcolor: 'transparent', // Remove individual hover effect from ListItem
-          '&:hover': { bgcolor: 'transparent' }, // Prevent ListItem's hover from overriding
-        }}
-      >
-        <Avatar sx={{ mr: 2, bgcolor: conv.blocked ? '#ff4444' : '#ddd' }}>
-          {conv.name[0]}
-        </Avatar>
-        <ListItemText
-          primary={
-            <Box sx={{ display: 'flex', alignItems: 'center' }}>
-              <Typography
-                sx={{
-                  fontSize: '16px',
-                  fontWeight: conv.unviewedCount > 0 ? 600 : 500,
-                  color: conv.blocked ? '#ff4444' : '#050505',
-                }}
-              >
-                {conv.name}
-              </Typography>
-              {conv.unviewedCount > 0 && (
-                <Box
-                  sx={{
-                    ml: 1,
-                    bgcolor: '#1877f2',
-                    color: '#fff',
-                    borderRadius: '50%',
-                    width: '20px',
-                    height: '20px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    fontSize: '12px',
-                    fontWeight: 600,
-                  }}
-                >
-                  {conv.unviewedCount}
+    />
+    <IconButton sx={{ ml: 1, color: '#65676b', '&:hover': { color: '#1877f2' } }}>
+      <Search />
+    </IconButton>
+  </Box>
+  <List>
+    {filteredConversations.length > 0 ? (
+      filteredConversations.map((conv) => (
+        <Box
+          key={conv.id}
+          sx={{
+            display: 'flex',
+            alignItems: 'center',
+            position: 'relative',
+            borderRadius: '10px',
+            mb: 0.5,
+            bgcolor: selectedConversationId === conv.id ? '#e5efff' : 'transparent',
+            '&:hover': { bgcolor: '#f5f5f5' },
+          }}
+        >
+          <ListItem
+            button
+            onClick={() => setSelectedConversationId(conv.id)}
+            sx={{
+              py: 1,
+              flex: 1,
+              bgcolor: 'transparent',
+              '&:hover': { bgcolor: 'transparent' },
+            }}
+          >
+            <Avatar sx={{ mr: 2, bgcolor: conv.blocked ? '#ff4444' : '#ddd' }}>
+              {conv.name[0]}
+            </Avatar>
+            <ListItemText
+              primary={
+                <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                  <Typography
+                    sx={{
+                      fontSize: '16px',
+                      fontWeight: conv.unviewedCount > 0 ? 600 : 500,
+                      color: conv.blocked ? '#ff4444' : '#050505',
+                    }}
+                  >
+                    {conv.name}
+                  </Typography>
+                  {conv.unviewedCount > 0 && (
+                    <Box
+                      sx={{
+                        ml: 1,
+                        bgcolor: '#1877f2',
+                        color: '#fff',
+                        borderRadius: '50%',
+                        width: '20px',
+                        height: '20px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: '12px',
+                        fontWeight: 600,
+                      }}
+                    >
+                      {conv.unviewedCount}
+                    </Box>
+                  )}
                 </Box>
-              )}
-            </Box>
-          }
-        />
-      </ListItem>
-      <IconButton
-        onClick={(e) => handleOpenConversationMenu(e, conv.id)}
-        sx={{
-          color: '#65676b',
-          '&:hover': {
-            color: '#1877f2',
-            bgcolor: 'transparent', // Remove individual hover background from IconButton
-          },
-        }}
-      >
-        <ArrowDropDown />
-      </IconButton>
-      <Menu
-        anchorEl={anchorElConversation}
-        open={Boolean(anchorElConversation) && selectedConversationIdForMenu === conv.id}
-        onClose={handleCloseConversationMenu}
-      >
-        <MenuItem onClick={() => deleteConversation(conv.id)}>Delete</MenuItem>
-        {conv.blocked ? (
-          <MenuItem onClick={() => unblockUser(conv.id)}>Unblock User</MenuItem>
-        ) : (
-          <MenuItem onClick={() => blockUser(conv.id)}>Block User</MenuItem>
-        )}
-        <MenuItem onClick={handleOpenOtnModal} disabled={otnTokens[conv.id]}>
-          Request Follow-Up
-        </MenuItem>
-      </Menu>
-    </Box>
-  ))}
-</List>
-    </Box>
+              }
+            />
+          </ListItem>
+          <IconButton
+            onClick={(e) => handleOpenConversationMenu(e, conv.id)}
+            sx={{
+              color: '#65676b',
+              '&:hover': {
+                color: '#1877f2',
+                bgcolor: 'transparent',
+              },
+            }}
+          >
+            <ArrowDropDown />
+          </IconButton>
+          <Menu
+            anchorEl={anchorElConversation}
+            open={Boolean(anchorElConversation) && selectedConversationIdForMenu === conv.id}
+            onClose={handleCloseConversationMenu}
+          >
+            <MenuItem onClick={() => deleteConversation(conv.id)}>Delete</MenuItem>
+            {conv.blocked ? (
+              <MenuItem onClick={() => unblockUser(conv.id)}>Unblock User</MenuItem>
+            ) : (
+              <MenuItem onClick={() => blockUser(conv.id)}>Block User</MenuItem>
+            )}
+            <MenuItem onClick={handleOpenOtnModal} disabled={otnTokens[conv.id]}>
+              Request Follow-Up
+            </MenuItem>
+          </Menu>
+        </Box>
+      ))
+    ) : (
+      <Typography sx={{ color: '#65676b', textAlign: 'center', py: 2 }}>
+        No conversations found.
+      </Typography>
+    )}
+  </List>
+</Box>
 
     <Box sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column', bgcolor: '#fff', position: 'relative' }}>
       <Box
@@ -1554,7 +1583,7 @@ return (
               <Box sx={{ position: 'relative' }}>
                 {msg.repliedId && (
                   <Box
-                    sx={{ bgcolor: '#e9ecef', p: 1, borderRadius: '8px', mb: 1, fontSize: '13px', color: '#65676b' }}
+                    sx={{ bgcolor: '#e9ecef', p: 1, borderRadius: '1px', mb: 1, fontSize: '13px', color: '#65676b', minWidth: '300px' }}
                   >
                     {messages.find((m) => m.mid === msg.repliedId)?.text || 'Original message not found'}
                   </Box>
@@ -1562,7 +1591,7 @@ return (
                 {msg.status === 'sending' ? (
                   <Box
                     sx={{
-                      bgcolor: '#0084ff',
+                      bgcolor: '#7e96ab  ',
                       color: '#fff',
                       p: 1.5,
                       borderRadius: '10px',
@@ -1582,12 +1611,15 @@ return (
                     {msg.messageType === 'Text' ? (
                       <Typography
                         sx={{
-                          bgcolor: msg.direction === 'Outbound' ? '#0084ff' : '#e9ecef',
+                          bgcolor: msg.direction === 'Outbound' ? '#7e96ab  ' : '#e9ecef',
                           color: msg.direction === 'Outbound' ? '#fff' : '#050505',
                           p: 1.5,
                           borderRadius: '10px',
                           fontSize: '15px',
-                          minWidth: 100,
+                        minWidth: 100,
+                        maxWidth: '300px',
+                          wordBreak: 'break-word',
+                          marginBottom: '4px',
                         }}
                       >
                         {msg.text}
@@ -1618,7 +1650,7 @@ return (
                       <Box
                         sx={{
                           p: 0.5,
-                          bgcolor: msg.direction === 'Outbound' ? '#0084ff' : '#e9ecef',
+                          bgcolor: msg.direction === 'Outbound' ? '#7e96ab' : '#e9ecef',
                           borderRadius: '10px',
                           display: 'flex',
                           flexWrap: 'wrap',
@@ -1643,7 +1675,7 @@ return (
                       <Box
                         sx={{
                           p: 0.5,
-                          bgcolor: msg.direction === 'Outbound' ? '#0084ff' : '#e9ecef',
+                          bgcolor: msg.direction === 'Outbound' ? '#7e96ab' : '#e9ecef',
                           borderRadius: '10px',
                         }}
                         onClick={() => handleOpenModal('Video', msg.urls[0])}
@@ -1657,7 +1689,7 @@ return (
                     ) : msg.messageType === 'Document' && msg.urls ? (
                       <Typography
                         sx={{
-                          bgcolor: msg.direction === 'Outbound' ? '#0084ff' : '#e9ecef',
+                          bgcolor: msg.direction === 'Outbound' ? '#7e96ab' : '#e9ecef',
                           color: msg.direction === 'Outbound' ? '#fff' : '#050505',
                           p: 1.5,
                           borderRadius: '10px',
@@ -1676,7 +1708,7 @@ return (
                     ) : msg.messageType === 'Audio' && msg.urls ? (
                       <Box
                         sx={{
-                          bgcolor: msg.direction === 'Outbound' ? '#0084ff' : '#e9ecef',
+                          bgcolor: msg.direction === 'Outbound' ? '#7e96ab' : '#e9ecef',
                           p: 1.5,
                           borderRadius: '10px',
                         }}
@@ -1696,6 +1728,7 @@ return (
                         : '0',
                     fontSize: '12px',
                     color: '#65676b',
+                    marginTop:30,
                   }}
                 >
                   {msg.timestamp
@@ -1713,7 +1746,7 @@ return (
                     {msg.status === 'Read' ? (
                       <DoneAll sx={{ fontSize: '16px', color: '#0084ff' }} />
                     ) : msg.status === 'Delivered' ? (
-                      <DoneAll sx={{ fontSize: '16px', color: '#65676b' }} />
+                      <DoneAll sx={{ fontSize: '16px', color: '#0084ff' }} />
                     ) : (
                       <Check sx={{ fontSize: '16px', color: '#65676b' }} />
                     )}
@@ -1724,8 +1757,8 @@ return (
                     onClick={(e) => handleOpenMessageMenu(e, msg.id || msg.tempId)}
                     sx={{
                       position: 'absolute',
-                      top: '-18px',
-                      right: '-18px',
+                      top: '-15px',
+                      right: '-12px',
                       color: '#65676b',
                       '&:hover': { color: '#1877f2' },
                     }}
@@ -1754,12 +1787,12 @@ return (
             </Menu>
           </Box>
         ))}
-        {isRecipientTyping && (
+        {/* {isRecipientTyping && (
           <Box sx={{ display: 'flex', alignItems: 'center', p: 2 }}>
             <Avatar sx={{ mr: 1, bgcolor: '#ddd', width: 32, height: 32 }}>{userName[0]}</Avatar>
             <Typography sx={{ color: '#65676b' }}>Typing...</Typography>
           </Box>
-        )}
+        )} */}
         <div ref={messagesEndRef} />
       </Box>
 
