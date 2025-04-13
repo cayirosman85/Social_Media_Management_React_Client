@@ -58,6 +58,8 @@ const menuItems = [
     icon: <FacebookIcon size={22} />,
     subItems: [
       { text: 'Profile', icon: <Person size={22} />, path: '/FacebookProfile' },
+      { text: 'Hesap', icon: <Settings size={22} />, path: '/FacebookProfile' },
+
       { text: 'Login', icon: <Login size={22} />, path: '/FacebookLoginPage' },
     ],
   },
@@ -95,8 +97,7 @@ const Sidebar = () => {
   const location = useLocation();
 
   const facebookAppId = '1936737430086867';
-  const facebookAppSecret = 'd3d576725b8470849808a68eca9c9b75'; // Move to server-side in production!
-
+  const facebookAppSecret = 'd3d576725b8470849808a68eca9c9b75'; 
   // Handle Google Login
   const handleGoogleLogin = () => {
     console.log('Google Login button clicked');
