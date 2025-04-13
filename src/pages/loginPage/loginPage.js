@@ -1,61 +1,89 @@
-import React, { useEffect, useState } from "react";
-import { cookies } from "../../utils/cookie";
-import { jwtDecode } from "jwt-decode";
-import Swal from "sweetalert2";
-import {
-  Grid,
-  Button,
-  Checkbox,
-  Typography,
-  InputAdornment,
-  IconButton,
-  TextField,
-} from "@mui/material";
+import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { Grid, Button, Checkbox, Typography, InputAdornment, IconButton, TextField } from "@mui/material";
 import { Visibility, VisibilityOff } from "@mui/icons-material";
-import {login} from "../../api/auth/login/index"
+import Swal from "sweetalert2";
+import { apiFetch } from "../../api/auth/login/login"; // Adjust path as needed
+import { cookies } from "../../utils/cookie"; // Import cookies utility
+import { jwtDecode } from "jwt-decode"; // Import jwt-decode
 
 const Login = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [rememberMe, setRememberMe] = useState(false);
+  const navigate = useNavigate();
 
   const handleClickShowPassword = () => setShowPassword(!showPassword);
   const handleMouseDownPassword = (event) => event.preventDefault();
 
-  const [rememberMe, setRememberMe] = useState(false);
-  const navigate = useNavigate();
+  const handleLogin = async (event) => {
+    event.preventDefault();
 
-  const handleLogin = (event) => {
-    login(email, password)
-    .then((resp) => {
-        cookies.set("jwt-access", resp.data.tokens.access.token);
+    try {
+      console.log("Sending login request...");
+      const response = await apiFetch("/api/account/login", {
+        method: "POST",
+        body: JSON.stringify({ email, password }),
+      });
 
-        cookies.set(
-            "jwt-access-expires",
-            resp.data.tokens.access.expires
-        );
-        cookies.set("jwt-refresh", resp.data.tokens.refresh.token);
+      console.log("Response received:", response);
 
-        cookies.set(
-            "jwt-refresh-expires",
-            resp.data.tokens.refresh.expires
-        );
-        const decodedToken = jwtDecode(resp.data.tokens.access.token);
-        const role = decodedToken.role;
-        if (role === "user") {
-            navigate("/homepage");
-        } else if (role === "admin") {
-            navigate("/homepage");
-        }
-    })
-    .catch((err) => {
-        Swal.fire({
-            title: err.response.data.message,
-            icon: "error",
-            confirmButtonText: "Tamam",
+      // Extract token
+      const { token } = response;
+      if (!token || typeof token !== "string") {
+        throw new Error("Geçersiz token alındı.");
+      }
+
+      // Decode token to get companyId
+      const decodedToken = jwtDecode(token);
+      const companyId = decodedToken.companyId;
+      if (!companyId) {
+        throw new Error("Token'da şirket ID'si bulunamadı.");
+      }
+
+      // Save token to cookies
+      cookies.set("jwt-access", token, {
+        secure: true,
+        sameSite: "strict",
+        expires: new Date(Date.now() + 24 * 60 * 60 * 1000), // 1 day expiry
+      });
+      console.log("Token saved to cookies");
+
+      // Save companyId to cookies if rememberMe is checked
+      if (rememberMe) {
+        cookies.set("companyId", companyId, {
+          secure: true,
+          sameSite: "strict",
+          expires: new Date(Date.now() + 24 * 60 * 60 * 1000), // 1 day expiry
         });
-    });
+        console.log("companyId saved to cookies");
+      }
+
+      // Navigate to homepage
+      console.log("Attempting to navigate to /homepage");
+      navigate("/homepage", { replace: true });
+    } catch (err) {
+      console.error("Giriş hatası:", err);
+      // Map errors to Turkish
+      let errorMessage = "Giriş başarısız.";
+      if (err.message.includes("Invalid token")) {
+        errorMessage = "Geçersiz token alındı.";
+      } else if (err.message.includes("E-posta adresi yanlış")) {
+        errorMessage = "E-posta adresi yanlış.";
+      } else if (err.message.includes("E-posta veya şifre yanlış")) {
+        errorMessage = "E-posta veya şifre yanlış.";
+      } else if (err.message.includes("şirket ID'si bulunamadı")) {
+        errorMessage = "Token'da şirket ID'si bulunamadı.";
+      }
+
+      // Show error in modal
+      Swal.fire({
+        title: errorMessage,
+        icon: "error",
+        confirmButtonText: "Tamam",
+      });
+    }
   };
 
   return (
@@ -76,15 +104,14 @@ const Login = () => {
         sm={8.5}
         sx={{ display: "flex", justifyContent: "center" }}
       >
-        {" "}
         <Grid
           component="img"
           sx={{
-            width: "100vh", // Genişliği %100 yaparak gridin tamamını kaplar
-            height: "60vh", // Yüksekliği otomatik yaparak orijinal oranları korur
+            width: "100vh",
+            height: "60vh",
           }}
           alt="My Image"
-          src={`/images/s.webp`} // public klasöründen çağırma
+          src={`/images/s.webp`}
         />
       </Grid>
 
@@ -104,10 +131,6 @@ const Login = () => {
           padding: "2vh",
         }}
       >
-        {/* Sağ taraftaki giriş formu */}
-
-
- 
         <Grid item md={12} sx={{ width: "100vh" }}>
           <TextField
             className="input-field"
@@ -116,23 +139,19 @@ const Login = () => {
             InputLabelProps={{ shrink: true }}
             variant="outlined"
             value={email}
-            onChange={(e) => {
-              setEmail(e.target.value);
-            }}
+            onChange={(e) => setEmail(e.target.value)}
           />
         </Grid>
         <Grid item md={12} sx={{ width: "100vh" }}>
           <TextField
             fullWidth
-            className="input-field" // CSS class'ını ekleyin
+            className="input-field"
             label="Şifre"
             InputLabelProps={{ shrink: true }}
             variant="outlined"
             type={showPassword ? "text" : "password"}
             value={password}
-            onChange={(e) => {
-              setPassword(e.target.value);
-            }}
+            onChange={(e) => setPassword(e.target.value)}
             InputProps={{
               endAdornment: (
                 <InputAdornment position="end">
@@ -143,15 +162,9 @@ const Login = () => {
                     size="small"
                   >
                     {showPassword ? (
-                      <Visibility
-                        fontSize="inherit"
-                        style={{ fontSize: "1rem" }}
-                      />
+                      <Visibility fontSize="inherit" style={{ fontSize: "1rem" }} />
                     ) : (
-                      <VisibilityOff
-                        fontSize="inherit"
-                        style={{ fontSize: "1rem" }}
-                      />
+                      <VisibilityOff fontSize="inherit" style={{ fontSize: "1rem" }} />
                     )}
                   </IconButton>
                 </InputAdornment>
@@ -212,7 +225,6 @@ const Login = () => {
             type="submit"
             onClick={handleLogin}
             className="custom-button"
-            // Inline styles for background color and width
           >
             Giriş
           </Button>
@@ -228,13 +240,10 @@ const Login = () => {
           }}
         >
           <Typography variant="body2">Henüz kaydınız yok mu? </Typography>
-
           <Button
             variant="body2"
-            onClick={() => {
-              navigate("/register");
-            }}
-            className="unframed-button "
+            onClick={() => navigate("/register")}
+            className="unframed-button"
             sx={{ color: "#786af2", textDecoration: "none" }}
           >
             Kayıt ol

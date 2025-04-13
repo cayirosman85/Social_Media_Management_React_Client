@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef,useCallback  } from 'react';
 import {
   Typography,
   TextField,
@@ -42,7 +42,9 @@ import { useNavigate } from 'react-router-dom';
 import localStorage from 'local-storage';
 import Picker from 'emoji-picker-react';
 import { FFmpeg } from '@ffmpeg/ffmpeg';
-
+import { useLocation } from 'react-router-dom';
+import { apiFetch } from '../../api/messenger/api';
+import debounce from 'lodash/debounce';
 const MessengerPage = () => {
   const [conversations, setConversations] = useState([]);
   const [selectedConversationId, setSelectedConversationId] = useState(null);
@@ -74,13 +76,14 @@ const MessengerPage = () => {
   const [fileItems, setFileItems] = useState([]);
   const [linkItems, setLinkItems] = useState([]);
   const [isRecipientTyping, setIsRecipientTyping] = useState(false);
+  const [isMediaLoading, setIsMediaLoading] = useState(true);
   const [playNotificationSound, setPlayNotificationSound] = useState(() => {
     const saved = localStorage.get('playNotificationSound');
     return saved !== null ? JSON.parse(saved) : true;
   });
   const [otnTokens, setOtnTokens] = useState({});
   const [openOtnModal, setOpenOtnModal] = useState(false);
-  const [otnTitle, setOtnTitle] = useState('Can we contact you later with an update?');
+  const [otnTitle, setOtnTitle] = useState('Güncelleme için tekrar bilgilendirebilir miyiz?');
   const [errorModalOpen, setErrorModalOpen] = useState(false);
 
   const typingTimeoutRef = useRef(null);
@@ -89,14 +92,15 @@ const MessengerPage = () => {
   const timerRef = useRef(null);
   const messagesEndRef = useRef(null);
   const messagesContainerRef = useRef(null);
+  const conversationsEndRef = useRef(null);
   const messageRefs = useRef({});
   const navigate = useNavigate();
   const ffmpegRef = useRef(new FFmpeg({ log: true }));
   const [ffmpegLoaded, setFfmpegLoaded] = useState(false);
-  const [sessionExpiredModalOpen, setSessionExpiredModalOpen] = useState(false);
+  
   const [useOtnForMessage, setUseOtnForMessage] = useState(false);
   const [otnConfirmationModalOpen, setOtnConfirmationModalOpen] = useState(false);
-  const [userId, setUserId] = useState(localStorage.get('messengerUserId') || null);
+  const [userId, setUserId] = useState(null);
   const [humanAgentModalOpen, setHumanAgentModalOpen] = useState(false);
   const [humanAgentMessage, setHumanAgentMessage] = useState('');
   const [confirmModalOpen, setConfirmModalOpen] = useState(false); 
@@ -105,6 +109,60 @@ const MessengerPage = () => {
   const [infoMessage, setInfoMessage] = useState(null);
 const [infoModalOpen, setInfoModalOpen] = useState(false);
 const [conversationSearchQuery, setConversationSearchQuery] = useState('');
+const [imageBlobs, setImageBlobs] = useState({});
+const newBlobs = { ...imageBlobs };
+const [loading, setLoading] = useState(true);
+  const [totalConversations, setTotalConversations] = useState(0);
+  const [pageSize] = useState(20); // Match backend default
+  const [isLoadingConversations, setIsLoadingConversations] = useState(false);
+  const [hasMoreConversations, setHasMoreConversations] = useState(true);
+  const [messageTagModalOpen, setMessageTagModalOpen] = useState(false);
+  const [selectedMessageTag, setSelectedMessageTag] = useState(null);
+  const [tagMessage, setTagMessage] = useState('');
+  const [customerFeedbackTitle, setCustomerFeedbackTitle] = useState('Geri Bildiriminizi Alabilir Miyiz?');
+  const [customerFeedbackPayload, setCustomerFeedbackPayload] = useState('');
+  const [messageTagModalReason, setMessageTagModalReason] = useState(null);
+const location = useLocation();
+
+// const BASE_URL = 'https://appmyvoipcrm.softether.net';
+// const BASE_URL = 'https://c91e-176-41-29-228.ngrok-free.app';
+
+const BASE_URL = 'https://localhost:7099';
+
+const debouncedSearch = useCallback(
+  debounce((query) => {
+    setConversationSearchQuery(query);
+    setPage(1);
+    fetchConversations(1, false, query);
+  }, 300),
+  [] 
+);
+
+
+useEffect(() => {
+  const initializeMessenger = async () => {
+    const params = new URLSearchParams(location.search);
+    const token = params.get('token') || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJuYW1laWQiOiIzMmVkZGEyNC03YWYwLTRiNzktYTVhOC1lNTA1MDYyNDQ3ZDQiLCJ1bmlxdWVfbmFtZSI6IjkwODUwNTMyNTk4NiIsImVtYWlsIjoiaGFzYW5jb3NrdW5hcnNsYW5AZ21haWwuY29tIiwibmJmIjoxNzQ0NDYwMzgyLCJleHAiOjE3NDQ1NDY3ODIsImlhdCI6MTc0NDQ2MDM4MiwiaXNzIjoiTWVzc2VuZ2VyIiwiYXVkIjoiTWVzc2VuZ2VyIn0.fmQAuUdlnO6UlzPmxb7I2WtA-QhKEaBYwPZNJDous9M";
+    console.log('Token from URL:', token);
+    window.localStorage.setItem('jwtToken', token.trim()); // Use native localStorage
+    console.log('Stored token in localStorage:', window.localStorage.getItem('jwtToken'));
+    localStorage.set('jwtToken', token);
+    if (!token) {
+      setError('No authentication token provided');
+      setLoading(false);
+      setErrorModalOpen(true);
+      return;
+    }
+  };
+
+  initializeMessenger(); 
+}, []); 
+
+
+
+useEffect(() => {
+  fetchConversations(1, false, conversationSearchQuery);
+}, []);
 
   useEffect(() => {
     const loadFFmpeg = async () => {
@@ -116,39 +174,118 @@ const [conversationSearchQuery, setConversationSearchQuery] = useState('');
         }
       } catch (err) {
         console.error('Failed to load FFmpeg:', err);
-        setError('Failed to initialize audio processing. Please try again later.');
+        setError('Ses kaydının işlenmesinde bir hata oluştu.');
         setErrorModalOpen(true);
       }
     };
     loadFFmpeg();
   }, [ffmpegLoaded]);
 
-  useEffect(() => {
-    const userId = localStorage.get('messengerUserId');
-    const accessToken = localStorage.get('messengerAccessToken');
-    if (!userId || !accessToken) {
-      setError('Please log in to access the Messenger chat.');
-      setErrorModalOpen(true);
-      navigate('/MessengerLogin');
-    }
-  }, [navigate]);
 
   useEffect(() => {
+    const fetchImageBlobs = async () => {
+      const newBlobs = { ...imageBlobs };
+      for (const msg of messages) {
+        // Fetch blobs for main message URLs
+        if (
+        
+          msg.urls &&
+          (msg.messageType === 'Image' || msg.messageType === 'Sticker' || msg.messageType === 'Audio' || msg.messageType === 'Video')
+        ) {
+          for (const url of msg.urls) {
+            if (!(url in newBlobs)) { // Check if URL is already processed (success or failure)
+              try {
+                console.log(`Fetching main message URL: ${url}`);
+                const response = await fetch(url, {
+                  headers: { 'ngrok-skip-browser-warning': 'true' },
+                  mode: 'cors',
+                });
+                if (!response.ok) {
+                  if (response.status === 404) {
+                    newBlobs[url] = null; // Mark as failed
+                    console.log(`URL not found: ${url}, marked as failed`);
+                  }
+                  throw new Error(`Failed to fetch: ${response.status}`);
+                }
+                const blob = await response.blob();
+                newBlobs[url] = URL.createObjectURL(blob);
+                console.log(`Successfully fetched blob for ${url}: ${newBlobs[url]}`);
+              } catch (error) {
+                console.error(`Error fetching main message URL ${url}:`, error);
+                if (!newBlobs[url]) newBlobs[url] = null; // Ensure failed URLs are marked
+              }
+            }
+          }
+        }
+  
+        if (
+          msg.repliedMessage &&
+          msg.repliedMessage.direction === 'Outbound' &&
+          msg.repliedMessage.url &&
+          (msg.repliedMessage.messageType === 'Image' || msg.repliedMessage.messageType === 'Sticker' || msg.repliedMessage.messageType === 'Audio' || msg.repliedMessage.messageType === 'Video')
+        ) {
+          let repliedUrls = [];
+          try {
+            repliedUrls = JSON.parse(msg.repliedMessage.url);
+            if (!Array.isArray(repliedUrls)) repliedUrls = [repliedUrls];
+          } catch (e) {
+            console.error(`Error parsing repliedMessage.url: ${msg.repliedMessage.url}`, e);
+            repliedUrls = [msg.repliedMessage.url];
+          }
+  
+          for (const url of repliedUrls) {
+            if (!(url in newBlobs)) { // Check if URL is already processed
+              try {
+                console.log(`Fetching replied message URL: ${url}`);
+                const response = await fetch(url, {
+                  headers: { 'ngrok-skip-browser-warning': 'true' },
+                  mode: 'cors',
+                });
+                if (!response.ok) {
+                  if (response.status === 404) {
+                    newBlobs[url] = null; // Mark as failed
+                    console.log(`URL not found: ${url}, marked as failed`);
+                  }
+                  throw new Error(`Failed to fetch: ${response.status}`);
+                }
+                const blob = await response.blob();
+                newBlobs[url] = URL.createObjectURL(blob);
+                console.log(`Successfully fetched blob for ${url}: ${newBlobs[url]}`);
+              } catch (error) {
+                console.error(`Error fetching replied message URL ${url}:`, error);
+                if (!newBlobs[url]) newBlobs[url] = null; // Ensure failed URLs are marked
+              }
+            }
+          }
+        }
+      }
+      setImageBlobs(newBlobs);
+      console.log('Updated imageBlobs:', newBlobs);
+    };
+  
+    fetchImageBlobs();
+  
+    return () => {
+      Object.entries(newBlobs).forEach(([url, blobUrl]) => {
+        if (blobUrl && blobUrl !== null) URL.revokeObjectURL(blobUrl); // Only revoke valid blob URLs
+      });
+    };
+  }, [messages]);
+  
+  useEffect(() => {
     const newConnection = new signalR.HubConnectionBuilder()
-      .withUrl('https://localhost:7099/messengerHub', { withCredentials: true })
+      .withUrl( `${BASE_URL}/messengerHub`, { withCredentials: true })
       .withAutomaticReconnect()
       .configureLogging(signalR.LogLevel.Information)
       .build();
 
     setConnection(newConnection);
 
-    newConnection
-      .start()
+    newConnection.start()
       .then(() => console.log('SignalR Connected'))
       .catch((err) => {
         console.error('SignalR Connection Error:', err);
-        setError('Failed to connect to real-time updates: ' + err.message);
-        setErrorModalOpen(true);
+      
       });
 
     newConnection.on('ReceiveMessage', (message) => {
@@ -158,6 +295,11 @@ const [conversationSearchQuery, setConversationSearchQuery] = useState('');
           const audio = new Audio('/audio/messenger-short-ringtone.mp3');
           audio.play().catch((err) => console.error('Error playing notification sound:', err));
         }
+      }
+      else  {
+
+   // Refresh conversations to update unviewed counts
+   fetchConversations(page, false,conversationSearchQuery);
       }
     });
 
@@ -215,29 +357,9 @@ const [conversationSearchQuery, setConversationSearchQuery] = useState('');
       }
     });
 
-
-
     return () => newConnection.stop();
   }, [selectedConversationId, playNotificationSound]);
 
-  useEffect(() => {
-    const fetchConversations = async () => {
-      try {
-        const response = await fetch('https://localhost:7099/api/messenger/conversations', {
-          credentials: 'include',
-        });
-        if (!response.ok) throw new Error(`HTTP error! Status: ${response.status}`);
-        const data = await response.json();
-        setConversations(data.map((conv) => ({ ...conv, unviewedCount: conv.unviewedCount || 0 })));
-        if (data.length > 0 && !selectedConversationId) setSelectedConversationId(data[0].id);
-      } catch (error) {
-        console.error('Error fetching conversations:', error);
-        setError('Failed to load conversations: ' + error.message);
-        setErrorModalOpen(true);
-      }
-    };
-    fetchConversations();
-  }, []);
 
   useEffect(() => {
     setPage(1);
@@ -264,60 +386,55 @@ const [conversationSearchQuery, setConversationSearchQuery] = useState('');
     fetchSidebarData();
   }, [selectedConversationId, showSidebar, activeTab]);
 
-
-// Add this new function to send a message as a human agent
-const sendHumanAgentMessage = async () => {
-  if (!humanAgentMessage.trim() || !selectedConversationId || !connection) return;
-
-  const selectedConversation = conversations.find((c) => c.id === selectedConversationId);
-  if (!selectedConversation || selectedConversation.blocked) return;
-
-  const tempId = Date.now().toString();
-  const messageType = 'Text';
-
-  setMessages((prev) => [
-    ...prev,
-    {
-      id: null,
-      tempId,
-      senderId: userId,
-      conversationId: selectedConversationId,
-      text: humanAgentMessage,
-      urls: null,
-      timestamp: new Date().toISOString(),
-      status: 'Sending',
-      type: messageType,
-      replyToId: replyingTo?.id || null,
-      isHumanAgent: true, // Flag to indicate this is a human agent message
-    },
-  ]);
-
-  scrollToBottom();
-
-  const timeoutId = setTimeout(() => {
-    setMessages((prev) =>
-      prev.map((msg) => (msg.tempId === tempId ? { ...msg, status: 'failed' } : msg))
-    );
-    setError('Sending human agent message timed out');
-    setErrorModalOpen(true);
-  }, 10000);
-
-  try {
-    const response = await fetch('https://localhost:7099/api/messenger/send-human-agent-message', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
+  const sendHumanAgentMessage = async () => {
+    if (!humanAgentMessage.trim() || !selectedConversationId || !connection) return;
+  
+    const selectedConversation = conversations.find((c) => c.id === selectedConversationId);
+    if (!selectedConversation || selectedConversation.blocked) return;
+  
+    const tempId = Date.now().toString();
+    const messageType = 'Text';
+  
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: null,
+        tempId,
+        senderId:  String(userId),
         conversationId: selectedConversationId,
         text: humanAgentMessage,
-        recipientId: selectedConversation.senderId,
-      }),
-      credentials: 'include',
-    });
-
-    clearTimeout(timeoutId);
-    const data = await response.json();
-
-    if (response.ok) {
+        urls: null,
+        timestamp: new Date().toISOString(),
+        status: 'Sending',
+        type: messageType,
+        replyToId: replyingTo?.id || null,
+        isHumanAgent: true,
+        direction: 'Outbound',
+      },
+    ]);
+  
+    scrollToBottom();
+  
+    const timeoutId = setTimeout(() => {
+      setMessages((prev) =>
+        prev.map((msg) => (msg.tempId === tempId ? { ...msg, status: 'failed' } : msg))
+      );
+      setError('Zaman aşımına uğradı.');
+      setErrorModalOpen(true);
+    }, 30000);
+  
+    try {
+      const data = await apiFetch('/api/messenger/send-human-agent-message', {
+        method: 'POST',
+        body: JSON.stringify({
+          conversationId: selectedConversationId,
+          text: humanAgentMessage,
+          recipientId: selectedConversation.senderId,
+        }),
+      });
+  
+      clearTimeout(timeoutId);
+  
       setMessages((prev) =>
         prev.map((msg) =>
           msg.tempId === tempId
@@ -327,80 +444,104 @@ const sendHumanAgentMessage = async () => {
       );
       setHumanAgentMessage('');
       setHumanAgentModalOpen(false);
-    } else {
-      throw new Error(data.error || 'Unknown error');
+    } catch (error) {
+      clearTimeout(timeoutId);
+      setMessages((prev) =>
+        prev.map((msg) => (msg.tempId === tempId ? { ...msg, status: 'failed' } : msg))
+      );
+      setError(`Hata: ${error.message}`);
+      setErrorModalOpen(true);
     }
-  } catch (error) {
-    clearTimeout(timeoutId);
-    setMessages((prev) =>
-      prev.map((msg) => (msg.tempId === tempId ? { ...msg, status: 'failed' } : msg))
-    );
-    setError(`Failed to send human agent message: ${error.message}`);
-    setErrorModalOpen(true);
-  }
-};
+  };
 
+  const fetchConversations = useCallback(
+    async (pageToFetch = 1, append = false, search = '') => {
+      setIsLoadingConversations(true);
+      try {
+        const endpoint = `/api/messenger/conversations?page=${pageToFetch}&pageSize=${pageSize}${
+          search ? `&search=${encodeURIComponent(search)}` : ''
+        }`;
+        const data = await apiFetch(endpoint);
+  
+        const fetchedConversations = data.data.map((conv) => ({
+          ...conv,
+          unviewedCount: conv.unviewedCount || 0,
+        }));
+  
+        setTotalConversations(data.totalCount);
+        setHasMoreConversations(pageToFetch * pageSize < data.totalCount);
+  
+        if (append) {
+          setConversations((prev) => [...prev, ...fetchedConversations]);
+        } else {
+          setConversations(fetchedConversations);
+          if (fetchedConversations.length > 0 && !selectedConversationId) {
+            setSelectedConversationId(fetchedConversations[0].id);
+          }
+        }
+  
+        setPage(pageToFetch);
+      } catch (error) {
+        console.error('Error fetching conversations:', error);
+        setError('Sohbetler alınamadı: ' + error.message);
+        setErrorModalOpen(true);
+        throw error; 
+      } finally {
+        setIsLoadingConversations(false);
+      }
+    },
+    [pageSize, selectedConversationId]
+  );
+
+    const loadMoreConversations = () => {
+      if (!isLoadingConversations && hasMoreConversations) {
+        fetchConversations(page + 1, true, conversationSearchQuery);
+      }
+    };
+  
 
   const checkSessionStatus = async () => {
     if (!selectedConversationId || !connection) return { isExpired: false };
     const selectedConversation = conversations.find((c) => c.id === selectedConversationId);
     if (!selectedConversation || selectedConversation.blocked) return { isExpired: false };
-
+  
     try {
-      const response = await fetch(
-        `https://localhost:7099/api/messenger/check-session/${selectedConversationId}`,
-        { credentials: 'include' }
-      );
-      if (!response.ok) throw new Error('Failed to check session status');
-      const data = await response.json();
+      const data = await apiFetch(`/api/messenger/check-session/${selectedConversationId}`);
       const lastInboundTimestamp = data.lastInboundTimestamp;
-      if (!lastInboundTimestamp) return { isExpired: true }; // No inbound messages yet
-
+      if (!lastInboundTimestamp) return { isExpired: true };
+  
       const lastMessageDate = new Date(lastInboundTimestamp);
       const now = new Date();
       const hoursDiff = (now - lastMessageDate) / (1000 * 60 * 60);
       const isExpired = hoursDiff > 24;
-
+  
       return {
         isExpired,
         hasOtnToken: !!otnTokens[selectedConversationId],
       };
     } catch (error) {
       console.error('Error checking session status:', error);
-      setError('Failed to check session status: ' + error.message);
-      setErrorModalOpen(true);
       return { isExpired: false };
     }
   };
   const handleUseOtnToken = async () => {
     try {
-      const response = await fetch(`https://localhost:7099/api/messenger/check-otn-token/${selectedConversationId}`, {
-        method: 'GET',
-        credentials: 'include',
-      });
-  
-      if (!response.ok) {
-        throw new Error('Failed to check OTN token status');
-      }
-  
-      const data = await response.json();
-  
+      const data = await apiFetch(`/api/messenger/check-otn-token/${selectedConversationId}`);
+      console.log(data);
       if (data.hasValidToken) {
-        // Token exists and is valid, proceed to confirmation modal
         setOtnTokens((prev) => ({ ...prev, [selectedConversationId]: data.token }));
-        setSessionExpiredModalOpen(false);
-        setOtnConfirmationModalOpen(true);
+        setUseOtnForMessage(true);
+        return true;
       } else {
-        // No valid token found
-        setSessionExpiredModalOpen(false);
-        setError("We are sorry, you don't have a valid token to use.");
+        setError("Geçerli OTN token bulunamadı.");
         setErrorModalOpen(true);
+        return false;
       }
     } catch (error) {
       console.error('Error checking OTN token:', error);
-      setSessionExpiredModalOpen(false);
-      setError('Failed to verify OTN token: ' + error.message);
+      setError('OTN token doğrulanamadı: ' + error.message);
       setErrorModalOpen(true);
+      return false;
     }
   };
   const scrollToBottom = () => {
@@ -414,30 +555,19 @@ const sendHumanAgentMessage = async () => {
     const selectedConversation = conversations.find((c) => c.id === selectedConversationId);
     if (!selectedConversation || selectedConversation.blocked) return;
     try {
-      const response = await fetch('https://localhost:7099/api/messenger/sender-action', {
+      await apiFetch('/api/messenger/sender-action', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           conversationId: selectedConversationId,
           recipientId: selectedConversation.senderId,
           senderAction: action,
         }),
-        credentials: 'include',
       });
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(`Failed to send sender action: ${errorData.Error || 'Unknown error'}`);
-      }
     } catch (error) {
       console.error('Error sending sender action:', error);
-      setError(`Failed to send ${action}: ${error.message}`);
-      setErrorModalOpen(true);
+     
     }
   };
-
-  const filteredConversations = conversations.filter((conv) =>
-    conv.name.toLowerCase().includes(conversationSearchQuery.toLowerCase())
-  );
 
   const handleTypingStart = () => {
     if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
@@ -454,16 +584,12 @@ const sendHumanAgentMessage = async () => {
   const fetchMessages = async (pageToFetch = 1, append = false, targetMessageId = null) => {
     if (!selectedConversationId) return;
     try {
-      let url = `https://localhost:7099/api/messenger/conversation-messages/${selectedConversationId}?page=${pageToFetch}&pageSize=5`;
-      if (targetMessageId) url += `&targetMessageId=${targetMessageId}`;
-      const response = await fetch(url, { credentials: 'include' });
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(`HTTP error! Status: ${response.status}, Message: ${errorData.Error || 'Unknown error'}`);
-      }
-      const data = await response.json();
-
+      let endpoint = `/api/messenger/conversation-messages/${selectedConversationId}?page=${pageToFetch}&pageSize=5`;
+      if (targetMessageId) endpoint += `&targetMessageId=${targetMessageId}`;
+      const data = await apiFetch(endpoint);
+  
       const fetchedMessages = (data.messages || []).map((msg) => {
+        setUserId(msg.recipientId);
         let urls = null;
         if (msg.url) {
           if (msg.messageType === 'Image' || msg.messageType === 'Sticker') {
@@ -477,9 +603,30 @@ const sendHumanAgentMessage = async () => {
             urls = [msg.url];
           }
         }
-        return { ...msg, urls, viewed: msg.viewed };
+  
+        // Normalize repliedMessage
+        const repliedMessage = msg.repliedMessage
+          ? {
+              ...msg.repliedMessage,
+              direction: msg.repliedMessage.direction || msg.direction,
+              urls: msg.repliedMessage.url
+                ? (msg.repliedMessage.messageType === 'Image' || msg.repliedMessage.messageType === 'Sticker')
+                  ? (() => {
+                      try {
+                        const parsed = JSON.parse(msg.repliedMessage.url);
+                        return Array.isArray(parsed) ? parsed : [parsed];
+                      } catch (e) {
+                        return [msg.repliedMessage.url];
+                      }
+                    })()
+                  : [msg.repliedMessage.url]
+                : null,
+            }
+          : null;
+  
+        return { ...msg, urls, viewed: msg.viewed, repliedMessage };
       });
-
+  
       setTotalMessages(data.totalMessages || 0);
       if (append) {
         setMessages((prev) => [...fetchedMessages, ...prev]);
@@ -506,36 +653,23 @@ const sendHumanAgentMessage = async () => {
       setShowLoadMore(pageToFetch * 5 < data.totalMessages);
     } catch (error) {
       console.error('Error fetching messages:', error);
-      setError('Failed to load messages: ' + error.message);
+      setError('Mesajlar alınamadı: ' + error.message);
       setErrorModalOpen(true);
     }
   };
-
   const markMessagesViewed = async (messageIds) => {
     try {
-      const response = await fetch(
-        `https://localhost:7099/api/messenger/mark-messages-viewed/${selectedConversationId}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(messageIds),
-          credentials: 'include',
-        }
-      );
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(`Failed to mark messages as viewed: ${errorData.Error || 'Unknown error'}`);
-      }
+      await apiFetch(`/api/messenger/mark-messages-viewed/${selectedConversationId}`, {
+        method: 'POST',
+        body: JSON.stringify(messageIds),
+      });
       setMessages((prev) =>
         prev.map((msg) => (messageIds.includes(msg.id) ? { ...msg, viewed: true } : msg))
       );
     } catch (error) {
       console.error('Error marking messages as viewed:', error);
-      setError('Failed to mark messages as viewed: ' + error.message);
-      setErrorModalOpen(true);
     }
   };
-
   const handleScroll = () => {
     if (messagesContainerRef.current) {
       const { scrollTop, scrollHeight, clientHeight } = messagesContainerRef.current;
@@ -576,7 +710,7 @@ const sendHumanAgentMessage = async () => {
         const nonImageFile = selectedFiles.find((file) => !file.type.startsWith('image/'));
         if (nonImageFile) {
           if (nonImageFile.size > 25 * 1024 * 1024) {
-            setError('File exceeds 25 MB limit. Please use a smaller file or upload it to Google Drive/Dropbox and share the link.');
+            setError('Dosya boyutu 25 MB’dan büyük. Daha küçük bir dosya seçin.');
             setErrorModalOpen(true);
             setFiles([]);
             setFilePreviews([]);
@@ -596,7 +730,7 @@ const sendHumanAgentMessage = async () => {
       } else {
         const oversizedImages = selectedFiles.filter((file) => file.size > 25 * 1024 * 1024);
         if (oversizedImages.length > 0) {
-          setError('One or more images exceed 25 MB. Please use smaller images.');
+          setError('Dosya boyutu 25 MB’dan büyük. Daha küçük bir dosya seçin.');
           setErrorModalOpen(true);
           setFiles([]);
           setFilePreviews([]);
@@ -625,22 +759,161 @@ const sendHumanAgentMessage = async () => {
     setFilePreviews(updatedPreviews);
     setAudioBlob(null);
   };
+  const sendMessageTag = async () => {
+    if (!selectedConversationId || !connection || !selectedMessageTag) return;
+  
+    const selectedConversation = conversations.find((c) => c.id === selectedConversationId);
+    if (!selectedConversation || selectedConversation.blocked) {
+      setError('Bu kullanıcı engellenmiş, mesaj gönderilemez.');
+      setErrorModalOpen(true);
+      return;
+    }
+  
+    const tempId = Date.now().toString();
+    let endpoint = '';
+    let requestBody = {};
+  
+    // Prepare payload based on tag
+    switch (selectedMessageTag) {
+      case 'ACCOUNT_UPDATE':
+        endpoint = '/api/messenger/send-account-update-message';
+        requestBody = {
+          conversationId: selectedConversationId,
+          recipientId: selectedConversation.senderId,
+          text: tagMessage,
+        };
+        break;
+      case 'CONFIRMED_EVENT_UPDATE':
+        endpoint = '/api/messenger/send-confirmed-event-update-message';
+        requestBody = {
+          conversationId: selectedConversationId,
+          recipientId: selectedConversation.senderId,
+          text: tagMessage,
+        };
+        break;
+      case 'CUSTOMER_FEEDBACK':
+        endpoint = '/api/messenger/send-customer-feedback-message';
+        requestBody = {
+          conversationId: selectedConversationId,
+          recipientId: selectedConversation.senderId,
+          title: customerFeedbackTitle,
+          payload: customerFeedbackPayload || `FEEDBACK_${selectedConversationId}`,
+        };
+        break;
+      case 'POST_PURCHASE_UPDATE':
+        endpoint = '/api/messenger/send-post-purchase-update-message';
+        requestBody = {
+          conversationId: selectedConversationId,
+          recipientId: selectedConversation.senderId,
+          text: tagMessage,
+        };
+        break;
+      case 'HUMAN_AGENT':
+        endpoint = '/api/messenger/send-human-agent-message';
+        requestBody = {
+          conversationId: selectedConversationId,
+          recipientId: selectedConversation.senderId,
+          text: tagMessage,
+        };
+        break;
+      case 'OTN_TOKEN':
+        endpoint = '/api/messenger/send-otn-message';
+        const token = otnTokens[selectedConversationId];
 
+   let  tokenResponse =    await handleUseOtnToken();
+        if (!tokenResponse) {
+          return;
+        }
+        requestBody = {
+          conversationId: selectedConversationId,
+          token: token,
+          text: tagMessage,
+        };
+        break;
+      default:
+        return;
+    }
+  
+    // Add temporary message to UI
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: null,
+        tempId,
+        senderId: String(userId),
+        conversationId: selectedConversationId,
+        text: selectedMessageTag === 'CUSTOMER_FEEDBACK' ? `Geri bildirim: ${customerFeedbackTitle}` : tagMessage,
+        urls: null,
+        timestamp: new Date().toISOString(),
+        status: 'Sending',
+        type: selectedMessageTag === 'CUSTOMER_FEEDBACK' ? 'Template' : 'Text',
+        isMessageTag: true,
+        direction: 'Outbound',
+      },
+    ]);
+    scrollToBottom();
+  
+    const timeoutId = setTimeout(() => {
+      setMessages((prev) =>
+        prev.map((msg) => (msg.tempId === tempId ? { ...msg, status: 'failed' } : msg))
+      );
+      setError('Zaman aşımına uğradı.');
+      setErrorModalOpen(true);
+    }, 30000);
+  
+    try {
+      const data = await apiFetch(endpoint, {
+        method: 'POST',
+        body: JSON.stringify(requestBody),
+      });
+  
+      clearTimeout(timeoutId);
+  
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg.tempId === tempId
+            ? { ...msg, status: 'Sent', id: data.MessageId, mid: data.FacebookMessageId }
+            : msg
+        )
+      );
+  
+      // For OTN_TOKEN, clear the token after use
+      if (selectedMessageTag === 'OTN_TOKEN') {
+        setOtnTokens((prev) => ({ ...prev, [selectedConversationId]: null }));
+      }
+  
+      // Reset modal state
+      setMessageTagModalOpen(false);
+      setSelectedMessageTag(null);
+      setTagMessage('');
+      setCustomerFeedbackTitle('Geri Bildiriminizi Alabilir Miyiz?');
+      setCustomerFeedbackPayload('');
+  
+      setInfoMessage(`${selectedMessageTag} tag ileListening for messages from parent...
+   mesaj başarıyla gönderildi.`);
+      setInfoModalOpen(true);
+    } catch (error) {
+      clearTimeout(timeoutId);
+      setMessages((prev) =>
+        prev.map((msg) => (msg.tempId === tempId ? { ...msg, status: 'failed' } : msg))
+      );
+      setError(`Mesaj gönderilemedi: ${error.message}`);
+      setErrorModalOpen(true);
+    }
+  };
   const sendMessage = async () => {
     if ((!newMessage.trim() && files.length === 0 && !audioBlob) || !connection || !selectedConversationId) return;
     const selectedConversation = conversations.find((c) => c.id === selectedConversationId);
     if (!selectedConversation || selectedConversation.blocked) return;
   
     const sessionStatus = await checkSessionStatus();
-    console.log("sessionStatus:", sessionStatus);
     if (sessionStatus.isExpired && !useOtnForMessage) {
-      setSessionExpiredModalOpen(true);
+      setMessageTagModalOpen(true);
+      setMessageTagModalReason('sessionExpired');
       return;
     }
   
     const tempId = Date.now().toString();
-  
-    // Temporary messageType for UI
     const uiMessageType = audioBlob ? 'Audio' : files.length > 0 ? 'File' : 'Text';
   
     setMessages((prev) => [
@@ -648,7 +921,7 @@ const sendHumanAgentMessage = async () => {
       {
         id: null,
         tempId,
-        senderId: "576837692181131",
+        senderId: String(userId),
         conversationId: selectedConversationId,
         text: newMessage,
         urls: files.length > 0 ? filePreviews : null,
@@ -656,19 +929,20 @@ const sendHumanAgentMessage = async () => {
         timestamp: new Date().toISOString(),
         status: 'Sending',
         type: uiMessageType,
-        replyToId: replyingTo?.id || null,
+        replyToId:replyingTo?.id ? String(replyingTo.id) : null,
         isHumanAgent: false,
+        direction: 'Outbound',
       },
     ]);
     scrollToBottom();
   
     const timeoutId = setTimeout(() => {
       setMessages((prev) => prev.map((msg) => (msg.tempId === tempId ? { ...msg, status: 'failed' } : msg)));
-      setError(`Sending timed out`);
+      setError(`Zaman aşımına uğradı.`);
       setErrorModalOpen(true);
-    }, 10000);
+    }, 30000);
   
-    let messageType = 'Text'; 
+    let messageType = 'Text';
   
     try {
       let request;
@@ -678,94 +952,83 @@ const sendHumanAgentMessage = async () => {
         for (const file of files) {
           const formData = new FormData();
           formData.append('files', file);
-          const uploadResponse = await fetch('https://localhost:7099/api/messenger/upload-file', {
+          const uploadData = await apiFetch('/api/messenger/upload-file', {
             method: 'POST',
             body: formData,
-            credentials: 'include',
+            headers: {}, 
           });
-          if (!uploadResponse.ok) throw new Error('File upload failed');
-          const uploadData = await uploadResponse.json();
-          request.urls.push(uploadData.urls[0]); 
+          request.urls.push(uploadData.urls[0]);
         }
         const fileType = files[0].type;
         messageType = fileType.startsWith('image/') ? 'Image' :
                       fileType.startsWith('video/') ? 'Video' :
                       fileType.includes('audio') ? 'Audio' :
                       'Document';
-        request.senderId = userId;
+        request.senderId = String(userId);
         request.recipientId = selectedConversation.senderId;
         request.messageType = messageType;
         request.tempId = tempId;
-        request.repliedId = replyingTo?.id || null;
+        request.repliedId =replyingTo?.id ? String(replyingTo.id) : null;
       } else if (audioBlob) {
         const formData = new FormData();
         formData.append('files', audioBlob, 'audio-message.wav');
-        const uploadResponse = await fetch('https://localhost:7099/api/messenger/upload-file', {
+        const uploadData = await apiFetch('/api/messenger/upload-file', {
           method: 'POST',
           body: formData,
-          credentials: 'include',
+          headers: {},
         });
-        if (!uploadResponse.ok) throw new Error('Audio upload failed');
-        const uploadData = await uploadResponse.json();
         messageType = 'Audio';
         request = {
           conversationId: selectedConversationId,
-          senderId: userId,
+          senderId: String(userId),
           recipientId: selectedConversation.senderId,
           text: newMessage,
           urls: uploadData.urls,
           messageType: messageType,
           tempId: tempId,
-          repliedId: replyingTo?.id || null,
+          repliedId:replyingTo?.id ? String(replyingTo.id) : null,
         };
       } else {
         messageType = 'Text';
         request = {
           conversationId: selectedConversationId,
-          senderId: userId,
+          senderId: String(userId),
           recipientId: selectedConversation.senderId,
           text: newMessage,
           urls: null,
           messageType: messageType,
           tempId: tempId,
-          repliedId: replyingTo?.id || null,
+          repliedId:replyingTo?.id ? String(replyingTo.id) : null,
         };
       }
   
       const endpoint = useOtnForMessage
-        ? 'https://localhost:7099/api/messenger/send-otn-message'
-        : 'https://localhost:7099/api/messenger/send-message';
+        ? '/api/messenger/send-otn-message'
+        : '/api/messenger/send-message';
       const body = useOtnForMessage
         ? JSON.stringify({ conversationId: selectedConversationId, token: otnTokens[selectedConversationId], text: newMessage })
         : JSON.stringify(request);
   
-      const response = await fetch(endpoint, {
+      const data = await apiFetch(endpoint, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body,
-        credentials: 'include',
       });
   
       clearTimeout(timeoutId);
-      const data = await response.json();
   
-      if (response.ok) {
-        setMessages((prev) =>
-          prev.map((msg) =>
-            msg.tempId === tempId ? { ...msg, status: 'Sent', id: data.MessageId, mid: data.FacebookMessageId, urls: request?.urls } : msg
-          )
-        );
-        setNewMessage('');
-        setFiles([]);
-        setFilePreviews([]);
-        setAudioBlob(null);
-        setReplyingTo(null);
-        if (useOtnForMessage) {
-          setOtnTokens((prev) => ({ ...prev, [selectedConversationId]: null }));
-          setUseOtnForMessage(false);
-        }
-      } else {
-        throw new Error(data.error || 'Unknown error');
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg.tempId === tempId ? { ...msg, status: 'Sent', id: data.MessageId, mid: data.FacebookMessageId, urls: request?.urls } : msg
+        )
+      );
+      setNewMessage('');
+      setFiles([]);
+      setFilePreviews([]);
+      setAudioBlob(null);
+      setReplyingTo(null);
+      if (useOtnForMessage) {
+        setOtnTokens((prev) => ({ ...prev, [selectedConversationId]: null }));
+        setUseOtnForMessage(false);
       }
     } catch (error) {
       clearTimeout(timeoutId);
@@ -780,80 +1043,82 @@ const sendHumanAgentMessage = async () => {
     sendMessage();
   };
 
-const sendOkaySticker = async () => {
-  if (!connection || !selectedConversationId) return;
-  const selectedConversation = conversations.find((c) => c.id === selectedConversationId);
-  if (!selectedConversation || selectedConversation.blocked) return;
+  const sendOkaySticker = async () => {
+    if (!connection || !selectedConversationId) return;
+    const selectedConversation = conversations.find((c) => c.id === selectedConversationId);
+    if (!selectedConversation || selectedConversation.blocked) return;
+  
+    const sessionStatus = await checkSessionStatus();
+    if (sessionStatus.isExpired && !useOtnForMessage) {
+      setMessageTagModalOpen(true);
+      setMessageTagModalReason('sessionExpired');
+      return;
+    }
 
-  const tempId = Date.now().toString() + Math.random().toString(36).substr(2, 9);
-  const okayStickerPath = '/images/thumbup.png';
-
-  const tempMessage = {
-    tempId,
-    conversationId: selectedConversationId,
-    senderId: '576837692181131',
-    recipientId: selectedConversation.senderId,
-    text: null,
-    urls: [okayStickerPath],
-    messageType: 'Sticker',
-    timestamp: new Date().toISOString(),
-    direction: 'Outbound',
-    status: 'sending',
-    repliedId: replyingTo?.mid ? replyingTo.mid : null,
-    viewed: true,
-  };
-
-  setMessages((prev) => [...prev, tempMessage]);
-  setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
-
-  const timeoutId = setTimeout(() => {
-    setMessages((prev) =>
-      prev.map((msg) => (msg.tempId === tempId ? { ...msg, status: 'failed' } : msg))
-    );
-    setError('Sticker send timed out.');
-    setErrorModalOpen(true);
-  }, 10000);
-
-  try {
-    const response = await fetch(okayStickerPath);
-    if (!response.ok) throw new Error('Failed to fetch thumbup.png');
-    const blob = await response.blob();
-    const file = new File([blob], 'thumbup.png', { type: 'image/png' });
-
-    const formData = new FormData();
-    formData.append('files', file);
-    const uploadResponse = await fetch('https://localhost:7099/api/messenger/upload-file', {
-      method: 'POST',
-      body: formData,
-      credentials: 'include',
-    });
-
-    if (!uploadResponse.ok) throw new Error('File upload failed');
-    const uploadData = await uploadResponse.json();
-    const fileUrls = uploadData.urls;
-
-    const request = {
+    const tempId = Date.now().toString() + Math.random().toString(36).substr(2, 9);
+    const okayStickerPath = '/images/thumbup.png';
+  
+    const tempMessage = {
+      tempId,
       conversationId: selectedConversationId,
-      senderId: '576837692181131',
+      senderId: null,
       recipientId: selectedConversation.senderId,
       text: null,
-      urls: fileUrls,
+      urls: [okayStickerPath],
       messageType: 'Sticker',
-      tempId,
+      timestamp: new Date().toISOString(),
+      direction: 'Outbound',
+      status: 'sending',
       repliedId: replyingTo?.mid ? replyingTo.mid : null,
+      viewed: true,
+      direction: 'Outbound',
     };
-
-    const sendResponse = await fetch('https://localhost:7099/api/messenger/send-message', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(request),
-      credentials: 'include',
-    });
-
-    clearTimeout(timeoutId);
-    const data = await sendResponse.json();
-
-    if (sendResponse.ok) {
+  
+    setMessages((prev) => [...prev, tempMessage]);
+    setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
+  
+    const timeoutId = setTimeout(() => {
+      setMessages((prev) =>
+        prev.map((msg) => (msg.tempId === tempId ? { ...msg, status: 'failed' } : msg))
+      );
+      setError('Zaman aşımı.');
+      setErrorModalOpen(true);
+    }, 30000);
+  
+    try {
+      const response = await fetch(okayStickerPath); // Local file fetch
+      if (!response.ok) throw new Error('Failed to fetch thumbup.png');
+      const blob = await response.blob();
+      const file = new File([blob], 'thumbup.png', { type: 'image/png' });
+  
+      const formData = new FormData();
+      formData.append('files', file);
+      const uploadData = await apiFetch('/api/messenger/upload-file', {
+        method: 'POST',
+        body: formData,
+        headers: {},
+      });
+  
+      const fileUrls = uploadData.urls;
+  
+      const request = {
+        conversationId: selectedConversationId,
+        senderId:  String(userId),
+        recipientId: selectedConversation.senderId,
+        text: null,
+        urls: fileUrls,
+        messageType: 'Sticker',
+        tempId,
+        repliedId: replyingTo?.mid ? replyingTo.mid : null,
+      };
+  
+      const data = await apiFetch('/api/messenger/send-message', {
+        method: 'POST',
+        body: JSON.stringify(request),
+      });
+  
+      clearTimeout(timeoutId);
+  
       setMessages((prev) =>
         prev.map((msg) =>
           msg.tempId === tempId
@@ -862,119 +1127,94 @@ const sendOkaySticker = async () => {
         )
       );
       setReplyingTo(null);
-    } else {
+    } catch (error) {
+      clearTimeout(timeoutId);
       setMessages((prev) =>
         prev.map((msg) => (msg.tempId === tempId ? { ...msg, status: 'failed' } : msg))
       );
-      setError(`Failed to send sticker: ${data.error || 'Unknown error'}`);
+      setError(`Failed to send sticker: ${error.message}`);
       setErrorModalOpen(true);
     }
-  } catch (error) {
-    clearTimeout(timeoutId);
-    setMessages((prev) =>
-      prev.map((msg) => (msg.tempId === tempId ? { ...msg, status: 'failed' } : msg))
-    );
-    setError(`Failed to send sticker: ${error.message}`);
-    setErrorModalOpen(true);
-  }
-};
+  };
 
-const requestOTN = async () => {
-  console.log(selectedConversationIdForMenu, connection);
-  if (!selectedConversationIdForMenu || !connection) return;
-  const selectedConversation = conversations.find((c) => c.id === selectedConversationIdForMenu);
-  if (!selectedConversation || selectedConversation.blocked) return;
+  const requestOTN = async () => {
+    if (!selectedConversationIdForMenu || !connection) return;
+    const selectedConversation = conversations.find((c) => c.id === selectedConversationIdForMenu);
+    if (!selectedConversation || selectedConversation.blocked) return;
+  
+    try {
+      await apiFetch('/api/messenger/request-otn', {
+        method: 'POST',
+        body: JSON.stringify({
+          conversationId: selectedConversationIdForMenu,
+          recipientId: selectedConversation.senderId,
+          title: otnTitle,
+        }),
+      });
+  
+      setInfoMessage('OTN isteği gönderildi. Kullanıcı onayı bekleniyor...');
 
-  try {
-    const response = await fetch('https://localhost:7099/api/messenger/request-otn', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        conversationId: selectedConversationIdForMenu,
-        recipientId: selectedConversation.senderId,
-        title: otnTitle,
-      }),
-      credentials: 'include',
-    });
+      setInfoModalOpen(true);
+      setOpenOtnModal(false);
+    } catch (error) {
+      console.error('Error requesting OTN:', error);
+      setError('Failed to request OTN: ' + error.message);
+      setErrorModalOpen(true);
+    }
+  };
 
-    if (!response.ok) {
-      const errorData = await response.json();
-      if (errorData.code === 10 && errorData.error_subcode === 2018310) {
-        setError(
-          'One-Time Notification permission is required. Please go to your Page Settings > Advanced Messaging to request this permission.'
-        );
-      } else {
-        throw new Error(`Failed to request OTN: ${errorData.error || errorData.message || 'Unknown error'}`);
-      }
+  const sendOTNMessage = async () => {
+    if (!newMessage.trim() || !selectedConversationId || !connection) return;
+    const selectedConversation = conversations.find((c) => c.id === selectedConversationId);
+    if (!selectedConversation || selectedConversation.blocked) return;
+    const token = otnTokens[selectedConversationId];
+    if (!token) {
+      setError('Bu konuşma için OTN token bulunmamaktadır.');
       setErrorModalOpen(true);
       return;
     }
-
-setInfoMessage('OTN request sent. Waiting for user approval...');
-setInfoModalOpen(true);
-setOpenOtnModal(false);
-  } catch (error) {
-    console.error('Error requesting OTN:', error);
-    setError('Failed to request OTN: ' + error.message);
-    setErrorModalOpen(true);
-  }
-};
-
-const sendOTNMessage = async () => {
-  if (!newMessage.trim() || !selectedConversationId || !connection) return;
-  const selectedConversation = conversations.find((c) => c.id === selectedConversationId);
-  if (!selectedConversation || selectedConversation.blocked) return;
-  const token = otnTokens[selectedConversationId];
-  if (!token) {
-    setError('No OTN token available for this conversation.');
-    setErrorModalOpen(true);
-    return;
-  }
-
-  const tempId = Date.now().toString() + Math.random().toString(36).substr(2, 9);
-  const tempMessage = {
-    tempId,
-    conversationId: selectedConversationId,
-    senderId: '576837692181131',
-    recipientId: selectedConversation.senderId,
-    text: newMessage,
-    urls: null,
-    messageType: 'Text',
-    timestamp: new Date().toISOString(),
-    direction: 'Outbound',
-    status: 'sending',
-    viewed: true,
-  };
-
-  setMessages((prev) => [...prev, tempMessage]);
-  setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
-
-  const timeoutId = setTimeout(() => {
-    setMessages((prev) =>
-      prev.map((msg) => (msg.tempId === tempId ? { ...msg, status: 'failed' } : msg))
-    );
-    setError('OTN message send timed out.');
-    setErrorModalOpen(true);
-  }, 10000);
-
-  try {
-    const request = {
+  
+    const tempId = Date.now().toString() + Math.random().toString(36).substr(2, 9);
+    const tempMessage = {
+      tempId,
       conversationId: selectedConversationId,
-      token: token,
+      senderId: null,
+      recipientId: selectedConversation.senderId,
       text: newMessage,
+      urls: null,
+      messageType: 'Text',
+      timestamp: new Date().toISOString(),
+      direction: 'Outbound',
+      status: 'sending',
+      viewed: true,
+   
     };
-
-    const response = await fetch('https://localhost:7099/api/messenger/send-otn-message', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(request),
-      credentials: 'include',
-    });
-
-    clearTimeout(timeoutId);
-    const data = await response.json();
-
-    if (response.ok) {
+  
+    setMessages((prev) => [...prev, tempMessage]);
+    setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
+  
+    const timeoutId = setTimeout(() => {
+      setMessages((prev) =>
+        prev.map((msg) => (msg.tempId === tempId ? { ...msg, status: 'failed' } : msg))
+      );
+      setError('Zaman aşımı.');
+      setErrorModalOpen(true);
+    }, 30000);
+  
+    try {
+      const request = {
+        conversationId: selectedConversationId,
+        token: token,
+        text: newMessage,
+      };
+  
+      const data = await apiFetch('/api/messenger/send-otn-message', {
+        method: 'POST',
+        body: JSON.stringify(request),
+      });
+  
+      clearTimeout(timeoutId);
+  
       setMessages((prev) =>
         prev.map((msg) =>
           msg.tempId === tempId
@@ -984,22 +1224,15 @@ const sendOTNMessage = async () => {
       );
       setNewMessage('');
       setOtnTokens((prev) => ({ ...prev, [selectedConversationId]: null }));
-    } else {
+    } catch (error) {
+      clearTimeout(timeoutId);
       setMessages((prev) =>
         prev.map((msg) => (msg.tempId === tempId ? { ...msg, status: 'failed' } : msg))
       );
-      setError(`Failed to send OTN message: ${data.error || 'Unknown error'}`);
+      setError(`OTN mesajı gönderilemedi: ${error.message}`);
       setErrorModalOpen(true);
     }
-  } catch (error) {
-    clearTimeout(timeoutId);
-    setMessages((prev) =>
-      prev.map((msg) => (msg.tempId === tempId ? { ...msg, status: 'failed' } : msg))
-    );
-    setError('Failed to send OTN message: ' + error.message);
-    setErrorModalOpen(true);
-  }
-};
+  };
 
 const onEmojiClick = (emojiObject) => {
   setNewMessage((prev) => prev + emojiObject.emoji);
@@ -1013,6 +1246,14 @@ const handleReply = (message) => {
 
 const startRecording = async () => {
   try {
+
+    const sessionStatus = await checkSessionStatus();
+    if (sessionStatus.isExpired && !useOtnForMessage) {
+      setMessageTagModalOpen(true);
+      setMessageTagModalReason('sessionExpired');
+      return;
+    }
+
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
     const supportedMimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
       ? 'audio/webm;codecs=opus'
@@ -1045,7 +1286,7 @@ const startRecording = async () => {
           setErrorModalOpen(true);
         }
       } else {
-        setError('Audio processing not ready. Please try again.');
+        setError('Ses işleme henüz tamamlanmadı. Lütfen tekrar deneyin.');
         setErrorModalOpen(true);
       }
       stream.getTracks().forEach((track) => track.stop());
@@ -1061,7 +1302,8 @@ const startRecording = async () => {
       setRecordingTime((prev) => prev + 1);
     }, 1000);
   } catch (err) {
-    setError('Failed to access microphone: ' + err.message);
+    setError('Mikrofon erişimi başarısız oldu: ' + err.message);
+
     setErrorModalOpen(true);
   }
 };
@@ -1086,15 +1328,14 @@ const stopRecording = () => {
 
 const deleteMessage = async (messageId) => {
   setConfirmMessage(
-    'Warning: This message will be deleted from this project only, not from the real Messenger. Are you sure?'
+    'Dikkat: Bu mesaj yalnızca bu projeden silinecek, gerçek Messenger’dan silinmeyecek. Emin misiniz?'
   );
+  
   setConfirmAction(() => async () => {
     try {
-      const response = await fetch(`https://localhost:7099/api/messenger/delete-message/${messageId}`, {
+      await apiFetch(`/api/messenger/delete-message/${messageId}`, {
         method: 'DELETE',
-        credentials: 'include',
       });
-      if (!response.ok) throw new Error('Failed to delete message');
       setMessages((prev) => prev.filter((msg) => msg.id !== messageId));
     } catch (error) {
       setError('Failed to delete message: ' + error.message);
@@ -1128,15 +1369,13 @@ const handleCopy = (text) => {
 
 const deleteConversation = async (conversationId) => {
   setConfirmMessage(
-    'Warning: This conversation will be deleted from this project only, not from the real Messenger. Are you sure?'
+    ' Bu sohbet yalnızca bu projeden silinecek, gerçek Messenger dan silinmeyecek. Emin misiniz?'
   );
   setConfirmAction(() => async () => {
     try {
-      const response = await fetch(`https://localhost:7099/api/messenger/delete-conversation/${conversationId}`, {
+      await apiFetch(`/api/messenger/delete-conversation/${conversationId}`, {
         method: 'DELETE',
-        credentials: 'include',
       });
-      if (!response.ok) throw new Error('Failed to delete conversation');
       setConversations((prev) => prev.filter((conv) => conv.id !== conversationId));
       if (selectedConversationId === conversationId) {
         setSelectedConversationId(null);
@@ -1169,24 +1408,19 @@ const handleCancelConfirm = () => {
   
 };
 
-
-
 const blockUser = async (conversationId) => {
   setConfirmMessage(
-    'Are you sure you want to block this user? They will no longer be able to message this Page.'
-  );
+"Bu kullanıcıyı engellemek istediğinizden emin misiniz? Bu kullanıcı artık bu Sayfaya mesaj gönderemeyecek."  );
   setConfirmAction(() => async () => {
     try {
-      const response = await fetch(`https://localhost:7099/api/messenger/block-user/${conversationId}`, {
+      await apiFetch(`/api/messenger/block-user/${conversationId}`, {
         method: 'POST',
-        credentials: 'include',
       });
-      if (!response.ok) throw new Error('Failed to block user');
       setConversations((prev) =>
         prev.map((conv) => (conv.id === conversationId ? { ...conv, blocked: true } : conv))
       );
     } catch (error) {
-      setError('Failed to block user: ' + error.message);
+      setError('Kullanıcıyı engelleme başarısız oldu: ' + error.message);
       setErrorModalOpen(true);
     }
     handleCloseConversationMenu();
@@ -1196,27 +1430,24 @@ const blockUser = async (conversationId) => {
 
 const unblockUser = async (conversationId) => {
   setConfirmMessage(
-    'Are you sure you want to unblock this user? They will be able to message this Page again.'
-  );
+   "Bu kullanıcının engelini kaldırmak istediğinizden emin misiniz? Bu kullanıcı tekrar bu Sayfaya mesaj gönderebilecek." );
   setConfirmAction(() => async () => {
     try {
-      const response = await fetch(`https://localhost:7099/api/messenger/unblock-user/${conversationId}`, {
+      await apiFetch(`/api/messenger/unblock-user/${conversationId}`, {
         method: 'POST',
-        credentials: 'include',
       });
-      if (!response.ok) throw new Error('Failed to unblock user');
       setConversations((prev) =>
         prev.map((conv) => (conv.id === conversationId ? { ...conv, blocked: false } : conv))
       );
     } catch (error) {
-      setError('Failed to unblock user: ' + error.message);
+      setError('Kullanıcıyı engelleme kaldırma işlemi başarısız oldu: ' + error.message);
+
       setErrorModalOpen(true);
     }
     handleCloseConversationMenu();
   });
   setConfirmModalOpen(true);
 };
-
 const handleOpenMessageMenu = (event, messageId) => {
   setAnchorElMessage(event.currentTarget);
   setSelectedMessageId(messageId);
@@ -1245,7 +1476,8 @@ const handleOpenOtnModal = () => {
 
 const handleCloseOtnModal = () => {
   setOpenOtnModal(false);
-  setOtnTitle('Can we contact you later with an update?');
+  setOtnTitle('Güncelleme için daha sonra sizinle iletişime geçebilir miyiz?');
+
 };
 
 const handleKeyDown = async (event) => {
@@ -1253,7 +1485,9 @@ const handleKeyDown = async (event) => {
     event.preventDefault();
     const sessionStatus = await checkSessionStatus();
     if (sessionStatus.isExpired && !useOtnForMessage) {
-      setSessionExpiredModalOpen(true);
+    
+      setMessageTagModalOpen(true);
+      
     } else {
       if (otnTokens[selectedConversationId] && useOtnForMessage) sendOTNMessage();
       else sendMessage();
@@ -1291,15 +1525,9 @@ const handleTabChange = (event, newValue) => {
 const handleSearch = async () => {
   if (!searchQuery.trim() || !selectedConversationId) return;
   try {
-    const response = await fetch(
-      `https://localhost:7099/api/messenger/search-messages/${selectedConversationId}?query=${encodeURIComponent(searchQuery)}`,
-      { credentials: 'include' }
+    const data = await apiFetch(
+      `/api/messenger/search-messages/${selectedConversationId}?query=${encodeURIComponent(searchQuery)}`
     );
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(`HTTP error! Status: ${response.status}, Message: ${errorData.Error || 'Unknown error'}`);
-    }
-    const data = await response.json();
     const results = data.messages.map((msg) => {
       let urls = null;
       if (msg.url) {
@@ -1318,7 +1546,8 @@ const handleSearch = async () => {
     });
     setSearchResults(results);
   } catch (error) {
-    setError('Failed to search messages: ' + error.message);
+    setError('Mesaj arama işlemi başarısız oldu: ' + error.message);
+
     setErrorModalOpen(true);
   }
 };
@@ -1326,12 +1555,9 @@ const handleSearch = async () => {
 const fetchMediaFilesLinks = async (type) => {
   if (!selectedConversationId) return [];
   try {
-    const response = await fetch(
-      `https://localhost:7099/api/messenger/conversation-messages/${selectedConversationId}?page=1&pageSize=1000`,
-      { credentials: 'include' }
+    const data = await apiFetch(
+      `/api/messenger/conversation-messages/${selectedConversationId}?page=1&pageSize=1000`
     );
-    if (!response.ok) throw new Error('Failed to fetch messages');
-    const data = await response.json();
     return data.messages
       .filter((msg) => {
         if (type === 'media') return ['Image', 'Video', 'Audio', 'Sticker'].includes(msg.messageType);
@@ -1356,7 +1582,8 @@ const fetchMediaFilesLinks = async (type) => {
         return { ...msg, urls };
       });
   } catch (error) {
-    setError('Failed to load media/files/links: ' + error.message);
+    setError('Medya/dosya/linkler yüklenemedi: ' + error.message);
+
     setErrorModalOpen(true);
     return [];
   }
@@ -1383,6 +1610,7 @@ const handleCloseErrorModal = () => {
 };
 
 const handleOpenModal = (type, url) => {
+  console.log(type, url);
   setModalMedia({ type, url });
   setOpenModal(true);
 };
@@ -1392,6 +1620,29 @@ const handleCloseModal = () => {
   setModalMedia({ type: '', url: '' });
 };
 
+const sendMessageToParent = (type, data) => {
+  console.log('Sending message to parent:', { type, data });
+  window.parent.postMessage({ type, data }, '*');
+};
+const handleConversationClick = (conversationId, conversationName) => {
+  setSelectedConversationId(conversationId);
+  sendMessageToParent('conversationSelected', { id: conversationId, name: conversationName });
+};
+
+const handleOpenCustomerDetails = (conversationId, conversationName) => {
+  sendMessageToParent('openCustomerDetails', { id: conversationId, name: conversationName });
+  handleCloseConversationMenu();
+};
+
+const handleConversationScroll = () => {
+  if (conversationsEndRef.current && !isLoadingConversations && hasMoreConversations) {
+    const { scrollTop, scrollHeight, clientHeight } = conversationsEndRef.current.parentElement;
+    if (scrollTop + clientHeight >= scrollHeight - 50) {
+      loadMoreConversations();
+    }
+  }
+};
+
 const selectedConversation = conversations.find((c) => c.id === selectedConversationId);
 const userName = selectedConversation?.name || '?';
 const showSendIcon = newMessage.trim() || files.length > 0 || audioBlob;
@@ -1399,126 +1650,144 @@ const showSendIcon = newMessage.trim() || files.length > 0 || audioBlob;
 return (
   <Box sx={{ display: 'flex', height: '100vh', bgcolor: '#f0f2f5', fontFamily: '"Segoe UI", Roboto, sans-serif' }}>
 <Box sx={{ width: '360px', bgcolor: '#fff', borderRight: '1px solid #e5e5e5', overflowY: 'auto', p: 2 }}>
-  <Typography variant="h5" sx={{ fontWeight: 600, color: '#050505', mb: 2, pl: 1 }}>
-    Chats
-  </Typography>
-  {/* Search Input */}
-  <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-    <InputBase
-      placeholder="Search conversations..."
-      value={conversationSearchQuery}
-      onChange={(e) => setConversationSearchQuery(e.target.value)}
-      sx={{
-        flexGrow: 1,
-        bgcolor: '#f0f2f5',
-        p: 1,
-        borderRadius: '20px',
-        fontSize: '15px',
-      }}
-    />
-    <IconButton sx={{ ml: 1, color: '#65676b', '&:hover': { color: '#1877f2' } }}>
-      <Search />
-    </IconButton>
-  </Box>
-  <List>
-    {filteredConversations.length > 0 ? (
-      filteredConversations.map((conv) => (
-        <Box
-          key={conv.id}
-          sx={{
-            display: 'flex',
-            alignItems: 'center',
-            position: 'relative',
-            borderRadius: '10px',
-            mb: 0.5,
-            bgcolor: selectedConversationId === conv.id ? '#e5efff' : 'transparent',
-            '&:hover': { bgcolor: '#f5f5f5' },
-          }}
-        >
-          <ListItem
-            button
-            onClick={() => setSelectedConversationId(conv.id)}
-            sx={{
-              py: 1,
-              flex: 1,
-              bgcolor: 'transparent',
-              '&:hover': { bgcolor: 'transparent' },
+        <Typography variant="h5" sx={{ fontWeight: 600, color: '#050505', mb: 2, pl: 1 }}>
+          Sohbet
+        </Typography>
+        {/* Search Input */}
+        <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+          <InputBase
+            placeholder="Sohbetlerde ara..."
+            value={conversationSearchQuery}
+            onChange={(e) => {
+              setConversationSearchQuery(e.target.value);
+              debouncedSearch(e.target.value);
             }}
-          >
-            <Avatar sx={{ mr: 2, bgcolor: conv.blocked ? '#ff4444' : '#ddd' }}>
-              {conv.name[0]}
-            </Avatar>
-            <ListItemText
-              primary={
-                <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                  <Typography
-                    sx={{
-                      fontSize: '16px',
-                      fontWeight: conv.unviewedCount > 0 ? 600 : 500,
-                      color: conv.blocked ? '#ff4444' : '#050505',
+            sx={{
+              flexGrow: 1,
+              bgcolor: '#f0f2f5',
+              p: 1,
+              borderRadius: '20px',
+              fontSize: '15px',
+            }}
+          />
+          <IconButton sx={{ ml: 1, color: '#65676b', '&:hover': { color: '#1877f2' } }}>
+            <Search />
+          </IconButton>
+        </Box>
+        <List onScroll={handleConversationScroll}>
+          {conversations.length > 0 ? (
+            conversations.map((conv) => (
+              <Box
+                key={conv.id}
+                sx={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  position: 'relative',
+                  borderRadius: '10px',
+                  mb: 0.5,
+                  bgcolor: selectedConversationId === conv.id ? '#e5efff' : 'transparent',
+                  '&:hover': { bgcolor: '#f5f5f5' },
+                }}
+              >
+                <ListItem
+                  button
+                  onClick={() => handleConversationClick(conv.id, conv.name)}
+                  sx={{
+                    py: 1,
+                    flex: 1,
+                    bgcolor: 'transparent',
+                    '&:hover': { bgcolor: 'transparent' },
+                  }}
+                >
+                  <Avatar sx={{ mr: 2, bgcolor: conv.blocked ? '#ff4444' : '#ddd' }}>
+                    {conv.name[0]}
+                  </Avatar>
+                  <ListItemText
+                    primary={
+                      <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                        <Typography
+                          sx={{
+                            fontSize: '16px',
+                            fontWeight: conv.unviewedCount > 0 ? 600 : 500,
+                            color: conv.blocked ? '#ff4444' : '#050505',
+                          }}
+                        >
+                          {conv.name}
+                        </Typography>
+                        {conv.unviewedCount > 0 && (
+                          <Box
+                            sx={{
+                              ml: 1,
+                              bgcolor: '#1877f2',
+                              color: '#fff',
+                              borderRadius: '50%',
+                              width: '20px',
+                              height: '20px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              fontSize: '12px',
+                              fontWeight: 600,
+                            }}
+                          >
+                            {conv.unviewedCount}
+                          </Box>
+                        )}
+                      </Box>
+                    }
+                  />
+                </ListItem>
+                <IconButton
+                  onClick={(e) => handleOpenConversationMenu(e, conv.id)}
+                  sx={{
+                    color: '#65676b',
+                    '&:hover': { color: '#1877f2', bgcolor: 'transparent' },
+                  }}
+                >
+                  <ArrowDropDown />
+                </IconButton>
+                <Menu
+                  anchorEl={anchorElConversation}
+                  open={Boolean(anchorElConversation) && selectedConversationIdForMenu === conv.id}
+                  onClose={handleCloseConversationMenu}
+                >
+                  <MenuItem onClick={() => deleteConversation(conv.id)}>Sil</MenuItem>
+                  {conv.blocked ? (
+                    <MenuItem onClick={() => unblockUser(conv.id)}>Engeli Kaldır</MenuItem>
+                  ) : (
+                    <MenuItem onClick={() => blockUser(conv.id)}>Engelle</MenuItem>
+                  )}
+                  <MenuItem onClick={handleOpenOtnModal} disabled={otnTokens[conv.id]}>
+                    Takip İzni Talep Et
+                  </MenuItem>
+                  <MenuItem onClick={() => handleOpenCustomerDetails(conv.id, conv.name)}>
+                    Kişi
+                  </MenuItem>
+                  <MenuItem
+                    onClick={() => {
+                      setMessageTagModalOpen(true);
+                      handleCloseConversationMenu();
                     }}
                   >
-                    {conv.name}
-                  </Typography>
-                  {conv.unviewedCount > 0 && (
-                    <Box
-                      sx={{
-                        ml: 1,
-                        bgcolor: '#1877f2',
-                        color: '#fff',
-                        borderRadius: '50%',
-                        width: '20px',
-                        height: '20px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        fontSize: '12px',
-                        fontWeight: 600,
-                      }}
-                    >
-                      {conv.unviewedCount}
-                    </Box>
-                  )}
-                </Box>
-              }
-            />
-          </ListItem>
-          <IconButton
-            onClick={(e) => handleOpenConversationMenu(e, conv.id)}
-            sx={{
-              color: '#65676b',
-              '&:hover': {
-                color: '#1877f2',
-                bgcolor: 'transparent',
-              },
-            }}
-          >
-            <ArrowDropDown />
-          </IconButton>
-          <Menu
-            anchorEl={anchorElConversation}
-            open={Boolean(anchorElConversation) && selectedConversationIdForMenu === conv.id}
-            onClose={handleCloseConversationMenu}
-          >
-            <MenuItem onClick={() => deleteConversation(conv.id)}>Delete</MenuItem>
-            {conv.blocked ? (
-              <MenuItem onClick={() => unblockUser(conv.id)}>Unblock User</MenuItem>
-            ) : (
-              <MenuItem onClick={() => blockUser(conv.id)}>Block User</MenuItem>
-            )}
-            <MenuItem onClick={handleOpenOtnModal} disabled={otnTokens[conv.id]}>
-              Request Follow-Up
-            </MenuItem>
-          </Menu>
-        </Box>
-      ))
-    ) : (
-      <Typography sx={{ color: '#65676b', textAlign: 'center', py: 2 }}>
-        No conversations found.
-      </Typography>
-    )}
-  </List>
-</Box>
+                    Etiketle Mesaj Gönder
+                  </MenuItem>
+                </Menu>
+              </Box>
+            ))
+          ) : (
+            <Typography sx={{ color: '#65676b', textAlign: 'center', py: 2 }}>
+              Sohbet bulunamadı.
+            </Typography>
+          )}
+          {isLoadingConversations && (
+            <Box sx={{ display: 'flex', justifyContent: 'center', py: 2 }}>
+              <CircularProgress size={24} />
+            </Box>
+          )}
+          <div ref={conversationsEndRef} />
+        </List>
+        {/* Removed the "Daha Fazla" button */}
+      </Box>
 
     <Box sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column', bgcolor: '#fff', position: 'relative' }}>
       <Box
@@ -1543,194 +1812,322 @@ return (
       </Box>
 
       <Box
-        ref={messagesContainerRef}
-        onScroll={handleScroll}
-        sx={{ flexGrow: 1, overflowY: 'auto', p: 3, bgcolor: '#f0f2f5' }}
+  ref={messagesContainerRef}
+  onScroll={handleScroll}
+  sx={{ flexGrow: 1, overflowY: 'auto', p: 3, bgcolor: '#f0f2f5' }}
+>
+  {showLoadMore && (
+    <Box sx={{ display: 'flex', justifyContent: 'center', mb: 2 }}>
+      <Button
+        onClick={loadMoreMessages}
+        variant="outlined"
+        sx={{
+          borderRadius: '20px',
+          textTransform: 'none',
+          color: '#1877f2',
+          borderColor: '#1877f2',
+          '&:hover': { bgcolor: '#e5efff', borderColor: '#1877f2' },
+        }}
       >
-        {showLoadMore && (
-          <Box sx={{ display: 'flex', justifyContent: 'center', mb: 2 }}>
-            <Button
-              onClick={loadMoreMessages}
-              variant="outlined"
+        Daha Fazla
+      </Button>
+    </Box>
+  )}
+  {messages.map((msg, idx) => (
+    <Box
+      key={msg.id || msg.tempId || idx}
+      ref={(el) => (messageRefs.current[msg.id] = el)}
+      sx={{
+        display: 'flex',
+        justifyContent: msg.direction === 'Outbound' ? 'flex-end' : 'flex-start',
+        mb: 2,
+        alignItems: 'flex-start',
+        bgcolor: msg.direction === 'Inbound' && !msg.viewed ? '#e5efff' : 'transparent',
+      }}
+    >
+      <Box sx={{ maxWidth: '60%', display: 'flex', alignItems: 'flex-start' }}>
+        {msg.direction === 'Inbound' && (
+          <Avatar sx={{ mr: 1, bgcolor: '#ddd', width: 32, height: 32 }}>{userName[0]}</Avatar>
+        )}
+        <Box sx={{ position: 'relative' }}>
+        {msg.repliedMessage && (
+  <Box
+    sx={{
+      bgcolor: '#e9ecef',
+      p: 1,
+      borderRadius: '8px',
+      mb: 1,
+      fontSize: '13px',
+      color: '#65676b',
+      minWidth: '300px',
+      borderLeft: '3px solid #1877f2',
+    }}
+  >
+    <Typography sx={{ fontWeight: 500, color: '#050505' }}>
+      {msg.repliedMessage.agentName || userName} cevapladı:
+    </Typography>
+    {msg.repliedMessage.messageType === 'Text' ? (
+      <Typography>{msg.repliedMessage.text}</Typography>
+    ) : msg.repliedMessage.messageType === 'Image' && msg.repliedMessage.urls ? (
+      msg.repliedMessage.urls.map((url, i) => (
+        console.log(url),
+        console.log(msg.repliedMessage),  
+        <img
+          key={i}
+          src={
+            imageBlobs[url]
+          }
+          alt="Replied image"
+          style={{ maxWidth: '80px', borderRadius: '4px', marginTop: '4px' }}
+          onClick={() => handleOpenModal('Image', url)}
+          onError={(e) => {
+            console.error(`Failed to load replied image: ${url}`);
+            e.target.style.display = 'none'; // Hide broken image
+            e.target.parentNode.appendChild(
+              document.createTextNode('Failed to load image')
+            );
+          }}
+        />
+      ))
+    ) : msg.repliedMessage.messageType === 'Sticker' && msg.repliedMessage.urls ? (
+      console.log(msg.repliedMessage.urls ),
+      msg.repliedMessage.urls.map((url, i) => (
+      console.log(url),
+        <img
+          key={i}
+          src={
+            imageBlobs[url] || url
+          }
+          alt="Replied sticker"
+          style={{ maxWidth: '80px', borderRadius: '4px', marginTop: '4px' }}
+          onClick={() => handleOpenModal('Image', url)}
+          onError={(e) => {
+            console.error(`Failed to load replied sticker: ${url}`);
+            e.target.style.display = 'none';
+            e.target.parentNode.appendChild(
+              document.createTextNode('Failed to load sticker')
+            );
+          }}
+        />
+      ))
+    ) : msg.repliedMessage.messageType === 'Video' && msg.repliedMessage.urls ? (
+      msg.repliedMessage.urls.map((url, i) => (
+        <video
+          key={i}
+          src={
+            msg.repliedMessage.direction === 'Outbound'
+              ? imageBlobs[url] || url
+              : url
+          }
+          controls
+          style={{ maxWidth: '120px', borderRadius: '4px', marginTop: '4px' }}
+          onClick={(e) => {
+            e.preventDefault();
+            handleOpenModal('Video', url);
+          }}
+          onError={(e) => {
+            console.error(`Failed to load replied video: ${url}`);
+            e.target.style.display = 'none';
+            e.target.parentNode.appendChild(
+              document.createTextNode('Failed to load video')
+            );
+          }}
+        />
+      ))
+    ) : msg.repliedMessage.messageType === 'Audio' && msg.repliedMessage.urls ? (
+      msg.repliedMessage.urls.map((url, i) => (
+        <audio
+          key={i}
+          src={
+            msg.repliedMessage.direction === 'Outbound'
+              ? imageBlobs[url] || url
+              : url
+          }
+          controls
+          style={{ maxWidth: '200px', marginTop: '4px' }}
+          onError={(e) => {
+            console.error(`Failed to load replied audio: ${url}`);
+            e.target.style.display = 'none';
+            e.target.parentNode.appendChild(
+              document.createTextNode('Failed to load audio')
+            );
+          }}
+        />
+      ))
+    ) : msg.repliedMessage.messageType === 'Document' && msg.repliedMessage.urls ? (
+      <Typography>
+        <a
+          href={msg.repliedMessage.urls[0]}
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{ color: '#1877f2' }}
+        >
+          {msg.repliedMessage.urls[0].split('/').pop() || 'Document'}
+        </a>
+      </Typography>
+    ) : (
+      <Typography sx={{ color: '#999' }}>
+        {msg.repliedMessage.messageType} (Details not available)
+      </Typography>
+    )}
+    <Typography sx={{ fontSize: '11px', color: '#999', mt: 0.5 }}>
+      {new Date(msg.repliedMessage.timestamp).toLocaleString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        hour: 'numeric',
+        minute: 'numeric',
+        hour12: true,
+      })}
+    </Typography>
+  </Box>
+)}
+          {/* Current message content */}
+          {msg.status === 'Sending' ? (
+            <Box
               sx={{
-                borderRadius: '20px',
-                textTransform: 'none',
-                color: '#1877f2',
-                borderColor: '#1877f2',
-                '&:hover': { bgcolor: '#e5efff', borderColor: '#1877f2' },
+                bgcolor: '#7e96ab',
+                color: '#fff',
+                p: 1.5,
+                borderRadius: '10px',
+                display: 'flex',
+                alignItems: 'center',
+                marginBottom: 50,
               }}
             >
-              Load More
-            </Button>
-          </Box>
-        )}
-        {messages.map((msg, idx) => (
-          <Box
-            key={msg.id || msg.tempId || idx}
-            ref={(el) => (messageRefs.current[msg.id] = el)}
-            sx={{
-              display: 'flex',
-              justifyContent: msg.direction === 'Outbound' ? 'flex-end' : 'flex-start',
-              mb: 2,
-              alignItems: 'flex-start',
-              bgcolor: msg.direction === 'Inbound' && !msg.viewed ? '#e5efff' : 'transparent',
-            }}
-          >
-            <Box sx={{ maxWidth: '60%', display: 'flex', alignItems: 'flex-start' }}>
-              {msg.direction === 'Inbound' && (
-                <Avatar sx={{ mr: 1, bgcolor: '#ddd', width: 32, height: 32 }}>{userName[0]}</Avatar>
-              )}
-              <Box sx={{ position: 'relative' }}>
-                {msg.repliedId && (
-                  <Box
-                    sx={{ bgcolor: '#e9ecef', p: 1, borderRadius: '1px', mb: 1, fontSize: '13px', color: '#65676b', minWidth: '300px' }}
-                  >
-                    {messages.find((m) => m.mid === msg.repliedId)?.text || 'Original message not found'}
-                  </Box>
-                )}
-                {msg.status === 'sending' ? (
-                  <Box
-                    sx={{
-                      bgcolor: '#7e96ab  ',
-                      color: '#fff',
-                      p: 1.5,
-                      borderRadius: '10px',
-                      display: 'flex',
-                      alignItems: 'center',
-                    }}
-                  >
-                    <CircularProgress size={16} sx={{ color: '#fff', mr: 1 }} />
-                    <Typography sx={{ fontSize: '15px' }}>Sending...</Typography>
-                  </Box>
-                ) : msg.status === 'failed' ? (
-                  <Box sx={{ bgcolor: '#d93025', color: '#fff', p: 1.5, borderRadius: '10px' }}>
-                    <Typography sx={{ fontSize: '15px' }}>Failed to send</Typography>
-                  </Box>
-                ) : (
-                  <>
-                    {msg.messageType === 'Text' ? (
-                      <Typography
-                        sx={{
-                          bgcolor: msg.direction === 'Outbound' ? '#7e96ab  ' : '#e9ecef',
-                          color: msg.direction === 'Outbound' ? '#fff' : '#050505',
-                          p: 1.5,
-                          borderRadius: '10px',
-                          fontSize: '15px',
-                        minWidth: 100,
-                        maxWidth: '300px',
-                          wordBreak: 'break-word',
-                          marginBottom: '4px',
-                        }}
-                      >
-                        {msg.text}
-                      </Typography>
-                    ) : msg.messageType === 'Sticker' && msg.urls ? (
-                      <Box sx={{ p: 0.5, bgcolor: 'transparent', display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-                        {msg.urls.map((url, index) => (
-                          <Box
-                            key={index}
-                            sx={{ cursor: 'default', display: 'inline-flex', alignItems: 'center' }}
-                          >
-                            <img
-                              src={url}
-                              alt={`Sticker ${index}`}
-                              style={{
-                                maxWidth: '32px',
-                                height: '32px',
-                                borderRadius: '50%',
-                                backgroundColor: '#fff',
-                                padding: '4px',
-                                boxShadow: '0 1px 2px rgba(0, 0, 0, 0.1)',
-                              }}
-                            />
-                          </Box>
-                        ))}
-                      </Box>
-                    ) : msg.messageType === 'Image' && msg.urls ? (
-                      <Box
-                        sx={{
-                          p: 0.5,
-                          bgcolor: msg.direction === 'Outbound' ? '#7e96ab' : '#e9ecef',
-                          borderRadius: '10px',
-                          display: 'flex',
-                          flexWrap: 'wrap',
-                          gap: 1,
-                        }}
-                      >
-                        {msg.urls.map((url, index) => (
-                          <Box
-                            key={index}
-                            sx={{ cursor: 'pointer' }}
-                            onClick={() => handleOpenModal('Image', url)}
-                          >
-                            <img
-                              src={url}
-                              alt={`Sent ${index}`}
-                              style={{ maxWidth: '100px', borderRadius: '8px' }}
-                            />
-                          </Box>
-                        ))}
-                      </Box>
-                    ) : msg.messageType === 'Video' && msg.urls ? (
-                      <Box
-                        sx={{
-                          p: 0.5,
-                          bgcolor: msg.direction === 'Outbound' ? '#7e96ab' : '#e9ecef',
-                          borderRadius: '10px',
-                        }}
-                        onClick={() => handleOpenModal('Video', msg.urls[0])}
-                      >
-                        <video
-                          src={msg.urls[0]}
-                          style={{ maxWidth: '200px', borderRadius: '8px' }}
-                          controls
-                        />
-                      </Box>
-                    ) : msg.messageType === 'Document' && msg.urls ? (
-                      <Typography
-                        sx={{
-                          bgcolor: msg.direction === 'Outbound' ? '#7e96ab' : '#e9ecef',
-                          color: msg.direction === 'Outbound' ? '#fff' : '#050505',
-                          p: 1.5,
-                          borderRadius: '10px',
-                          fontSize: '15px',
-                        }}
-                      >
-                        <a
-                          href={msg.urls[0]}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          style={{ color: 'inherit' }}
-                        >
-                          Document
-                        </a>
-                      </Typography>
-                    ) : msg.messageType === 'Audio' && msg.urls ? (
-                      <Box
-                        sx={{
-                          bgcolor: msg.direction === 'Outbound' ? '#7e96ab' : '#e9ecef',
-                          p: 1.5,
-                          borderRadius: '10px',
-                        }}
-                      >
-                        <audio src={msg.urls[0]} controls style={{ maxWidth: '200px' }} />
-                      </Box>
-                    ) : null}
-                  </>
-                )}
+              <CircularProgress size={16} sx={{ color: '#fff', mr: 1 }} />
+              <Typography sx={{ fontSize: '15px' }}>Gönderiliyor...</Typography>
+            </Box>
+          ) : msg.status === 'failed' ? (
+            <Box sx={{ bgcolor: '#d93025', color: '#fff', p: 1.5, borderRadius: '10px' }}>
+              <Typography sx={{ fontSize: '15px' }}>Gönderilemedi</Typography>
+            </Box>
+          ) : (
+            <>
+              {msg.messageType === 'Text' ? (
                 <Typography
                   sx={{
-                    position: 'absolute',
-                    bottom: '-16px',
-                    right:
-                      msg.direction === 'Outbound' && msg.status !== 'sending' && msg.status !== 'failed'
-                        ? '40px'
-                        : '0',
-                    fontSize: '12px',
-                    color: '#65676b',
-                    marginTop:30,
+                    bgcolor: msg.direction === 'Outbound' ? '#7e96ab' : '#e9ecef',
+                    color: msg.direction === 'Outbound' ? '#fff' : '#050505',
+                    p: 1.5,
+                    borderRadius: '10px',
+                    fontSize: '15px',
+                    minWidth: 100,
+                    maxWidth: '300px',
+                    wordBreak: 'break-word',
+                    marginBottom: '4px',
                   }}
                 >
+                  {msg.text}
+                </Typography>
+              ) : msg.messageType === 'Sticker' && msg.urls ? (
+                <Box sx={{ p: 0.5, bgcolor: 'transparent', display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                  {msg.urls.map((url, index) => (
+                    <Box
+                      key={index}
+                      sx={{ cursor: 'default', display: 'inline-flex', alignItems: 'center' }}
+                    >
+                      <img
+                        src={msg.direction === 'Outbound' ? imageBlobs[url] : url}
+                        alt={`Sticker ${index}`}
+                        style={{
+                          maxWidth: '32px',
+                          height: '32px',
+                          borderRadius: '50%',
+                          backgroundColor: '#fff',
+                          padding: '4px',
+                          boxShadow: '0 1px 2px rgba(0, 0, 0, 0.1)',
+                        }}
+                      />
+                    </Box>
+                  ))}
+                </Box>
+              ) : msg.messageType === 'Image' && msg.urls ? (
+                <Box
+                  sx={{
+                    p: 0.5,
+                    bgcolor: msg.direction === 'Outbound' ? '#7e96ab' : '#e9ecef',
+                    borderRadius: '10px',
+                    display: 'flex',
+                    flexWrap: 'wrap',
+                    gap: 1,
+                  }}
+                >
+                  {msg.urls.map((url, index) => (
+                    <Box
+                      key={index}
+                      sx={{ cursor: 'pointer' }}
+                      onClick={() => handleOpenModal('Image', url)}
+                    >
+                      <img
+                        src={msg.direction === 'Outbound' ? imageBlobs[url] : url}
+                        alt={`Sent ${index}`}
+                        style={{ maxWidth: '100px', borderRadius: '8px' }}
+                      />
+                    </Box>
+                  ))}
+                </Box>
+              ) : msg.messageType === 'Video' && msg.urls ? (
+                <Box
+                  sx={{
+                    p: 0.5,
+                    bgcolor: msg.direction === 'Outbound' ? '#7e96ab' : '#e9ecef',
+                    borderRadius: '10px',
+                  }}
+                  onClick={() => handleOpenModal('Video', msg.urls[0])}
+                >
+                  <video
+                    src={msg.direction === 'Outbound' ? imageBlobs[msg.urls[0]] : msg.urls[0]}
+                    style={{ maxWidth: '200px', borderRadius: '8px' }}
+                    controls
+                  />
+                </Box>
+              ) : msg.messageType === 'Document' && msg.urls ? (
+                <Typography
+                  sx={{
+                    bgcolor: msg.direction === 'Outbound' ? '#7e96ab' : '#e9ecef',
+                    color: msg.direction === 'Outbound' ? '#fff' : '#050505',
+                    p: 1.5,
+                    borderRadius: '10px',
+                    fontSize: '15px',
+                  }}
+                >
+                  <a
+                    href={msg.urls[0]}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{ color: 'inherit' }}
+                  >
+                    Document
+                  </a>
+                </Typography>
+              ) : msg.messageType === 'Audio' && msg.urls ? (
+                <Box
+                  sx={{
+                    bgcolor: msg.direction === 'Outbound' ? '#7e96ab' : '#e9ecef',
+                    p: 1.5,
+                    borderRadius: '10px',
+                  }}
+                >
+                  <audio
+                    src={msg.direction === 'Outbound' ? imageBlobs[msg.urls[0]] : msg.urls[0]}
+                    controls
+                    style={{ maxWidth: '200px' }}
+                  />
+                </Box>
+              ) : null}
+              {/* Timestamp and AgentName */}
+              <Box
+                sx={{
+                  display: 'flex',
+                  justifyContent: msg.direction === 'Outbound' ? 'flex-end' : 'flex-start',
+                  alignItems: 'center',
+                  mt: 0.5,
+                }}
+              >
+                {msg.direction === 'Outbound' && msg.agentName && (
+                  <Typography sx={{ fontSize: '12px', color: '#65676b', mr: 1 }}>{msg.agentName}</Typography>
+                )}
+                <Typography sx={{ fontSize: '12px', color: '#65676b' }}>
                   {msg.timestamp
                     ? new Date(msg.timestamp).toLocaleTimeString('en-US', {
                         hour: 'numeric',
@@ -1740,9 +2137,7 @@ return (
                     : 'Time unavailable'}
                 </Typography>
                 {msg.direction === 'Outbound' && msg.status !== 'sending' && msg.status !== 'failed' && (
-                  <Typography
-                    sx={{ position: 'absolute', bottom: '-16px', right: '0', fontSize: '12px', color: '#65676b' }}
-                  >
+                  <Typography sx={{ ml: 1, display: 'flex', alignItems: 'center' }}>
                     {msg.status === 'Read' ? (
                       <DoneAll sx={{ fontSize: '16px', color: '#0084ff' }} />
                     ) : msg.status === 'Delivered' ? (
@@ -1752,50 +2147,45 @@ return (
                     )}
                   </Typography>
                 )}
-                {(msg.status === 'Sent' || msg.status === 'Delivered' || msg.status === 'Read' || !msg.status) && (
-                  <IconButton
-                    onClick={(e) => handleOpenMessageMenu(e, msg.id || msg.tempId)}
-                    sx={{
-                      position: 'absolute',
-                      top: '-15px',
-                      right: '-12px',
-                      color: '#65676b',
-                      '&:hover': { color: '#1877f2' },
-                    }}
-                  >
-                    <ArrowDropDown />
-                  </IconButton>
-                )}
               </Box>
-            </Box>
-            <Menu
-              anchorEl={anchorElMessage}
-              open={Boolean(anchorElMessage) && selectedMessageId === (msg.id || msg.tempId)}
-              onClose={handleCloseMessageMenu}
+            </>
+          )}
+          {(msg.status === 'Sent' || msg.status === 'Delivered' || msg.status === 'Read' || !msg.status) && (
+            <IconButton
+              onClick={(e) => handleOpenMessageMenu(e, msg.id || msg.tempId)}
+              sx={{
+                position: 'absolute',
+                top: '-15px',
+                right: '-12px',
+                color: '#65676b',
+                '&:hover': { color: '#1877f2' },
+              }}
             >
-              {msg.direction === 'Outbound' && (
-                <MenuItem onClick={() => deleteMessage(msg.id)}>Delete</MenuItem>
-              )}
-              {msg.direction === 'Inbound' && <MenuItem onClick={() => handleReply(msg)}>Reply</MenuItem>}
-              {(msg.messageType === 'Document' || msg.messageType === 'Video' || msg.messageType === 'Audio') &&
-                msg.urls && (
-                  <MenuItem onClick={() => handleDownload(msg.urls[0])}>Download</MenuItem>
-                )}
-              {msg.messageType === 'Text' && msg.text && (
-                <MenuItem onClick={() => handleCopy(msg.text)}>Copy</MenuItem>
-              )}
-            </Menu>
-          </Box>
-        ))}
-        {/* {isRecipientTyping && (
-          <Box sx={{ display: 'flex', alignItems: 'center', p: 2 }}>
-            <Avatar sx={{ mr: 1, bgcolor: '#ddd', width: 32, height: 32 }}>{userName[0]}</Avatar>
-            <Typography sx={{ color: '#65676b' }}>Typing...</Typography>
-          </Box>
-        )} */}
-        <div ref={messagesEndRef} />
+              <ArrowDropDown />
+            </IconButton>
+          )}
+        </Box>
       </Box>
-
+      <Menu
+        anchorEl={anchorElMessage}
+        open={Boolean(anchorElMessage) && selectedMessageId === (msg.id || msg.tempId)}
+        onClose={handleCloseMessageMenu}
+      >
+        {msg.direction === 'Outbound' && <MenuItem onClick={() => deleteMessage(msg.id)}>Sil</MenuItem>}
+        {/* Uncomment and adjust if you want reply option for inbound messages */}
+        { <MenuItem onClick={() => handleReply(msg)}>Cevapla</MenuItem>}
+        {(msg.messageType === 'Document' || msg.messageType === 'Video' || msg.messageType === 'Audio') &&
+          msg.urls && (
+            <MenuItem onClick={() => handleDownload(msg.urls[0])}>İndir</MenuItem>
+          )}
+        {msg.messageType === 'Text' && msg.text && (
+          <MenuItem onClick={() => handleCopy(msg.text)}>Kopyala</MenuItem>
+        )}
+      </Menu>
+    </Box>
+  ))}
+  <div ref={messagesEndRef} />
+</Box>
       {selectedConversation && !selectedConversation.blocked && (
         <Box sx={{ p: 2, bgcolor: '#fff', borderTop: '1px solid #e5e5e5' }}>
           {replyingTo && (
@@ -1813,11 +2203,11 @@ return (
               {filePreviews.map((preview, index) => (
                 <Box key={index} sx={{ position: 'relative', bgcolor: '#f0f2f5', p: 1, borderRadius: '8px' }}>
                   {preview.type === 'Image' ? (
-                    <img src={preview.url} alt={preview.name} style={{ maxWidth: '100px', borderRadius: '8px' }} />
+                    <img src={  preview.direction === 'Outbound' ? imageBlobs[preview.url] :  preview.url} alt={preview.name} style={{ maxWidth: '100px', borderRadius: '8px' }} />
                   ) : preview.type === 'Video' ? (
-                    <video src={preview.url} style={{ maxWidth: '100px', borderRadius: '8px' }} controls />
+                    <video src={preview.direction === 'Outbound' ? imageBlobs[preview.url] :  preview.url} style={{ maxWidth: '100px', borderRadius: '8px' }} controls />
                   ) : preview.type === 'Audio' ? (
-                    <audio src={preview.url} controls style={{ maxWidth: '200px' }} />
+                    <audio src={preview.direction === 'Outbound' ? imageBlobs[preview.url] :  preview.url} controls style={{ maxWidth: '200px' }} />
                   ) : (
                     <Typography sx={{ fontSize: '14px', color: '#050505' }}>{preview.name}</Typography>
                   )}
@@ -1855,7 +2245,7 @@ return (
               onKeyDown={handleKeyDown}
               onFocus={handleTypingStart}
               onBlur={handleTypingStop}
-              placeholder={otnTokens[selectedConversationId] ? 'Type your follow-up message...' : 'Aa'}
+              placeholder={otnTokens[selectedConversationId] ? 'Takip et mesajınızı yazınız...' : 'Aa'}
               variant="standard"
               fullWidth
               multiline
@@ -1930,23 +2320,26 @@ return (
             <List>
               <ListItem button onClick={() => handleSidebarOption('viewMedia')}>
                 <Image sx={{ mr: 2, color: '#65676b' }} />
-                <ListItemText primary="View media, files and links" />
+                <ListItemText primary="Medya, dosya ve linkleri görüntüle" />
+
               </ListItem>
               <ListItem button onClick={() => handleSidebarOption('search')}>
                 <Search sx={{ mr: 2, color: '#65676b' }} />
-                <ListItemText primary="Search in conversation" />
+                <ListItemText primary="Sohbet içinde ara" />
               </ListItem>
               <ListItem button onClick={() => handleSidebarOption('notifications')}>
                 <Notifications sx={{ mr: 2, color: '#65676b' }} />
-                <ListItemText primary="Notifications & sounds" />
+                <ListItemText primary="Bildirimler ve sesler" />
+
               </ListItem>
             </List>
           ) : activeTab === 'media' || activeTab === 'files' || activeTab === 'links' ? (
               <>
                 <Tabs value={activeTab} onChange={handleTabChange} sx={{ mb: 2, borderBottom: '1px solid #e5e5e5' }}>
-                  <Tab label="Media" value="media" sx={{ textTransform: 'none', fontWeight: 500 }} />
-                  <Tab label="Files" value="files" sx={{ textTransform: 'none', fontWeight: 500 }} />
-                  <Tab label="Links" value="links" sx={{ textTransform: 'none', fontWeight: 500 }} />
+                <Tab label="Medya" value="media" sx={{ textTransform: 'none', fontWeight: 500 }} />
+<Tab label="Dosya" value="files" sx={{ textTransform: 'none', fontWeight: 500 }} />
+<Tab label="Link" value="links" sx={{ textTransform: 'none', fontWeight: 500 }} />
+
                 </Tabs>
                 {activeTab === 'media' && (
                   <Box sx={{ maxHeight: '70vh', overflowY: 'auto' }}>
@@ -1967,7 +2360,7 @@ return (
                               item.urls.map((url, i) => (
                                 <img
                                   key={i}
-                                  src={url}
+                                  src={item.direction === 'Outbound' ? imageBlobs[url] : url}
                                   alt={`Media ${i}`}
                                   style={{
                                     width: '100%',
@@ -1982,7 +2375,7 @@ return (
                               item.urls.map((url, i) => (
                                 <img
                                   key={i}
-                                  src={url}
+                                  src={item.direction === 'Outbound' ? imageBlobs[url] : url}
                                   alt={`Sticker ${i}`}
                                   style={{
                                     width: '100%',
@@ -1994,7 +2387,7 @@ return (
                               ))
                             ) : item.messageType === 'Video' && item.urls ? (
                               <video
-                                src={item.urls[0]}
+                                src={ item.direction === 'Outbound' ? imageBlobs[item.url[0]] : item.urls[0]}
                                 controls
                                 style={{ width: '100%', height: '80px', borderRadius: '6px' }}
                                 onClick={(e) => {
@@ -2070,7 +2463,7 @@ return (
                       ))
                     ) : (
                       <Typography sx={{ color: '#65676b', textAlign: 'center', py: 2 }}>
-                        No files found.
+                       Dosya bulunamadı.
                       </Typography>
                     )}
                   </Box>
@@ -2120,7 +2513,7 @@ return (
                       ))
                     ) : (
                       <Typography sx={{ color: '#65676b', textAlign: 'center', py: 2 }}>
-                        No links found.
+                       Link bulunamadı.
                       </Typography>
                     )}
                   </Box>
@@ -2130,7 +2523,7 @@ return (
               <Box>
                 <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
                   <InputBase
-                    placeholder="Search in conversation..."
+                    placeholder="sohbet içinde ara..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
@@ -2161,7 +2554,7 @@ return (
                           {msg.urls.map((url, i) => (
                             <img
                               key={i}
-                              src={url}
+                              src={msg.direction === 'Outbound' ? imageBlobs[url] : url}
                               alt={`Search result image ${i}`}
                               style={{ maxWidth: '80px', borderRadius: '8px', cursor: 'pointer' }}
                               onClick={(e) => {
@@ -2173,7 +2566,8 @@ return (
                         </Box>
                       ) : msg.messageType === 'Video' && msg.urls ? (
                         <video
-                          src={msg.urls[0]}
+                        src={ imageBlobs[msg.urls[0]]}
+                 
                           controls
                           style={{ maxWidth: '120px', borderRadius: '8px' }}
                           onClick={(e) => {
@@ -2182,7 +2576,7 @@ return (
                           }}
                         />
                       ) : msg.messageType === 'Audio' && msg.urls ? (
-                        <audio src={msg.urls[0]} controls style={{ maxWidth: '200px' }} />
+                        <audio src={ imageBlobs[msg.urls[0]]} controls style={{ maxWidth: '200px' }} />
                       ) : msg.messageType === 'Document' && msg.urls ? (
                         <Typography sx={{ fontSize: '15px', color: '#050505' }}>
                           <a
@@ -2197,7 +2591,7 @@ return (
                         </Typography>
                       ) : (
                         <Typography sx={{ fontSize: '15px', color: '#65676b' }}>
-                          Unsupported message type
+                         Desteklenmeyen mesaj tipi
                         </Typography>
                       )}
                       <Typography sx={{ fontSize: '12px', color: '#65676b', mt: 1 }}>
@@ -2213,7 +2607,7 @@ return (
                     </Box>
                   ))
                 ) : (
-                  <Typography>No results found.</Typography>
+                  <Typography>Sonuç bulunamadı.</Typography>
                 )}
               </Box>
             ) : activeTab === 'notifications' ? (
@@ -2237,51 +2631,154 @@ return (
           </Box>
         )}
 
-        <Modal open={openModal} onClose={handleCloseModal}>
-          <Box
-            sx={{
-              position: 'absolute',
-              top: '50%',
-              left: '50%',
-              transform: 'translate(-50%, -50%)',
-              bgcolor: '#fff',
-              borderRadius: '12px',
-              p: 2,
-              maxWidth: '80%',
-              maxHeight: '80vh',
-              overflow: 'auto',
-            }}
-          >
-            <IconButton onClick={handleCloseModal} sx={{ position: 'absolute', top: 8, right: 8, color: '#65676b' }}>
-              <Close />
-            </IconButton>
-            {modalMedia.type === 'Image' ? (
-              <img src={modalMedia.url} alt="Full size" style={{ maxWidth: '100%', borderRadius: '8px' }} />
-            ) : modalMedia.type === 'Video' ? (
-              <video src={modalMedia.url} controls style={{ maxWidth: '100%', borderRadius: '8px' }} />
-            ) : null}
-          </Box>
-        </Modal>
-        <Modal open={errorModalOpen} onClose={handleCloseErrorModal}>
+      <Modal
+      open={openModal}
+      onClose={handleCloseModal}
+      aria-labelledby="media-modal-title"
+      aria-describedby="media-modal-description"
+    >
+      <Box
+        sx={{
+          position: 'absolute',
+          top: '50%',
+          left: '50%',
+          transform: 'translate(-50%, -50%)',
+          bgcolor: '#fff',
+          borderRadius: '12px',
+          p: 3,
+          maxWidth: { xs: '95%', sm: '90%', md: '80%' },
+          maxHeight: '90vh',
+          minWidth: 300,
+          display: 'flex',
+          flexDirection: 'column',
+          boxShadow: 24,
+          overflow: 'hidden',
+        }}
+        role="dialog"
+      >
+        {/* Close Button */}
+        <IconButton
+          onClick={handleCloseModal}
+          sx={{
+            position: 'absolute',
+            top: 8,
+            right: 8,
+            zIndex: 10,
+            bgcolor: 'rgba(255, 255, 255, 0.9)',
+            color: '#65676b',
+            '&:hover': {
+              bgcolor: 'rgba(200, 200, 200, 0.9)',
+              color: '#1877f2',
+            },
+            boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
+          }}
+          aria-label="Modalı kapat"
+        >
+          <Close />
+        </IconButton>
+
+        {/* Hidden for screen readers */}
+        <Typography id="media-modal-title" sx={{ display: 'none' }}>
+          Medya Görüntüleyici
+        </Typography>
+        <Typography id="media-modal-description" sx={{ display: 'none' }}>
+          Bir görüntü veya video görüntüleniyor.
+        </Typography>
+
+        {/* Media Content */}
+        <Box
+          sx={{
+            flex: 1,
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            maxHeight: '80vh',
+            overflow: 'auto',
+          }}
+        >
+          {modalMedia.type === 'Image' ? (
+            imageBlobs[modalMedia.url] || modalMedia.url ? (
+              <>
+                {isMediaLoading && (
+                  <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '80vh' }}>
+                    <CircularProgress />
+                  </Box>
+                )}
+                <img
+                  src={imageBlobs[modalMedia.url] || modalMedia.url}
+                  alt="Full size"
+                  style={{
+                    maxWidth: '100%',
+                    maxHeight: '80vh',
+                    borderRadius: '8px',
+                    objectFit: 'contain',
+                    display: isMediaLoading ? 'none' : 'block',
+                  }}
+                  onLoad={() => setIsMediaLoading(false)}
+                  onError={() => setIsMediaLoading(false)}
+                />
+              </>
+            ) : (
+              <Typography sx={{ color: '#d93025', textAlign: 'center' }}>
+                Medya yüklenemedi.
+              </Typography>
+            )
+          ) : modalMedia.type === 'Video' ? (
+            imageBlobs[modalMedia.url] || modalMedia.url ? (
+              <>
+                {isMediaLoading && (
+                  <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '80vh' }}>
+                    <CircularProgress />
+                  </Box>
+                )}
+                <video
+                  src={imageBlobs[modalMedia.url] || modalMedia.url}
+                  controls
+                  style={{
+                    maxWidth: '100%',
+                    maxHeight: '80vh',
+                    borderRadius: '8px',
+                    objectFit: 'contain',
+                    display: isMediaLoading ? 'none' : 'block',
+                  }}
+                  onLoadedData={() => setIsMediaLoading(false)}
+                  onError={() => setIsMediaLoading(false)}
+                />
+              </>
+            ) : (
+              <Typography sx={{ color: '#d93025', textAlign: 'center' }}>
+                Medya yüklenemedi.
+              </Typography>
+            )
+          ) : (
+            <Typography sx={{ color: '#d93025', textAlign: 'center' }}>
+              Desteklenmeyen medya tipi.
+            </Typography>
+          )}
+        </Box>
+      </Box>
+      </Modal>
+      <Modal open={errorModalOpen} onClose={handleCloseErrorModal}>
   <Box
-    sx={{
-      position: 'absolute',
-      top: '50%',
-      left: '50%',
-      transform: 'translate(-50%, -50%)',
-      width: 400,
-      bgcolor: '#fff',
-      borderRadius: '12px',
-      boxShadow: 24,
-      p: 3,
-      textAlign: 'center',
-    }}
+ sx={{
+  position: 'absolute !important',
+  top: '50% !important',
+  left: '50% !important',
+  transform: 'translate(-50%, -50%) !important',
+  width: 400,
+  bgcolor: '#fff',
+  borderRadius: '12px',
+  boxShadow: 24,
+  p: 3,
+  textAlign: 'center',
+  wordBreak: 'break-word',
+}}
   >
     <Typography variant="h6" sx={{ fontWeight: 600, color: '#d93025', mb: 2 }}>
-      Error
+      Hata
     </Typography>
     <Typography sx={{ fontSize: '15px', color: '#050505', mb: 3 }}>
-      {error || 'An unexpected error occurred. Please try again.'}
+      {error || 'Bilinmeyen bir hata oluştu.Lüten daha sonra tekrar deneyin.'}
     </Typography>
     <Button
       onClick={handleCloseErrorModal}
@@ -2294,11 +2791,10 @@ return (
         '&:hover': { bgcolor: '#0056b3' },
       }}
     >
-      Close
+      Kapat
     </Button>
   </Box>
       </Modal>
-
       <Modal open={openOtnModal} onClose={handleCloseOtnModal}>
       <Box
           sx={{
@@ -2313,44 +2809,45 @@ return (
             p: 3,
             maxHeight: '90vh',
             overflowY: 'auto',
+            wordBreak: 'break-word',
           }}
         >
           <Typography variant="h6" sx={{ fontWeight: 600, color: '#050505', mb: 2 }}>
-            Request Follow-Up Permission
+          Takip İzni Talep Et
           </Typography>
 
           {/* Explanation */}
           <Typography variant="body2" sx={{ mb: 2, color: '#444' }}>
-            To comply with Facebook Messenger rules, we need your permission to send you a one-time follow-up message.
-            After clicking “Send Request,” you’ll receive a “Notify Me” message in Messenger. If you click “Notify Me,” we’ll be allowed to send you one more update related to this request.
+            Facebook Messenger kurallarına uymak için, size tek seferlik bir takip mesajı göndermek için izniniz gerekiyor.
+            "Talep Gönder"e tıkladıktan sonra, Messenger'da bir "Beni Bildir" mesajı alacaksınız. Eğer "Beni Bildir"e tıklarsanız, bu taleple ilgili size bir ek güncelleme daha göndermemize izin verilmiş olacak.
           </Typography>
 
           {/* Rules Accordion */}
           <Accordion sx={{ mb: 3 }}>
             <AccordionSummary expandIcon={<ExpandMoreIcon />} sx={{ bgcolor: '#f1f1f1' }}>
-              <Typography variant="body2" fontWeight={600}>What are the rules?</Typography>
+              <Typography variant="body2" fontWeight={600}>Kurallar</Typography>
             </AccordionSummary>
             <AccordionDetails>
-              <Typography variant="body2" sx={{ color: '#333' }}>
-                • You must click "Notify Me" in Messenger to grant permission.<br />
-                • We can only send you <strong>one follow-up message</strong> using this permission.<br />
-                • The follow-up message must be sent <strong>within 1 year</strong> of your approval.<br />
-                • We can’t use this for promotions or unrelated messages.<br />
-                • You can revoke this permission anytime from Messenger.<br />
-                <strong>• OTN must be requested during an active 24-hour messaging window.</strong>
+            <Typography variant="body2" sx={{ color: '#333' }}>
+                • İzin vermek için Messenger'da "Beni Bildir"e tıklamalısınız.<br />
+                • Bu izinle size yalnızca <strong>tek bir takip mesajı</strong> gönderebiliriz.<br />
+                • Takip mesajı, onayınızdan itibaren <strong>1 yıl içinde</strong> gönderilmelidir.<br />
+                • Bunu promosyonlar veya ilgili olmayan mesajlar için kullanamayız.<br />
+                • Bu izni Messenger'dan istediğiniz zaman iptal edebilirsiniz.<br />
+                <strong>• OTN, aktif bir 24 saatlik mesajlaşma penceresi sırasında talep edilmelidir.</strong>
               </Typography>
             </AccordionDetails>
           </Accordion>
 
           {/* Input Field */}
           <TextField
-            label="Notification Title"
+            label="Bildirelecek Başlık"
             value={otnTitle}
             onChange={(e) => setOtnTitle(e.target.value)}
             fullWidth
             variant="outlined"
             sx={{ mb: 3 }}
-            helperText="Enter a brief title for the follow-up request (max 65 characters)."
+            helperText="Takip isteği için kısa bir başlık girin (maks. 65 karakter)."
             inputProps={{ maxLength: 65 }}
           />
 
@@ -2367,7 +2864,7 @@ return (
                 '&:hover': { borderColor: '#1877f2', color: '#1877f2' },
               }}
             >
-              Cancel
+              İptal
             </Button>
             <Button
               onClick={requestOTN}
@@ -2382,13 +2879,14 @@ return (
                 '&:disabled': { bgcolor: '#b0b0b0' },
               }}
             >
-              Send Request
+             Talep Gönder
+
+
             </Button>
           </Box>
         </Box>
       </Modal>
-
-      <Modal open={sessionExpiredModalOpen} onClose={() => setSessionExpiredModalOpen(false)}>
+      <Modal open={humanAgentModalOpen} onClose={() => setHumanAgentModalOpen(false)}>
         <Box
           sx={{
             position: 'absolute',
@@ -2400,35 +2898,25 @@ return (
             borderRadius: '12px',
             boxShadow: 24,
             p: 3,
-            textAlign: 'center',
+            wordBreak: 'break-word',
           }}
         >
-          <Typography variant="h6" sx={{ fontWeight: 600, color: '#d93025', mb: 2 }}>
-            24-Hour Session Expired
+          <Typography variant="h6" sx={{ fontWeight: 600, color: '#1877f2', mb: 2 }}>
+          Mesajı Müşteri Temsilcisi Olarak Gönde
           </Typography>
-          <Typography sx={{ fontSize: '15px', color: '#050505', mb: 3 }}>
-            The 24-hour messaging window has expired. To contact the customer, choose an option below:
-          </Typography>
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+          <TextField
+            value={humanAgentMessage}
+            onChange={(e) => setHumanAgentMessage(e.target.value)}
+            placeholder="Type your message..."
+            variant="outlined"
+            fullWidth
+            multiline
+            rows={4}
+            sx={{ mb: 2 }}
+          />
+          <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 2 }}>
             <Button
-              onClick={handleUseOtnToken}
-              variant="outlined"
-              sx={{
-                borderColor: '#1877f2',
-                color: '#1877f2',
-                borderRadius: '8px',
-                textTransform: 'none',
-                '&:hover': { bgcolor: '#e5efff', borderColor: '#1877f2' },
-              }}
-            >
-              Use OTN Token
-            </Button>
-            <Button
-              onClick={() => {
-                setSessionExpiredModalOpen(false);
-                setError('Please contact a human agent to proceed.');
-                setErrorModalOpen(true);
-              }}
+              onClick={() => setHumanAgentModalOpen(false)}
               variant="outlined"
               sx={{
                 borderColor: '#65676b',
@@ -2438,124 +2926,26 @@ return (
                 '&:hover': { borderColor: '#1877f2', color: '#1877f2' },
               }}
             >
-              Use Human Agent
+              İptal
+            </Button>
+            <Button
+              onClick={sendHumanAgentMessage}
+              variant="contained"
+              disabled={!humanAgentMessage.trim()}
+              sx={{
+                bgcolor: '#1877f2',
+                color: '#fff',
+                borderRadius: '8px',
+                textTransform: 'none',
+                '&:hover': { bgcolor: '#0056b3' },
+                '&:disabled': { bgcolor: '#b0b0b0' },
+              }}
+            >
+              Gönder
             </Button>
           </Box>
         </Box>
       </Modal>
-      <Modal open={sessionExpiredModalOpen} onClose={() => setSessionExpiredModalOpen(false)}>
-  <Box
-    sx={{
-      position: 'absolute',
-      top: '50%',
-      left: '50%',
-      transform: 'translate(-50%, -50%)',
-      width: 400,
-      bgcolor: '#fff',
-      borderRadius: '12px',
-      boxShadow: 24,
-      p: 3,
-      textAlign: 'center',
-    }}
-  >
-    <Typography variant="h6" sx={{ fontWeight: 600, color: '#d93025', mb: 2 }}>
-      24-Hour Session Expired
-    </Typography>
-    <Typography sx={{ fontSize: '15px', color: '#050505', mb: 3 }}>
-      The 24-hour messaging window has expired. To contact the customer, choose an option below:
-    </Typography>
-    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-      <Button
-        onClick={handleUseOtnToken}
-        variant="outlined"
-        sx={{
-          borderColor: '#1877f2',
-          color: '#1877f2',
-          borderRadius: '8px',
-          textTransform: 'none',
-          '&:hover': { bgcolor: '#e5efff', borderColor: '#1877f2' },
-        }}
-      >
-        Use OTN Token
-      </Button>
-      <Button
-        onClick={() => {
-          setSessionExpiredModalOpen(false);
-          setHumanAgentModalOpen(true); // Open human agent modal instead of showing error
-        }}
-        variant="outlined"
-        sx={{
-          borderColor: '#65676b',
-          color: '#65676b',
-          borderRadius: '8px',
-          textTransform: 'none',
-          '&:hover': { borderColor: '#1877f2', color: '#1877f2' },
-        }}
-      >
-        Use Human Agent
-      </Button>
-    </Box>
-  </Box>
-</Modal>
-<Modal open={humanAgentModalOpen} onClose={() => setHumanAgentModalOpen(false)}>
-  <Box
-    sx={{
-      position: 'absolute',
-      top: '50%',
-      left: '50%',
-      transform: 'translate(-50%, -50%)',
-      width: 400,
-      bgcolor: '#fff',
-      borderRadius: '12px',
-      boxShadow: 24,
-      p: 3,
-    }}
-  >
-    <Typography variant="h6" sx={{ fontWeight: 600, color: '#1877f2', mb: 2 }}>
-      Send Message as Human Agent
-    </Typography>
-    <TextField
-      value={humanAgentMessage}
-      onChange={(e) => setHumanAgentMessage(e.target.value)}
-      placeholder="Type your message..."
-      variant="outlined"
-      fullWidth
-      multiline
-      rows={4}
-      sx={{ mb: 2 }}
-    />
-    <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 2 }}>
-      <Button
-        onClick={() => setHumanAgentModalOpen(false)}
-        variant="outlined"
-        sx={{
-          borderColor: '#65676b',
-          color: '#65676b',
-          borderRadius: '8px',
-          textTransform: 'none',
-          '&:hover': { borderColor: '#1877f2', color: '#1877f2' },
-        }}
-      >
-        Cancel
-      </Button>
-      <Button
-        onClick={sendHumanAgentMessage}
-        variant="contained"
-        disabled={!humanAgentMessage.trim()}
-        sx={{
-          bgcolor: '#1877f2',
-          color: '#fff',
-          borderRadius: '8px',
-          textTransform: 'none',
-          '&:hover': { bgcolor: '#0056b3' },
-          '&:disabled': { bgcolor: '#b0b0b0' },
-        }}
-      >
-        Send
-      </Button>
-    </Box>
-  </Box>
-</Modal>
       <Modal open={otnConfirmationModalOpen} onClose={() => setOtnConfirmationModalOpen(false)}>
         <Box
           sx={{
@@ -2572,10 +2962,13 @@ return (
           }}
         >
           <Typography variant="h6" sx={{ fontWeight: 600, color: '#1877f2', mb: 2 }}>
-            Use One-Time Notification
+          Tek Seferlik Bildirimi Kullan
           </Typography>
           <Typography sx={{ fontSize: '15px', color: '#050505', mb: 3 }}>
-            Using current OTN token to send this message. Would you like to request another OTN for later?
+
+            Bu mesajı göndermek için mevcut OTN token'ı kullanılıyor. Daha sonrası için başka bir OTN talep etmek ister misiniz?
+
+
           </Typography>
           <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 2 }}>
             <Button
@@ -2592,7 +2985,7 @@ return (
                 '&:hover': { bgcolor: '#0056b3' },
               }}
             >
-              Okay (Send Now)
+             Tamam (Şimdi Gönder)
             </Button>
             <Button
               onClick={() => {
@@ -2609,12 +3002,11 @@ return (
                 '&:hover': { bgcolor: '#e5efff', borderColor: '#1877f2' },
               }}
             >
-              Request More OTN
+               OTN Talep Et
             </Button>
           </Box>
         </Box>
       </Modal>
-      
       <Modal open={confirmModalOpen} onClose={handleCancelConfirm}>
         <Box
           sx={{
@@ -2628,10 +3020,11 @@ return (
             boxShadow: 24,
             p: 3,
             textAlign: 'center',
+            wordBreak: 'break-word',
           }}
         >
           <Typography variant="h6" sx={{ fontWeight: 600, color: '#d93025', mb: 2 }}>
-            Confirm Action
+            Doğrulama
           </Typography>
           <Typography sx={{ fontSize: '15px', color: '#050505', mb: 3 }}>{confirmMessage}</Typography>
           <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 2 }}>
@@ -2646,7 +3039,7 @@ return (
                 '&:hover': { borderColor: '#1877f2', color: '#1877f2' },
               }}
             >
-              Cancel
+              İptal
             </Button>
             <Button
               onClick={handleConfirm}
@@ -2659,7 +3052,7 @@ return (
                 '&:hover': { bgcolor: '#b71c1c' },
               }}
             >
-              Confirm
+              Evet
             </Button>
           </Box>
         </Box>
@@ -2677,13 +3070,14 @@ return (
       boxShadow: 24,
       p: 3,
       textAlign: 'center',
+      wordBreak: 'break-word',
     }}
   >
     <Typography variant="h6" sx={{ fontWeight: 600, color: '#1877f2', mb: 2 }}>
-      Information
+      Bilgilendirme
     </Typography>
     <Typography sx={{ fontSize: '15px', color: '#050505', mb: 3 }}>
-      {infoMessage || 'Processing your request...'}
+      {infoMessage || 'İsteğiniz işleniyor.'}
     </Typography>
     <Button
       onClick={() => setInfoModalOpen(false)}
@@ -2696,10 +3090,238 @@ return (
         '&:hover': { bgcolor: '#0056b3' },
       }}
     >
-      Okay
+      Tamam
     </Button>
   </Box>
-</Modal>
+      </Modal>
+      <Modal open={messageTagModalOpen} onClose={() => {
+        setMessageTagModalOpen(false);
+        setSelectedMessageTag(null);
+        setTagMessage('');
+        setCustomerFeedbackTitle('Geri Bildiriminizi Alabilir Miyiz?');
+        setCustomerFeedbackPayload('');
+        setMessageTagModalReason(null);
+      }}>
+  <Box
+    sx={{
+      position: 'absolute',
+      top: '50%',
+      left: '50%',
+      transform: 'translate(-50%, -50%)',
+      width: 450,
+      bgcolor: '#fff',
+      borderRadius: '12px',
+      boxShadow: 24,
+      p: 3,
+      wordBreak: 'break-word',
+      maxHeight: '80vh',
+      overflowY: 'auto',
+    }}
+  >
+    <Typography variant="h6" sx={{ fontWeight: 600, color: '#1877f2', mb: 2 }}>
+      Mesaj Etiketi ile Gönder
+    </Typography>
+    {/* Informative Message for Session Expiration */}
+    {messageTagModalReason === 'sessionExpired' && (
+            <Box sx={{ mb: 2, p: 2, bgcolor: '#fff3cd', borderRadius: '8px', border: '1px solid #ffeeba' }}>
+              <Typography variant="body2" sx={{ color: '#856404', fontWeight: 500 }}>
+                Dikkat: 24 saatlik mesajlaşma süresi dolmuştur. Mesaj göndermek için lütfen aşağıdaki etiket seçeneklerinden birini seçin.
+              </Typography>
+            </Box>
+          )}
+    <Typography variant="body2" sx={{ mb: 2, color: '#444' }}>
+      24 saatlik pencere dışında mesaj göndermek için bir mesaj etiketi seçin. Her etiketin belirli kullanım kuralları vardır ve bu kurallara uymak zorunludur.
+    </Typography>
+
+    {/* Tag Selection Dropdown */}
+    <TextField
+      select
+      label="Mesaj Etiketi Seçin"
+      value={selectedMessageTag || ''}
+      onChange={(e) => setSelectedMessageTag(e.target.value)}
+      fullWidth
+      variant="outlined"
+      sx={{ mb: 2 }}
+    >
+      <MenuItem value="ACCOUNT_UPDATE">Hesap Güncellemesi</MenuItem>
+      <MenuItem value="CONFIRMED_EVENT_UPDATE">Onaylanmış Etkinlik Güncellemesi</MenuItem>
+      <MenuItem value="CUSTOMER_FEEDBACK">Müşteri Geri Bildirimi</MenuItem>
+      <MenuItem value="POST_PURCHASE_UPDATE">Satın Alma Sonrası Güncelleme</MenuItem>
+      <MenuItem value="HUMAN_AGENT">Müşteri Temsilcisi</MenuItem>
+      <MenuItem value="OTN_TOKEN">Tek Seferlik Bildirim (OTN)</MenuItem>
+    </TextField>
+
+    {/* Tag-Specific Instructions */}
+    {selectedMessageTag && (
+      <Box sx={{ mb: 2, p: 2, bgcolor: '#f1f1f1', borderRadius: '8px' }}>
+        {selectedMessageTag === 'ACCOUNT_UPDATE' && (
+          <Typography variant="body2" sx={{ color: '#333' }}>
+            <strong>Amaç:</strong> Kullanıcıların hesaplarıyla ilgili önemli güncellemeleri bildirmek.<br />
+            <strong>Kurallar:</strong><br />
+            • Hesap durumuyla ilgili olmalı (ör. başvuru durumu, parola sıfırlama, dolandırıcılık uyarısı).<br />
+            • Promosyonel içerik veya reklam yasaktır.<br />
+            • Kullanıcıya doğrudan bir işlem bildirmeli.<br />
+            <strong>Örnekler:</strong><br />
+            - "Hesabınızın şifresi sıfırlandı. Yeni şifrenizle giriş yapabilirsiniz."<br />
+            - "Başvurunuz onaylandı, detaylar için hesabınıza göz atın."<br />
+            - "Hesabınızda şüpheli bir işlem tespit ettik, lütfen kontrol edin."
+          </Typography>
+        )}
+        {selectedMessageTag === 'CONFIRMED_EVENT_UPDATE' && (
+          <Typography variant="body2" sx={{ color: '#333' }}>
+            <strong>Amaç:</strong> Kullanıcıların onaylanmış etkinlikleri hakkında bilgi vermek.<br />
+            <strong>Kurallar:</strong><br />
+            • Kullanıcının onayladığı bir etkinlikle ilgili olmalı (ör. randevu, rezervasyon).<br />
+            • Promosyonel içerik veya satış teklifleri yasaktır.<br />
+            • Etkinlik zamanı veya durumuyla ilgili net bilgi vermeli.<br />
+            <strong>Örnekler:</strong><br />
+            - "Randevunuz 12 Nisan 2025, 14:00 olarak onaylandı. Lütfen zamanında gelin."<br />
+            - "Etkinliğiniz yarın saat 10:00’da başlayacak, hazırlıklı olun."<br />
+            - "Rezervasyonunuz iptal edildi, detaylar için bizimle iletişime geçin."
+          </Typography>
+        )}
+        {selectedMessageTag === 'CUSTOMER_FEEDBACK' && (
+          <Typography variant="body2" sx={{ color: '#333' }}>
+            <strong>Amaç:</strong> Kullanıcılardan hizmet veya ürün hakkında geri bildirim toplamak.<br />
+            <strong>Kurallar:</strong><br />
+            • Son kullanıcı mesajından sonraki 7 gün içinde gönderilmelidir.<br />
+            • Promosyonel içerik, kampanya veya satış önerisi yasaktır.<br />
+            • Geri bildirim talebi açık ve spesifik olmalı.<br />
+            • Başlık (title) zorunlu, payload isteğe bağlıdır (benzersiz bir kimlik için).<br />
+            <strong>Örnekler:</strong><br />
+            - Başlık: "Hizmetimiz Hakkında Ne Düşünüyorsunuz?"<br />
+              Mesaj: "Son alışveriş deneyiminizi değerlendirir misiniz?"<br />
+            - Başlık: "Geri Bildiriminiz Önemli!"<br />
+              Mesaj: "Destek ekibimizden memnun kaldınız mı?"<br />
+            - Başlık: "Bize Fikrinizi Söyleyin"<br />
+              Mesaj: "Ürünümüzü nasıl buldunuz, önerileriniz var mı?"
+          </Typography>
+        )}
+        {selectedMessageTag === 'POST_PURCHASE_UPDATE' && (
+          <Typography variant="body2" sx={{ color: '#333' }}>
+            <strong>Amaç:</strong> Satın alma sonrası kullanıcıyı bilgilendirmek.<br />
+            <strong>Kurallar:</strong><br />
+            • Satın alma ile ilgili güncellemeler içermeli (ör. kargo durumu, iade bilgisi).<br />
+            • Promosyonel içerik veya ek ürün satışı yasaktır.<br />
+            • Kullanıcıya net bir bilgi veya işlem durumu sunmalı.<br />
+            <strong>Örnekler:</strong><br />
+            - "Siparişiniz kargoya verildi, takip numarası: XYZ123."<br />
+            - "İadeniz onaylandı, ödemeniz 3 iş günü içinde yapılacak."<br />
+            - "Ürün teslimatınız yarın 09:00-12:00 arasında gerçekleşecek."
+          </Typography>
+        )}
+        {selectedMessageTag === 'HUMAN_AGENT' && (
+          <Typography variant="body2" sx={{ color: '#333' }}>
+            <strong>Amaç:</strong> İnsan ajan tarafından birebir destek sağlamak.<br />
+            <strong>Kurallar:</strong><br />
+            • Son kullanıcı mesajından sonraki 7 gün içinde gönderilmelidir.<br />
+            • Promosyonel içerik veya otomatik mesajlar yasaktır.<br />
+            • Gerçek bir insan tarafından yazılmış olmalı ve destek amaçlı olmalı.<br />
+            <strong>Örnekler:</strong><br />
+            - "Merhaba, sorununuzu çözmek için buradayım. Detay verebilir misiniz?"<br />
+            - "Siparişinizle ilgili sorunuzu gördüm, hemen yardımcı oluyorum."<br />
+            - "Teknik ekibimiz sorunu inceledi, çözüm için önerilerimiz var."
+          </Typography>
+        )}
+        {selectedMessageTag === 'OTN_TOKEN' && (
+          <Typography variant="body2" sx={{ color: '#333' }}>
+            <strong>Amaç:</strong> Kullanıcıdan alınmış tek seferlik bildirim izniyle mesaj göndermek.<br />
+            <strong>Kurallar:</strong><br />
+            • Geçerli bir OTN token gereklidir.<br />
+            • Mesaj, kullanıcının onayladığı bildirimle ilgili olmalı.<br />
+            • Promosyonel içerik veya reklam yasaktır.<br />
+            • Token kullanıldıktan sonra geçersiz olur.<br />
+            <strong>Örnekler:</strong><br />
+            - "Siparişinizle ilgili güncelleme: Ürün yarın teslim edilecek."<br />
+            - "Randevunuz onaylandı, detaylar için lütfen kontrol edin."<br />
+            - "Başvurunuz tamamlandı, sonuçlar hesabınızda."
+          </Typography>
+        )}
+      </Box>
+    )}
+
+    {/* Message Input */}
+    {selectedMessageTag && selectedMessageTag !== 'CUSTOMER_FEEDBACK' && (
+      <TextField
+        value={tagMessage}
+        onChange={(e) => setTagMessage(e.target.value)}
+        placeholder="Mesajınızı buraya yazın..."
+        variant="outlined"
+        fullWidth
+        multiline
+        rows={4}
+        sx={{ mb: 2 }}
+      />
+    )}
+
+    {/* Customer Feedback Specific Fields */}
+    {selectedMessageTag === 'CUSTOMER_FEEDBACK' && (
+      <>
+        <TextField
+          label="Geri Bildirim Başlığı"
+          value={customerFeedbackTitle}
+          onChange={(e) => setCustomerFeedbackTitle(e.target.value)}
+          fullWidth
+          variant="outlined"
+          sx={{ mb: 2 }}
+          helperText="Kısa bir başlık girin (maks. 65 karakter)."
+          inputProps={{ maxLength: 65 }}
+        />
+        <TextField
+          label="Geri Bildirim Yükü (Payload)"
+          value={customerFeedbackPayload}
+          onChange={(e) => setCustomerFeedbackPayload(e.target.value)}
+          fullWidth
+          variant="outlined"
+          sx={{ mb: 2 }}
+          helperText="Geri bildirim için benzersiz bir kimlik (isteğe bağlı)."
+        />
+      </>
+    )}
+
+    {/* Buttons */}
+    <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 2 }}>
+      <Button
+        onClick={() => {
+          setMessageTagModalOpen(false);
+          setSelectedMessageTag(null);
+          setTagMessage('');
+          setCustomerFeedbackTitle('Geri Bildiriminizi Alabilir Miyiz?');
+          setCustomerFeedbackPayload('');
+        }}
+        variant="outlined"
+        sx={{
+          borderColor: '#65676b',
+          color: '#65676b',
+          borderRadius: '8px',
+          textTransform: 'none',
+          '&:hover': { borderColor: '#1877f2', color: '#1877f2' },
+        }}
+      >
+        İptal
+      </Button>
+      <Button
+        onClick={() => sendMessageTag()}
+        variant="contained"
+        disabled={
+          !selectedMessageTag ||
+          (selectedMessageTag !== 'CUSTOMER_FEEDBACK' && !tagMessage.trim()) ||
+          (selectedMessageTag === 'CUSTOMER_FEEDBACK' && !customerFeedbackTitle.trim())
+        }
+        sx={{
+          bgcolor: '#1877f2',
+          color: '#fff',
+          borderRadius: '8px',
+          textTransform: 'none',
+          '&:hover': { bgcolor: '#0056b3' },
+          '&:disabled': { bgcolor: '#b0b0b0' },
+        }}
+      >
+        Gönder
+      </Button>
+    </Box>
+  </Box>
+      </Modal>
       </Box>
     </Box>
   );

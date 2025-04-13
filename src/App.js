@@ -13,7 +13,6 @@ import Navbar from "./components/navbar/navbar.js";
 import Profile from "./pages/instagram/ProfileManager.js";
 import PostsManager from "./pages/instagram/PostsManager.js";
 import InsightManager from "./pages/instagram/InsightManager.js";
-
 import StoriesManager from "./pages/instagram/StoriesManager.js";
 import HashtagManager from "./pages/instagram/HashtagManager.js";
 import FacebookLogin from "./pages/instagram/FacebookLogin.js";
@@ -29,10 +28,8 @@ import AdminPage from "./pages/adminPage/adminPage.js";
 import AdminUsers from "./pages/adminPage/adminUsers.js";
 import AdminSettings from "./pages/adminPage/adminProfilePage.js";
 import FacebookProfile from './pages/facebook/FacebookProfile.js';
-
-import AuthCallback from './pages/youtube/authCallback.js'; // Import the new callback page
-import YoutubeProfile from './pages/youtube/profile.js'; // We'll create this next
-
+import AuthCallback from './pages/youtube/authCallback.js';
+import YoutubeProfile from './pages/youtube/profile.js';
 import "./App.css";
 import { jwtDecode } from "jwt-decode";
 import { cookies } from "./utils/cookie";
@@ -40,7 +37,8 @@ import Sidebar from "./components/sidebars/clientSideBar.js";
 import AdminSidebar from "./components/sidebars/adminSideBar.js";
 import { SidebarProvider } from "./context/SidebarContext";
 import { useSidebar } from "./context/SidebarContext";
-import MessengerPage from './pages/Messenger/MessengerPage'; // Adjust pat
+import MessengerPage from './pages/Messenger/MessengerPage';
+
 const NotFound = () => {
   return (
     <div
@@ -63,18 +61,11 @@ const NotFound = () => {
 
 const Layout = ({ errorModalMessage, setErrorModalMessage }) => {
   const { sidebarOpen, toggleSidebar } = useSidebar();
-  const jwtToken = cookies.get("jwt-access");
-  const isAdmin = jwtToken ? jwtDecode(jwtToken).role === "admin" : false;
-
   return (
     <div style={{ display: "flex" }}>
-      {isAdmin ? (
-        <AdminSidebar status={sidebarOpen} toggleSidebar={toggleSidebar} />
-      ) : (
-        <Sidebar status={sidebarOpen} toggleSidebar={toggleSidebar} />
-      )}
+      <Sidebar status={sidebarOpen} toggleSidebar={toggleSidebar} />
       <div style={{ flexGrow: 1, display: "flex", flexDirection: "column" }}>
-        <Outlet context={{ errorModalMessage, setErrorModalMessage }} /> {/* Pass state via context */}
+        <Outlet context={{ errorModalMessage, setErrorModalMessage }} />
       </div>
     </div>
   );
@@ -83,7 +74,7 @@ const Layout = ({ errorModalMessage, setErrorModalMessage }) => {
 function ProtectedRoute({ children }) {
   const navigate = useNavigate();
   const location = useLocation();
-  const { errorModalMessage, setErrorModalMessage } = useOutletContext(); // Access from Outlet context
+  const { errorModalMessage, setErrorModalMessage } = useOutletContext();
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -91,24 +82,19 @@ function ProtectedRoute({ children }) {
 
       try {
         if (jwtToken) {
+          // Verify token is valid (not expired)
           const decodedToken = jwtDecode(jwtToken);
-          const userRole = decodedToken.role;
-
-          // Role-based routing
-          if (userRole === "admin" && !location.pathname.startsWith("/admin")) {
-            navigate("/admin");
-          } else if (
-            userRole === "user" &&
-            location.pathname.startsWith("/admin")
-          ) {
-            navigate("/NotFound");
+          const currentTime = Math.floor(Date.now() / 1000);
+          if (decodedToken.exp < currentTime) {
+            throw new Error("Token expired");
           }
-        } else if (!['/register', '/forgot-password', '/login'].includes(location.pathname)) {
+          // Allow access to any protected route
+        } else if (!["/register", "/forgot-password", "/login"].includes(location.pathname)) {
           navigate("/login");
         }
       } catch (error) {
         console.error("Error during auth check:", error);
-        setErrorModalMessage("An error occurred during authentication.");
+        setErrorModalMessage("Kimlik doğrulama sırasında bir hata oluştu.");
         navigate("/login");
       }
     };
@@ -116,17 +102,15 @@ function ProtectedRoute({ children }) {
     checkAuth();
   }, [navigate, location.pathname, setErrorModalMessage]);
 
-  return children; // Render the child routes if authenticated
+  return children;
 }
 
 function AppRoutes() {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    setIsLoading(false); // No auth check here; handled by ProtectedRoute
+    setIsLoading(false);
   }, []);
-
-
 
   return (
     <Routes>
@@ -134,14 +118,12 @@ function AppRoutes() {
       <Route path="/login" element={<Login />} />
       <Route path="/forgot-password" element={<ForgotPassword />} />
       <Route path="/register" element={<Register />} />
-      <Route path="/auth-callback" element={<AuthCallback />} /> 
-     
-      {/* Protected Routes with Layout (Global Sidebar) */}
+      <Route path="/auth-callback" element={<AuthCallback />} />
+
+      {/* Protected Routes with Layout */}
       <Route
         path="/"
-        element={
-          <Layout />
-        }
+        element={<Layout />}
       >
         <Route
           path="/"
@@ -183,7 +165,7 @@ function AppRoutes() {
             </ProtectedRoute>
           }
         />
-    <Route
+        <Route
           path="/insights"
           element={
             <ProtectedRoute>
@@ -191,9 +173,7 @@ function AppRoutes() {
             </ProtectedRoute>
           }
         />
-
-
-    <Route
+        <Route
           path="/youtube-profile"
           element={
             <ProtectedRoute>
@@ -201,7 +181,6 @@ function AppRoutes() {
             </ProtectedRoute>
           }
         />
-        {/* Instagram Management Routes */}
         <Route
           path="/Profile"
           element={
@@ -210,8 +189,7 @@ function AppRoutes() {
             </ProtectedRoute>
           }
         />
-
-<Route
+        <Route
           path="/FacebookProfile"
           element={
             <ProtectedRoute>
@@ -219,8 +197,6 @@ function AppRoutes() {
             </ProtectedRoute>
           }
         />
-
-
         <Route
           path="/posts"
           element={
@@ -229,7 +205,7 @@ function AppRoutes() {
             </ProtectedRoute>
           }
         />
-         <Route
+        <Route
           path="/hashtags"
           element={
             <ProtectedRoute>
@@ -237,7 +213,7 @@ function AppRoutes() {
             </ProtectedRoute>
           }
         />
-          <Route
+        <Route
           path="/ads"
           element={
             <ProtectedRoute>
@@ -245,7 +221,7 @@ function AppRoutes() {
             </ProtectedRoute>
           }
         />
-      <Route
+        <Route
           path="/FacebookLogin"
           element={
             <ProtectedRoute>
@@ -253,8 +229,6 @@ function AppRoutes() {
             </ProtectedRoute>
           }
         />
-
-
         <Route
           path="/stories"
           element={
@@ -263,16 +237,6 @@ function AppRoutes() {
             </ProtectedRoute>
           }
         />
-        <Route
-          path="/ads"
-          element={
-            <ProtectedRoute>
-              <AdsManager />
-            </ProtectedRoute>
-          }
-        />
-
-        {/* Admin Routes */}
         <Route
           path="/admin"
           element={
