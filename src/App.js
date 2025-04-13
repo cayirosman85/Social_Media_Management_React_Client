@@ -38,6 +38,7 @@ import AdminSidebar from "./components/sidebars/adminSideBar.js";
 import { SidebarProvider } from "./context/SidebarContext";
 import { useSidebar } from "./context/SidebarContext";
 import MessengerPage from './pages/Messenger/MessengerPage';
+import MessengerAccount from './pages/Messenger/MessengerAccount.js';
 
 const NotFound = () => {
   return (
@@ -157,6 +158,15 @@ function AppRoutes() {
             </ProtectedRoute>
           }
         />
+       <Route
+          path="/MessengerAccount"
+          element={
+            <ProtectedRoute>
+              <MessengerAccount />
+            </ProtectedRoute>
+          }
+        />
+
         <Route
           path="/user/profile"
           element={

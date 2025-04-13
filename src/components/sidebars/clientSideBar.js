@@ -31,7 +31,7 @@ import { useNavigate, useLocation, Link } from 'react-router-dom';
 import largeLogo from '../../assets/images/linkedin-banner.jpg';
 import smallLogo from '../../assets/images/small-linkedin-logo.jpg';
 import LogoutOutlinedIcon from '@mui/icons-material/LogoutOutlined';
-import { Home, Files, Login, BrandYoutube, Message } from 'tabler-icons-react';
+import { Home, Files, Login, BrandYoutube, Message, Settings } from 'tabler-icons-react';
 import { useSidebar } from '../../context/SidebarContext';
 import FacebookLogin from 'react-facebook-login';
 
@@ -79,11 +79,11 @@ const menuItems = [
     text: 'Messenger',
     icon: <Message size={22} />,
     subItems: [
-      { text: 'Login', icon: <Login size={22} />, path: '/MessengerLogin' },
-      { text: 'Chat', icon: <Message size={22} />, path: '/messenger' }, // Updated path
+      { text: 'Sohbet', icon: <Message size={22} />, path: '/messenger' }, 
+      { text: 'Hesap', icon: <Settings size={22} />, path: '/MessengerAccount' },
     ],
   },
-  { text: 'Logout', icon: <LogoutOutlinedIcon size={22} />, action: logout, path: '/login' },
+  { text: 'Çıkış Yap', icon: <LogoutOutlinedIcon size={22} />, action: logout, path: '/login' },
 ];
 
 const Sidebar = () => {
@@ -97,73 +97,6 @@ const Sidebar = () => {
 
   const facebookAppId = '1936737430086867';
   const facebookAppSecret = 'd3d576725b8470849808a68eca9c9b75'; // Move to server-side in production!
-  const messengerAppId = '1936737430086867';
-  const messengerPageId = '576837692181131';
-
-  // Messenger Login Response Handler
-  const responseMessenger = async (response) => {
-    console.log('Messenger Login Response:', response);
-    if (response.accessToken) {
-      setLoading(true);
-      setError(null);
-      localStorage.set('messengerAccessToken', response.accessToken);
-      const isValid = await validateMessengerToken(response.accessToken);
-      if (isValid) {
-        fetchMessengerData(response.accessToken);
-      } else {
-        setError('Messenger token validation failed.');
-        setLoading(false);
-      }
-    } else {
-      setError('No access token received from Messenger login.');
-      console.log('Messenger Login Failed - No accessToken:', response);
-    }
-  };
-
-  // Validate Messenger Token
-  const validateMessengerToken = async (accessToken) => {
-    try {
-      console.log('Validating Messenger Token:', accessToken);
-      const response = await fetch('https://localhost:7099/api/messenger/validate-token', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(accessToken),
-      });
-      const isValid = await response.json();
-      console.log('Validation Response:', isValid);
-      if (!isValid) {
-        throw new Error('Invalid Messenger token.');
-      }
-      return true;
-    } catch (error) {
-      console.error('Error validating Messenger token:', error);
-      setError(error.message || 'Error validating token.');
-      return false;
-    }
-  };
-
-  // Fetch Messenger Data
-  const fetchMessengerData = async (accessToken) => {
-    setLoading(true);
-    try {
-      console.log('Fetching Messenger Data with Token:', accessToken);
-      const response = await fetch(
-        `https://graph.facebook.com/v20.0/me?fields=id,name&access_token=${accessToken}`
-      );
-      const data = await response.json();
-      console.log('Messenger Data:', data);
-      localStorage.set('messengerUserId', data.id);
-      navigate('/messenger'); // Navigate to chat page after login
-    } catch (error) {
-      console.error('Error fetching Messenger data:', error);
-      setError('Failed to connect to Messenger.');
-      localStorage.remove('messengerAccessToken');
-      localStorage.remove('messengerUserId');
-      navigate('/MessengerLogin');
-    } finally {
-      setLoading(false);
-    }
-  };
 
   // Handle Google Login
   const handleGoogleLogin = () => {
@@ -518,43 +451,7 @@ const Sidebar = () => {
                     </ListItem>
                   );
                 }
-                if (item.text === 'Messenger') {
-                  if (subItem.text === 'Login') {
-                    return (
-                      <ListItem key={subItem.text} sx={{ pl: 4, m: 1, width: '95%' }}>
-                        <ListItemIcon>{subItem.icon}</ListItemIcon>
-                        {(sidebarOpen || isHovered) && (
-                          <FacebookLogin
-                            appId={messengerAppId}
-                            autoLoad={false}
-                            fields="name,email,picture"
-                            scope="public_profile,email,pages_messaging"
-                            callback={responseMessenger}
-                            cssClass="messenger-login-btn"
-                            textButton="Login with Messenger"
-                            disabled={loading}
-                            onClick={() => console.log('Messenger Login Button Clicked')}
-                          />
-                        )}
-                      </ListItem>
-                    );
-                  }
-                  if (subItem.text === 'Chat') {
-                    return (
-                      <ListItem
-                        button
-                        key={subItem.text}
-                        component={Link}
-                        to={subItem.path}
-                        className={location.pathname === subItem.path ? 'selected-menu-item' : 'unselected-menu-item'}
-                        sx={{ pl: 4, m: 1, width: '95%' }}
-                      >
-                        <ListItemIcon>{subItem.icon}</ListItemIcon>
-                        {(sidebarOpen || isHovered) && <ListItemText primary="Chat" />}
-                      </ListItem>
-                    );
-                  }
-                }
+          
                 return (
                   <ListItem
                     button
