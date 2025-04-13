@@ -1,5 +1,5 @@
 import React from "react";
-import CarouselSlider from "./CarouselSlider";
+import CarouselSlider from "../../components/instagram/CarouselSlider.js";
 import "./InstagramPost.css";
 
 const InstagramPost = ({ post, onClick }) => {

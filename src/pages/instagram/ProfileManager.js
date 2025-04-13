@@ -4,7 +4,6 @@ import TabNavigation from "../../components/instagram/TabNavigation.js";
 import InstagramPost from "../../components/instagram/InstagramPost.js";
 import NewPostModal from "../../components/instagram/NewPostModal.js";
 import InstagramStory from "../../components/instagram/InstagramStory.js";
-import CarouselSlider from "../../components/instagram/CarouselSlider.js";
 import NewStoryModal from "../../components/instagram/NewStoryModal.js";
 import InsightsModal from "../../components/instagram/InsightsModal.js";
 import InstagramPostDetails from "../../components/instagram/InstagramPostDetails.js";

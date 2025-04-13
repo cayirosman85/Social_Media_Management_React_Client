@@ -53,8 +53,8 @@
 /* Media Grid */
 .media-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-  gap: 25px;
+  grid-template-columns: repeat(auto-fill, minmax(400px, 0fr));
+  gap: 45px;
   position: relative; /* Ensure the grid contains its children */
   width: 100%;
 }

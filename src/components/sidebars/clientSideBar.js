@@ -58,7 +58,6 @@ const menuItems = [
     icon: <FacebookIcon size={22} />,
     subItems: [
       { text: 'Profile', icon: <Person size={22} />, path: '/FacebookProfile' },
-      { text: 'Posts', icon: <InsertChart size={22} />, path: '/FacebookPosts' },
       { text: 'Login', icon: <Login size={22} />, path: '/FacebookLoginPage' },
     ],
   },
