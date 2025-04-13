@@ -1,24 +1,40 @@
-// instagramService.js
+import { cookies } from "../../utils/cookie";
+
+const BASE_URL = "https://localhost:7099";
+
+const getToken = () => {
+  let token = cookies.get("jwt-access");
+  console.log("Token from cookies:", token);
+  if (token) {
+    token = token.replace(/"/g, "");
+    return token;
+  }
+  throw new Error("Kimlik doğrulama jetonu eksik");
+};
+
 export const publishPost = async (postData) => {
   console.log("Publishing post with data:", postData);
+  const token = getToken();
+
   try {
-    const response = await fetch("https://localhost:7099/api/Post/publish-post", {
+    const response = await fetch(`${BASE_URL}/api/Post/publish-post`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
       },
       body: JSON.stringify(postData),
     });
 
-    console.log("Response status:", response.status); // Log status code
-    console.log("Response headers:", response.headers.get("Content-Type")); // Log content type
+    console.log("Response status:", response.status);
+    console.log("Response headers:", response.headers.get("Content-Type"));
 
-    const text = await response.text(); // Get raw response first
+    const text = await response.text();
     console.log("Raw response:", text);
 
     let data;
     try {
-      data = JSON.parse(text); // Attempt to parse as JSON
+      data = JSON.parse(text);
     } catch (parseError) {
       throw new Error(`Failed to parse response as JSON: ${text}`);
     }
@@ -33,138 +49,178 @@ export const publishPost = async (postData) => {
     throw error;
   }
 };
-  export const toggleCommentVisibility = async (userId, commentId, accessToken, hide) => {
-    const response = await fetch("https://localhost:7099/api/Post/comment-visibility", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
-            user_id: userId, 
-            comment_id: commentId, 
-            access_token: accessToken, 
-            hide: hide
-        }),
-    });
-    if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Failed to toggle comment visibility: ${errorText}`);
-    }
-    return response.json();
-};
-  export const deleteComment = async (userId, commentId, accessToken) => {
-    const response = await fetch("https://localhost:7099/api/Post/delete-comment", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ user_id: userId, comment_id: commentId, access_token: accessToken }),
-    });
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Failed to delete comment: ${errorText}`);
-    }
-    return response.json();
-  };
-  
-  export const createComment = async (userId, mediaId, accessToken, comment) => {
-    const response = await fetch("https://localhost:7099/api/Post/create-comment", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ user_id: userId, media_id: mediaId, access_token: accessToken, comment }),
-    });
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Failed to create comment: ${errorText}`);
-    }
-    return response.json();
-  };
-  
-  export const createReply = async (userId, commentId, accessToken, reply) => {
-    const response = await fetch("https://localhost:7099/api/Post/create-reply", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ user_id: userId, comment_id: commentId, access_token: accessToken, reply }),
-    });
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Failed to create reply: ${errorText}`);
-    }
-    return response.json();
-  };
 
-  export const getUserPosts = async (userId, username, accessToken, limit = 5, cursor = null, direction = "after") => {
-    const payload = {
-      UserId: userId, // Match server-side PascalCase
-      Username: username,
-      AccessToken: accessToken,
-      Limit: limit,
-      After: direction === "after" ? cursor : null, // Only send After for "after" direction
-      Before: direction === "before" ? cursor : null, // Only send Before for "before" direction
-    };
-  
-    console.log("Sending payload to server:", payload); // Debug log
-  
-    const response = await fetch("https://localhost:7099/api/User/user-posts", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-  
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Failed to fetch user posts: ${errorText}`);
-    }
-  
-    const data = await response.json();
-    console.log("Server response:", data); // Debug log
-    return data;
-  };
-  // Fetch Instagram user data
-  export const fetchInstagramData = async (userId, username, accessToken) => {
-    const payload = {
-      UserId: userId,
-      Username: username,
-      AccessToken: accessToken,
-      ExcludeMedia: true, // Boolean for ProfileRequest model
-    };
-  
-    console.log("Sending payload to get-profile:", payload); // Debug log
-  
-    const response = await fetch("https://localhost:7099/api/User/get-profile", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-  
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`HTTP error! Status: ${response.status}, Response: ${errorText}`);
-    }
-  
-    const data = await response.json();
-    console.log("Get-profile response:", data); // Debug log
-    return data;
-  };
-export const getMediaInsights = async (userId, mediaId, accessToken, mediaType) => {
-  const response = await fetch("https://localhost:7099/api/Post/get-media-insights", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ user_id: userId, media_id: mediaId, access_token: accessToken, media_type: mediaType }),
+export const toggleCommentVisibility = async (userId, commentId, accessToken, hide) => {
+  const token = getToken();
+  const response = await fetch(`${BASE_URL}/api/Post/comment-visibility`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({
+      user_id: userId,
+      comment_id: commentId,
+      access_token: accessToken,
+      hide,
+    }),
   });
 
   if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Failed to fetch media insights: ${errorText}`);
+    const errorText = await response.text();
+    throw new Error(`Failed to toggle comment visibility: ${errorText}`);
   }
   return response.json();
 };
-export const getProfileInsights = async (userId, accessToken, mediaType) => {
-  const response = await fetch("https://localhost:7099/api/User/insights", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ user_id: userId, access_token: accessToken }),
+
+export const deleteComment = async (userId, commentId, accessToken) => {
+  const token = getToken();
+  const response = await fetch(`${BASE_URL}/api/Post/delete-comment`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ user_id: userId, comment_id: commentId, access_token: accessToken }),
   });
 
   if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Failed to fetch media insights: ${errorText}`);
+    const errorText = await response.text();
+    throw new Error(`Failed to delete comment: ${errorText}`);
+  }
+  return response.json();
+};
+
+export const createComment = async (userId, mediaId, accessToken, comment) => {
+  const token = getToken();
+  const response = await fetch(`${BASE_URL}/api/Post/create-comment`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ user_id: userId, media_id: mediaId, access_token: accessToken, comment }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Failed to create comment: ${errorText}`);
+  }
+  return response.json();
+};
+
+export const createReply = async (userId, commentId, accessToken, reply) => {
+  const token = getToken();
+  const response = await fetch(`${BASE_URL}/api/Post/create-reply`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ user_id: userId, comment_id: commentId, access_token: accessToken, reply }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Failed to create reply: ${errorText}`);
+  }
+  return response.json();
+};
+
+export const getUserPosts = async (userId, username, accessToken, limit = 5, cursor = null, direction = "after") => {
+  const token = getToken();
+  const payload = {
+    UserId: userId,
+    Username: username,
+    AccessToken: accessToken,
+    Limit: limit,
+    After: direction === "after" ? cursor : null,
+    Before: direction === "before" ? cursor : null,
+  };
+
+  console.log("Sending payload to server:", payload);
+
+  const response = await fetch(`${BASE_URL}/api/User/user-posts`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Failed to fetch user posts: ${errorText}`);
+  }
+
+  const data = await response.json();
+  console.log("Server response:", data);
+  return data;
+};
+
+export const fetchInstagramData = async (userId, username, accessToken) => {
+  const token = getToken();
+  const payload = {
+    UserId: userId,
+    Username: username,
+    AccessToken: accessToken,
+    ExcludeMedia: true,
+  };
+
+  console.log("Sending payload to get-profile:", payload);
+
+  const response = await fetch(`${BASE_URL}/api/User/get-profile`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`HTTP error! Status: ${response.status}, Response: ${errorText}`);
+  }
+
+  const data = await response.json();
+  console.log("Get-profile response:", data);
+  return data;
+};
+
+export const getMediaInsights = async (userId, mediaId, accessToken, mediaType) => {
+  const token = getToken();
+  const response = await fetch(`${BASE_URL}/api/Post/get-media-insights`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ user_id: userId, media_id: mediaId, access_token: accessToken, media_type: mediaType }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Failed to fetch media insights: ${errorText}`);
+  }
+  return response.json();
+};
+
+export const getProfileInsights = async (userId, accessToken, mediaType) => {
+  const token = getToken();
+  const response = await fetch(`${BASE_URL}/api/User/insights`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ user_id: userId, access_token: accessToken }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Failed to fetch media insights: ${errorText}`);
   }
 
   return response.json();
