@@ -211,14 +211,14 @@ const Sidebar = () => {
       const body =
         loginType === 'messenger' || loginType === 'instagramChat'
           ? {
-              id: selectedAccount.id,
-              accessToken: longLivedToken,
-              longLiveAccessTokenCreatedAt: today,
-              accountId: selectedAccount.accountId,
-              appId: selectedAccount.appId,
-              appSecret: selectedAccount.appSecret,
-              graphApiVersion: selectedAccount.graphApiVersion || 'v20.0',
-              companyId: selectedAccount.companyId,
+            id: selectedAccount.id,
+            facebookLongLiveAccessToken: longLivedToken,
+            longLiveAccessTokenCreatedAt: today,
+            facebookAppName: selectedAccount.facebookAppName,
+            facebookAppId: selectedAccount.facebookAppId,
+            facebookAppSecret: selectedAccount.facebookAppSecret,
+            graphApiVersion: selectedAccount.graphApiVersion,
+            companyId: selectedAccount.companyId,
             }
           : {
               id: selectedAccount.id,
@@ -793,10 +793,10 @@ const Sidebar = () => {
                             item.text === 'Youtube'
                               ? 'Google ile Giriş'
                               : item.text === 'Instagram Chat'
-                              ? 'Facebook ile Giriş (Instagram Chat)'
+                              ? 'Giriş'
                               : item.text === 'Messenger'
-                              ? 'Facebook ile Giriş (Messenger)'
-                              : 'Facebook ile Giriş'
+                              ? 'Giriş'
+                              : 'Giriş'
                           }
                         />
                       )}
@@ -931,12 +931,12 @@ const Sidebar = () => {
                   >
                     <TableCell>
                       {loginType === 'messenger' || loginType === 'instagramChat'
-                        ? account.accountId
+                        ? account.facebookAppName
                         : account.facebookAppName}
                     </TableCell>
                     <TableCell>
                       {loginType === 'messenger' || loginType === 'instagramChat'
-                        ? account.appId
+                        ? account.facebookAppId
                         : account.facebookAppId}
                     </TableCell>
                     <TableCell>

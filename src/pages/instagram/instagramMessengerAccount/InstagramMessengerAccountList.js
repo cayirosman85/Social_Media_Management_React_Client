@@ -140,7 +140,7 @@ const InstagramMessengerAccountList = () => {
     try {
       await Promise.all(
         selected.map((id) =>
-          apiFetch(`/api/FacebookAccount/${id}`, { method: 'DELETE' })
+          apiFetch(`/api/InstagramMessengerAccount/${id}`, { method: 'DELETE' })
         )
       );
       setAccounts((prev) => prev.filter((account) => !selected.includes(account.companyId)));
@@ -232,7 +232,7 @@ const InstagramMessengerAccountList = () => {
           <Tooltip title="Hesabı Düzenle">
             <IconButton
               color="primary"
-              onClick={() => navigate(`/facebook-accounts/edit/${account.companyId}`)}
+              onClick={() => navigate(`/instagram-chat-accounts/edit/${account.companyId}`)}
             >
               <Edit />
             </IconButton>
@@ -269,7 +269,7 @@ const InstagramMessengerAccountList = () => {
             variant="contained"
             color="primary"
             startIcon={<Edit />}
-            onClick={() => navigate('/facebook-accounts/create')}
+            onClick={() => navigate('/instagram-chat-accounts/create')}
             sx={{ fontSize: '1rem', py: 1 }}
           >
             Yeni Hesap Ekle
