@@ -39,7 +39,16 @@ import { SidebarProvider } from "./context/SidebarContext";
 import { useSidebar } from "./context/SidebarContext";
 import MessengerPage from './pages/Messenger/MessengerPage';
 import MessengerAccount from './pages/Messenger/MessengerAccount.js';
+// New imports for Facebook Account pages
+import FacebookAccountList from './pages/facebook/FacebookAccountList.js';
+import FacebookAccountCreate from './pages/facebook/FacebookAccountCreate.js';
+import FacebookAccountEdit from './pages/facebook/FacebookAccountEdit.js';
 
+
+// New imports for Facebook Account pages For instagram
+import FacebookAccountListForInstagram from './pages/instagram/account/FacebookAccountList.js';
+import FacebookAccountCreateForInstagram from './pages/instagram/account/FacebookAccountCreate.js'; 
+import FacebookAccountEditForInstagram  from './pages/instagram/account/FacebookAccountEdit.js';
 const NotFound = () => {
   return (
     <div
@@ -83,13 +92,11 @@ function ProtectedRoute({ children }) {
 
       try {
         if (jwtToken) {
-          // Verify token is valid (not expired)
           const decodedToken = jwtDecode(jwtToken);
           const currentTime = Math.floor(Date.now() / 1000);
           if (decodedToken.exp < currentTime) {
             throw new Error("Token expired");
           }
-          // Allow access to any protected route
         } else if (!["/register", "/forgot-password", "/login"].includes(location.pathname)) {
           navigate("/login");
         }
@@ -158,7 +165,7 @@ function AppRoutes() {
             </ProtectedRoute>
           }
         />
-       <Route
+        <Route
           path="/MessengerAccount"
           element={
             <ProtectedRoute>
@@ -166,7 +173,6 @@ function AppRoutes() {
             </ProtectedRoute>
           }
         />
-
         <Route
           path="/user/profile"
           element={
@@ -271,7 +277,60 @@ function AppRoutes() {
             </ProtectedRoute>
           }
         />
-      </Route>
+        {/* New Facebook Account Routes */}
+        <Route
+          path="/facebook-accounts"
+          element={
+            <ProtectedRoute>
+              <FacebookAccountList />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/facebook-accounts/create"
+          element={
+            <ProtectedRoute>
+              <FacebookAccountCreate />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/facebook-accounts/edit/:companyId"
+          element={
+            <ProtectedRoute>
+              <FacebookAccountEdit />
+            </ProtectedRoute>
+          }
+        />
+    {/* New Facebook Account Routes for instagram */}
+
+    <Route
+          path="/instagram-accounts"
+          element={
+            <ProtectedRoute>
+              <FacebookAccountListForInstagram />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/instagram-accounts/create"
+          element={
+            <ProtectedRoute>
+              <FacebookAccountCreateForInstagram />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/instagram-accounts/edit/:companyId"
+          element={
+            <ProtectedRoute>
+              <FacebookAccountEditForInstagram />
+            </ProtectedRoute>
+          }
+        />
+   
+
+   </Route>
 
       {/* Fallback Route */}
       <Route path="*" element={<NotFound />} />
