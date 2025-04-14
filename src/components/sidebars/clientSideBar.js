@@ -168,7 +168,7 @@ const Sidebar = () => {
     setLoginType(type);
     setModalOpen(true);
     setSelectedAccount(null);
-    fetchAccounts(type); // Pass type directly to avoid state delay
+    fetchAccounts(type);
   };
 
   const handleCloseModal = () => {
@@ -198,8 +198,8 @@ const Sidebar = () => {
     return daysDiff > 60;
   };
 
-  const updateAccountToken = async (companyId, longLivedToken) => {
-    console.log('Updating account with:', { companyId, longLivedToken });
+  const updateAccountToken = async (companyId, longLivedToken, pageId) => {
+    console.log('Updating account with:', { companyId, longLivedToken, pageId });
     try {
       const today = format(new Date(), 'yyyy-MM-dd');
       const endpoint =
@@ -211,17 +211,19 @@ const Sidebar = () => {
       const body =
         loginType === 'messenger' || loginType === 'instagramChat'
           ? {
-            id: selectedAccount.id,
-            facebookLongLiveAccessToken: longLivedToken,
-            longLiveAccessTokenCreatedAt: today,
-            facebookAppName: selectedAccount.facebookAppName,
-            facebookAppId: selectedAccount.facebookAppId,
-            facebookAppSecret: selectedAccount.facebookAppSecret,
-            graphApiVersion: selectedAccount.graphApiVersion,
-            companyId: selectedAccount.companyId,
+              id: selectedAccount.id,
+              facebookPageId: pageId || selectedAccount.facebookPageId,
+              facebookLongLiveAccessToken: longLivedToken,
+              longLiveAccessTokenCreatedAt: today,
+              facebookAppName: selectedAccount.facebookAppName,
+              facebookAppId: selectedAccount.facebookAppId,
+              facebookAppSecret: selectedAccount.facebookAppSecret,
+              graphApiVersion: selectedAccount.graphApiVersion,
+              companyId: selectedAccount.companyId,
             }
           : {
               id: selectedAccount.id,
+              facebookPageId: pageId || selectedAccount.facebookPageId,
               facebookLongLiveAccessToken: longLivedToken,
               longLiveAccessTokenCreatedAt: today,
               facebookAppName: selectedAccount.facebookAppName,
@@ -353,9 +355,10 @@ const Sidebar = () => {
     console.log('Processing Facebook login for:', loginType);
 
     try {
-      const longLivedToken = await exchangeForLongLivedFacebookToken(response.accessToken);
-      if (!longLivedToken) {
-        console.error('Failed to obtain long-lived token');
+      // Exchange short-lived User Access Token for long-lived User Access Token
+      const longLivedUserToken = await exchangeForLongLivedFacebookToken(response.accessToken);
+      if (!longLivedUserToken) {
+        console.error('Failed to obtain long-lived user token');
         setError('Geçerli bir oturum alınamadı. Lütfen tekrar deneyin.');
         setLoading(false);
         setTriggerLogin(false);
@@ -363,19 +366,35 @@ const Sidebar = () => {
         return;
       }
 
-      console.log('Long-lived token obtained:', longLivedToken);
-      localStorage.set(
-        loginType === 'instagram'
-          ? 'facebookAccessToken'
-          : loginType === 'messenger'
-          ? 'messengerAccessToken'
-          : loginType === 'instagramChat'
-          ? 'instagramChatAccessToken'
-          : 'facebookPageAccessToken',
-        longLivedToken
-      );
+      console.log('Long-lived user token obtained:', longLivedUserToken);
 
-      const isValid = await validateFacebookToken(longLivedToken);
+      let tokenToStore = longLivedUserToken;
+      let pageId = null;
+
+      // For Instagram Chat and Messenger, fetch Page Access Token
+      if (loginType === 'instagramChat' || loginType === 'messenger') {
+        const pagesResponse = await fetch(
+          `https://graph.facebook.com/v20.0/me/accounts?access_token=${longLivedUserToken}&app_id=${
+            selectedAccount.appId || selectedAccount.facebookAppId
+          }`
+        );
+        const pagesData = await pagesResponse.json();
+        console.log('Pages response:', pagesData);
+
+        if (!pagesData.data || pagesData.data.length === 0) {
+          throw new Error('Bu kullanıcı için Facebook sayfası bulunamadı.');
+        }
+
+        // Use the first page or match with selectedAccount.facebookPageId
+        const page = pagesData.data.find((p) => p.id === selectedAccount.facebookPageId) || pagesData.data[0];
+        tokenToStore = page.access_token; // Page Access Token
+        pageId = page.id;
+
+        console.log('Page Access Token obtained:', tokenToStore, 'Page ID:', pageId);
+      }
+
+      // Validate token
+      const isValid = await validateFacebookToken(tokenToStore);
       if (!isValid) {
         console.error('Token validation failed');
         setError('Token doğrulama başarısız. Lütfen izinleri kontrol edin.');
@@ -385,7 +404,20 @@ const Sidebar = () => {
         return;
       }
 
-      const updateSuccess = await updateAccountToken(selectedAccount.companyId, longLivedToken);
+      // Store token in localStorage
+      localStorage.set(
+        loginType === 'instagram'
+          ? 'facebookAccessToken'
+          : loginType === 'messenger'
+          ? 'messengerAccessToken'
+          : loginType === 'instagramChat'
+          ? 'instagramChatAccessToken'
+          : 'facebookPageAccessToken',
+        tokenToStore
+      );
+
+      // Update backend with Page Access Token
+      const updateSuccess = await updateAccountToken(selectedAccount.companyId, tokenToStore, pageId);
       if (!updateSuccess) {
         console.error('Account update failed');
         setLoading(false);
@@ -395,19 +427,19 @@ const Sidebar = () => {
       }
 
       if (loginType === 'instagram') {
-        fetchInstagramData(longLivedToken);
+        fetchInstagramData(tokenToStore);
       } else if (loginType === 'facebook') {
-        fetchFacebookPageData(longLivedToken);
+        fetchFacebookPageData(tokenToStore);
       } else if (loginType === 'messenger') {
-        fetchMessengerData(longLivedToken);
+        fetchMessengerData(tokenToStore);
       } else if (loginType === 'instagramChat') {
-        fetchInstagramChatData(longLivedToken);
+        fetchInstagramChatData(tokenToStore);
       }
 
       handleCloseModal();
     } catch (error) {
       console.error('Error in responseFacebook:', error);
-      setError('Giriş işlemi başarısız oldu. Lütfen tekrar deneyin.');
+      setError(error.message || 'Giriş işlemi başarısız oldu. Lütfen tekrar deneyin.');
       setLoading(false);
     } finally {
       setTriggerLogin(false);
@@ -427,7 +459,7 @@ const Sidebar = () => {
 
     const token =
       loginType === 'messenger' || loginType === 'instagramChat'
-        ? selectedAccount.accessToken
+        ? selectedAccount.facebookLongLiveAccessToken
         : selectedAccount.facebookLongLiveAccessToken;
     const tokenCreatedAt = selectedAccount.longLiveAccessTokenCreatedAt;
 
@@ -492,13 +524,14 @@ const Sidebar = () => {
       const pagesData = await pagesResponse.json();
       console.log('Pages response:', pagesData);
       if (pagesData.data && pagesData.data.length > 0) {
-        const pageId = pagesData.data[0].id;
-        const pageAccessToken = pagesData.data[0].access_token;
+        const page = pagesData.data.find((p) => p.id === selectedAccount.facebookPageId) || pagesData.data[0];
+        const pageId = page.id;
+        const pageAccessToken = page.access_token;
         localStorage.set('instagramChatPageId', pageId);
         localStorage.set('instagramChatAccessToken', pageAccessToken);
 
         const igResponse = await fetch(
-          `https://graph.facebook.com/v20.0/${pageId}?fields=instagram_business_account&access_token=${accessToken}&app_id=${
+          `https://graph.facebook.com/v20.0/${pageId}?fields=instagram_business_account&access_token=${pageAccessToken}&app_id=${
             selectedAccount.appId || selectedAccount.facebookAppId
           }`
         );
@@ -511,10 +544,11 @@ const Sidebar = () => {
           await apiFetch('/api/InstagramMessengerAccount', {
             method: 'POST',
             body: JSON.stringify({
-              accountId: instagramBusinessId,
-              accessToken: pageAccessToken,
-              appId: selectedAccount.appId,
-              appSecret: selectedAccount.appSecret,
+              facebookPageId: pageId,
+              facebookLongLiveAccessToken: pageAccessToken,
+              facebookAppName: selectedAccount.facebookAppName,
+              facebookAppId: selectedAccount.appId || selectedAccount.facebookAppId,
+              facebookAppSecret: selectedAccount.appSecret || selectedAccount.facebookAppSecret,
               graphApiVersion: 'v20.0',
               companyId: selectedAccount.companyId,
               longLiveAccessTokenCreatedAt: format(new Date(), 'yyyy-MM-dd'),
@@ -565,10 +599,11 @@ const Sidebar = () => {
         await apiFetch('/api/MessengerAccount', {
           method: 'POST',
           body: JSON.stringify({
-            accountId: pageId,
-            accessToken: pageAccessToken,
-            appId: selectedAccount.appId,
-            appSecret: selectedAccount.appSecret,
+            facebookPageId: pageId,
+            facebookLongLiveAccessToken: pageAccessToken,
+            facebookAppName: selectedAccount.facebookAppName,
+            facebookAppId: selectedAccount.appId || selectedAccount.facebookAppId,
+            facebookAppSecret: selectedAccount.appSecret || selectedAccount.facebookAppSecret,
             graphApiVersion: 'v20.0',
             companyId: selectedAccount.companyId,
             longLiveAccessTokenCreatedAt: format(new Date(), 'yyyy-MM-dd'),

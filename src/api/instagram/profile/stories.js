@@ -1,4 +1,4 @@
-import { cookies } from "../../utils/cookie";
+import { cookies } from "../../../utils/cookie";
 
 const BASE_URL = "https://localhost:7099";
 

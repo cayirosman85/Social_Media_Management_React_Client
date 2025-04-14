@@ -10,13 +10,13 @@ import {
   useOutletContext,
 } from "react-router-dom";
 import Navbar from "./components/navbar/navbar.js";
-import Profile from "./pages/instagram/ProfileManager.js";
-import PostsManager from "./pages/instagram/PostsManager.js";
-import InsightManager from "./pages/instagram/InsightManager.js";
-import StoriesManager from "./pages/instagram/StoriesManager.js";
-import HashtagManager from "./pages/instagram/HashtagManager.js";
-import FacebookLogin from "./pages/instagram/FacebookLogin.js";
-import AdsManager from "./pages/instagram/AdsManager.js";
+import Profile from "./pages/instagram/instagramProfile/ProfileManager.js";
+import PostsManager from "./pages/instagram/instagramProfile/PostsManager.js";
+import InsightManager from "./pages/instagram/instagramProfile/InsightManager.js";
+import StoriesManager from "./pages/instagram/instagramProfile/StoriesManager.js";
+import HashtagManager from "./pages/instagram/instagramProfile/HashtagManager.js";
+import FacebookLogin from "./pages/instagram/instagramProfile/FacebookLogin.js";
+import AdsManager from "./pages/instagram/instagramProfile/AdsManager.js";
 import ErrorModal from "./components/instagram/ErrorModal";
 import Login from "./pages/loginPage/loginPage.js";
 import ForgotPassword from "./pages/forgotPassword/forgotPassword.js";
@@ -46,15 +46,20 @@ import FacebookAccountEdit from './pages/facebook/FacebookAccountEdit.js';
 
 
 // New imports for Facebook Account pages For instagram
-import FacebookAccountListForInstagram from './pages/instagram/account/FacebookAccountList.js';
-import FacebookAccountCreateForInstagram from './pages/instagram/account/FacebookAccountCreate.js'; 
-import FacebookAccountEditForInstagram  from './pages/instagram/account/FacebookAccountEdit.js';
+import FacebookAccountListForInstagram from './pages/instagram/facebookProfileAccount/FacebookAccountList.js';
+import FacebookAccountCreateForInstagram from './pages/instagram/facebookProfileAccount/FacebookAccountCreate.js'; 
+import FacebookAccountEditForInstagram  from './pages/instagram/facebookProfileAccount/FacebookAccountEdit.js';
 
 
 // New imports for Facebook Account pages For instagram
 import InstagramMessengerAccountListForInstagram from './pages/instagram/instagramMessengerAccount/InstagramMessengerAccountList.js';
 import InstagramMessengerAccountCreateForInstagram from './pages/instagram/instagramMessengerAccount/InstagramMessengerAccountCreate.js'; 
 import InstagramMessengerAccountEditForInstagram  from './pages/instagram/instagramMessengerAccount/InstagramMessengerAccountEdit.js';
+import InstagramChat  from './pages/instagram/instagramMessenger/Chat.js';
+
+
+
+
 const NotFound = () => {
   return (
     <div
@@ -310,6 +315,7 @@ function AppRoutes() {
         />
     {/* New Facebook Account Routes for instagram */}
 
+ 
     <Route
           path="/instagram-accounts"
           element={
@@ -336,7 +342,14 @@ function AppRoutes() {
         />
    
    {/* New Instagram Chat Account Routes for instagram Chat*/}
-
+   <Route
+          path="/instagram-chat"
+          element={
+            <ProtectedRoute>
+               <InstagramChat/>
+            </ProtectedRoute>
+          }
+        />
    <Route
           path="/instagram-chat-accounts"
           element={

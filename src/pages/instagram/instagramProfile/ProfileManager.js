@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useRef } from "react";
-import ProfileHeader from "../../components/instagram/ProfileHeader.js";
-import TabNavigation from "../../components/instagram/TabNavigation.js";
-import InstagramPost from "../../components/instagram/InstagramPost.js";
-import NewPostModal from "../../components/instagram/NewPostModal.js";
-import InstagramStory from "../../components/instagram/InstagramStory.js";
-import NewStoryModal from "../../components/instagram/NewStoryModal.js";
-import InsightsModal from "../../components/instagram/InsightsModal.js";
-import InstagramPostDetails from "../../components/instagram/InstagramPostDetails.js";
+import ProfileHeader from "../../../components/instagram/ProfileHeader.js";
+import TabNavigation from "../../../components/instagram/TabNavigation.js";
+import InstagramPost from "../../../components/instagram/InstagramPost.js";
+import NewPostModal from "../../../components/instagram/NewPostModal.js";
+import InstagramStory from "../../../components/instagram/InstagramStory.js";
+import NewStoryModal from "../../../components/instagram/NewStoryModal.js";
+import InsightsModal from "../../../components/instagram/InsightsModal.js";
+import InstagramPostDetails from "../../../components/instagram/InstagramPostDetails.js";
 import {
   fetchInstagramData,
   toggleCommentVisibility,
@@ -15,7 +15,7 @@ import {
   createReply,
   getMediaInsights,
   getUserPosts, // Import the paginated posts service
-} from "../../services/instagram/instagramService.js";
+} from "../../../services/instagram/instagramService.js";
 import "./ProfileManager.css";
 import localStorage from "local-storage";
 

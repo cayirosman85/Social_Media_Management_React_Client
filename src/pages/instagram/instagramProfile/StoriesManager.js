@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
-import InstagramStory from "../../components/instagram/InstagramStory";
-import NewStoryModal from "../../components/instagram/NewStoryModal";
-import { fetchStories, publishStory } from "../../services/instagram/instagramService";
+import InstagramStory from "../../../components/instagram/InstagramStory";
+import NewStoryModal from "../../../components/instagram/NewStoryModal";
+import { fetchStories, publishStory } from "../../../services/instagram/instagramService";
 import { FaPlus } from "react-icons/fa";
 import ls from "local-storage";
 

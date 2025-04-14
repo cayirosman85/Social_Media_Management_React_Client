@@ -1,8 +1,8 @@
 // PostsManager.js
 import React, { useState, useEffect, useRef } from "react";
-import NewPostModal from "../../components/instagram/NewPostModal";
-import InsightsModal from "../../components/instagram/InsightsModal";
-import PostItem from "../../components/instagram/PostItem"; // New component
+import NewPostModal from "../../../components/instagram/NewPostModal";
+import InsightsModal from "../../../components/instagram/InsightsModal";
+import PostItem from "../../../components/instagram/PostItem"; // New component
 import {
   publishPost,
   toggleCommentVisibility,
@@ -11,7 +11,7 @@ import {
   createReply,
   getUserPosts,
   getMediaInsights,
-} from "../../services/instagram/instagramService";
+} from "../../../services/instagram/instagramService";
 import { FaPlus } from "react-icons/fa";
 import "./PostsManager.css";
 import ls from "local-storage";

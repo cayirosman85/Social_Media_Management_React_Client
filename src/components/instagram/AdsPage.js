@@ -15,7 +15,7 @@ import {
   deleteAd,
   getInstagramPosts,
   getInstagramAccountFromPage, // New import
-} from "../../api/instagram/ads";
+} from "../../api/instagram/profile/ads";
 
 const AdsPage = () => {
   const [adAccounts, setAdAccounts] = useState([]);

@@ -1,6 +1,6 @@
 // InsightManager.jsx
 import React, { useState, useEffect } from "react";
-import { getProfileInsights } from "../../services/instagram/instagramService.js";
+import { getProfileInsights } from "../../../services/instagram/instagramService.js";
 import "./InsightManager.css";
 import ls from "local-storage";
 /**

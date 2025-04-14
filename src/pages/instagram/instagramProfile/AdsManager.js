@@ -1,5 +1,5 @@
 import React from "react";
-import AdsPage from "../../components/instagram/AdsPage.js";
+import AdsPage from "../../../components/instagram/AdsPage.js";
 
 const AdsManager = () => {
   return (
