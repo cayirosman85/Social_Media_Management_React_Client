@@ -49,6 +49,12 @@ import FacebookAccountEdit from './pages/facebook/FacebookAccountEdit.js';
 import FacebookAccountListForInstagram from './pages/instagram/account/FacebookAccountList.js';
 import FacebookAccountCreateForInstagram from './pages/instagram/account/FacebookAccountCreate.js'; 
 import FacebookAccountEditForInstagram  from './pages/instagram/account/FacebookAccountEdit.js';
+
+
+// New imports for Facebook Account pages For instagram
+import InstagramMessengerAccountListForInstagram from './pages/instagram/instagramMessengerAccount/InstagramMessengerAccountList.js';
+import InstagramMessengerAccountCreateForInstagram from './pages/instagram/instagramMessengerAccount/InstagramMessengerAccountCreate.js'; 
+import InstagramMessengerAccountEditForInstagram  from './pages/instagram/instagramMessengerAccount/InstagramMessengerAccountEdit.js';
 const NotFound = () => {
   return (
     <div
@@ -329,7 +335,32 @@ function AppRoutes() {
           }
         />
    
+   {/* New Instagram Chat Account Routes for instagram Chat*/}
 
+   <Route
+          path="/instagram-chat-accounts"
+          element={
+            <ProtectedRoute>
+              <InstagramMessengerAccountListForInstagram />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/instagram-chat-accounts/create"
+          element={
+            <ProtectedRoute>
+              <InstagramMessengerAccountCreateForInstagram />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/instagram-chat-accounts/edit/:companyId"
+          element={
+            <ProtectedRoute>
+              <InstagramMessengerAccountEditForInstagram />
+            </ProtectedRoute>
+          }
+        />
    </Route>
 
       {/* Fallback Route */}

@@ -96,6 +96,16 @@ const menuItems = [
     subItems: [
       { text: 'Sohbet', icon: <Message size={22} />, path: '/messenger' },
       { text: 'Hesap', icon: <Settings size={22} />, path: '/MessengerAccount' },
+      { text: 'Login', icon: <Login size={22} />, action: 'facebookLoginMessenger' },
+    ],
+  },
+  {
+    text: 'Instagram Chat',
+    icon: <Instagram size={22} />,
+    subItems: [
+      { text: 'Sohbet', icon: <Message size={22} />, path: '/instagram-chat' },
+      { text: 'Hesap', icon: <Settings size={22} />, path: '/instagram-chat-accounts' },
+      { text: 'Login', icon: <Login size={22} />, action: 'facebookLoginInstagramChat' },
     ],
   },
   { text: 'Çıkış Yap', icon: <LogoutOutlinedIcon size={22} />, action: logout, path: '/login' },
@@ -112,15 +122,14 @@ const Sidebar = () => {
   const [selectedAccount, setSelectedAccount] = useState(null);
   const [modalLoading, setModalLoading] = useState(false);
   const [modalError, setModalError] = useState('');
-  const [loginType, setLoginType] = useState(null); // 'instagram' or 'facebook'
-  const [triggerLogin, setTriggerLogin] = useState(false); // Control login flow
-  const [showTokenExpiredNotice, setShowTokenExpiredNotice] = useState(false); // Show expiry notice
+  const [loginType, setLoginType] = useState(null);
+  const [triggerLogin, setTriggerLogin] = useState(false);
+  const [showTokenExpiredNotice, setShowTokenExpiredNotice] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
   const context = useOutletContext();
   const setErrorModalMessage = context?.setErrorModalMessage;
 
-  // Debug context
   useEffect(() => {
     console.log('Sidebar Context:', context);
     if (!setErrorModalMessage) {
@@ -128,16 +137,23 @@ const Sidebar = () => {
     }
   }, [context, setErrorModalMessage]);
 
-  // Fetch Facebook accounts for modal
-  const fetchAccounts = async () => {
+  const fetchAccounts = async (type) => {
     setModalLoading(true);
     setModalError('');
     try {
-      const data = await apiFetch('/api/FacebookAccount');
+      const endpoint =
+        type === 'messenger'
+          ? '/api/MessengerAccount'
+          : type === 'instagramChat'
+          ? '/api/InstagramMessengerAccount'
+          : '/api/FacebookAccount';
+      console.log(`Fetching accounts from endpoint: ${endpoint} for loginType: ${type}`);
+      const data = await apiFetch(endpoint);
       console.log('Fetched Accounts:', data);
       setAccounts(data);
     } catch (err) {
       const errorMessage = err.message || 'Hesaplar alınamadı';
+      console.error('Error fetching accounts:', err);
       setModalError(errorMessage);
       if (setErrorModalMessage) {
         setErrorModalMessage(errorMessage);
@@ -147,16 +163,16 @@ const Sidebar = () => {
     }
   };
 
-  // Open modal and fetch accounts
   const handleOpenModal = (type) => {
+    console.log(`Opening modal with loginType: ${type}`);
     setLoginType(type);
     setModalOpen(true);
-    setSelectedAccount(null); // Clear previous selection
-    fetchAccounts();
+    setSelectedAccount(null);
+    fetchAccounts(type); // Pass type directly to avoid state delay
   };
 
-  // Close modal
   const handleCloseModal = () => {
+    console.log('Closing modal');
     setModalOpen(false);
     setSelectedAccount(null);
     setAccounts([]);
@@ -166,7 +182,6 @@ const Sidebar = () => {
     setShowTokenExpiredNotice(false);
   };
 
-  // Select account
   const handleSelectAccount = (account) => {
     console.log('Selecting account:', account);
     setSelectedAccount(account);
@@ -183,23 +198,41 @@ const Sidebar = () => {
     return daysDiff > 60;
   };
 
-  // Update account with new token
   const updateAccountToken = async (companyId, longLivedToken) => {
     console.log('Updating account with:', { companyId, longLivedToken });
     try {
       const today = format(new Date(), 'yyyy-MM-dd');
-      const response = await apiFetch(`/api/FacebookAccount/${selectedAccount.id}`, {
+      const endpoint =
+        loginType === 'messenger'
+          ? `/api/MessengerAccount/${selectedAccount.id}`
+          : loginType === 'instagramChat'
+          ? `/api/InstagramMessengerAccount/${selectedAccount.id}`
+          : `/api/FacebookAccount/${selectedAccount.id}`;
+      const body =
+        loginType === 'messenger' || loginType === 'instagramChat'
+          ? {
+              id: selectedAccount.id,
+              accessToken: longLivedToken,
+              longLiveAccessTokenCreatedAt: today,
+              accountId: selectedAccount.accountId,
+              appId: selectedAccount.appId,
+              appSecret: selectedAccount.appSecret,
+              graphApiVersion: selectedAccount.graphApiVersion || 'v20.0',
+              companyId: selectedAccount.companyId,
+            }
+          : {
+              id: selectedAccount.id,
+              facebookLongLiveAccessToken: longLivedToken,
+              longLiveAccessTokenCreatedAt: today,
+              facebookAppName: selectedAccount.facebookAppName,
+              facebookAppId: selectedAccount.facebookAppId,
+              facebookAppSecret: selectedAccount.facebookAppSecret,
+              graphApiVersion: selectedAccount.graphApiVersion,
+              companyId: selectedAccount.companyId,
+            };
+      const response = await apiFetch(endpoint, {
         method: 'PUT',
-        body: JSON.stringify({
-          id: selectedAccount.id,
-          facebookLongLiveAccessToken: longLivedToken,
-          longLiveAccessTokenCreatedAt: today,
-          facebookAppName: selectedAccount.facebookAppName,
-          facebookAppId: selectedAccount.facebookAppId,
-          facebookAppSecret: selectedAccount.facebookAppSecret,
-          graphApiVersion: selectedAccount.graphApiVersion,
-          companyId: selectedAccount.companyId,
-        }),
+        body: JSON.stringify(body),
       });
       console.log('Account update response:', response);
       if (setErrorModalMessage) {
@@ -217,44 +250,56 @@ const Sidebar = () => {
     }
   };
 
-  // Handle Google Login
   const handleGoogleLogin = () => {
     console.log('Google Login button clicked');
     window.location.href = 'https://localhost:7099/api/GoogleAuth/login';
   };
 
-  // Validate Facebook token
   const validateFacebookToken = async (accessToken) => {
     try {
       console.log('Validating Facebook access token');
       const response = await fetch(
-        `https://graph.facebook.com/debug_token?input_token=${accessToken}&access_token=${selectedAccount.facebookAppId}|${selectedAccount.facebookAppSecret}`
+        `https://graph.facebook.com/debug_token?input_token=${accessToken}&access_token=${
+          selectedAccount.facebookAppId || selectedAccount.appId
+        }|${selectedAccount.facebookAppSecret || selectedAccount.appSecret}`
       );
       const data = await response.json();
       console.log('Token validation response:', data);
       if (data.data && data.data.is_valid) {
         const grantedScopes = data.data.scopes || [];
-        const requiredScopes = loginType === 'instagram'
-          ? [
-              'public_profile',
-              'email',
-              'pages_show_list',
-              'instagram_basic',
-              'instagram_manage_comments',
-              'instagram_content_publish',
-              'instagram_manage_insights',
-              'pages_manage_metadata',
-              'pages_read_engagement',
-              'pages_read_user_content',
-            ]
-          : [
-              'pages_show_list',
-              'pages_manage_posts',
-              'pages_read_user_content',
-              'pages_manage_engagement',
-              'pages_manage_metadata',
-              'pages_read_engagement',
-            ];
+        const requiredScopes =
+          loginType === 'instagram'
+            ? [
+                'public_profile',
+                'email',
+                'pages_show_list',
+                'instagram_basic',
+                'instagram_manage_comments',
+                'instagram_content_publish',
+                'instagram_manage_insights',
+                'pages_manage_metadata',
+                'pages_read_engagement',
+                'pages_read_user_content',
+              ]
+            : loginType === 'messenger'
+            ? ['pages_show_list', 'pages_messaging', 'pages_manage_metadata', 'pages_read_engagement']
+            : loginType === 'instagramChat'
+            ? [
+                'pages_show_list',
+                'instagram_basic',
+                'instagram_manage_messages',
+                'pages_messaging',
+                'pages_manage_metadata',
+                'pages_read_engagement',
+              ]
+            : [
+                'pages_show_list',
+                'pages_manage_posts',
+                'pages_read_user_content',
+                'pages_manage_engagement',
+                'pages_manage_metadata',
+                'pages_read_engagement',
+              ];
         const missingScopes = requiredScopes.filter((scope) => !grantedScopes.includes(scope));
         if (missingScopes.length > 0) {
           throw new Error(`Eksik izinler: ${missingScopes.join(', ')}. Lütfen tekrar yetkilendirin.`);
@@ -269,45 +314,15 @@ const Sidebar = () => {
     }
   };
 
-  // Validate Facebook Page token
-  const validateFacebookPageToken = async (accessToken) => {
-    try {
-      console.log('Validating Facebook Page access token');
-      const response = await fetch(
-        `https://graph.facebook.com/debug_token?input_token=${accessToken}&access_token=${selectedAccount.facebookAppId}|${selectedAccount.facebookAppSecret}`
-      );
-      const data = await response.json();
-      console.log('Page token validation response:', data);
-      if (data.data && data.data.is_valid) {
-        const grantedScopes = data.data.scopes || [];
-        const requiredScopes = [
-          'pages_show_list',
-          'pages_manage_posts',
-          'pages_read_user_content',
-          'pages_manage_engagement',
-          'pages_manage_metadata',
-          'pages_read_engagement',
-        ];
-        const missingScopes = requiredScopes.filter((scope) => !grantedScopes.includes(scope));
-        if (missingScopes.length > 0) {
-          throw new Error(`Eksik izinler: ${missingScopes.join(', ')}. Lütfen tekrar yetkilendirin.`);
-        }
-        return true;
-      }
-      return false;
-    } catch (error) {
-      console.error('Error validating Facebook Page token:', error);
-      setError(error.message || 'Token doğrulama hatası. Lütfen tekrar deneyin.');
-      return false;
-    }
-  };
-
-  // Exchange for long-lived token
   const exchangeForLongLivedFacebookToken = async (shortLivedToken) => {
     try {
       console.log('Exchanging Facebook short-lived token');
       const response = await fetch(
-        `https://graph.facebook.com/v20.0/oauth/access_token?grant_type=fb_exchange_token&client_id=${selectedAccount.facebookAppId}&client_secret=${selectedAccount.facebookAppSecret}&fb_exchange_token=${shortLivedToken}`
+        `https://graph.facebook.com/v20.0/oauth/access_token?grant_type=fb_exchange_token&client_id=${
+          selectedAccount.facebookAppId || selectedAccount.appId
+        }&client_secret=${
+          selectedAccount.facebookAppSecret || selectedAccount.appSecret
+        }&fb_exchange_token=${shortLivedToken}`
       );
       const data = await response.json();
       console.log('Token exchange response:', data);
@@ -322,7 +337,6 @@ const Sidebar = () => {
     }
   };
 
-  // Handle Facebook login response
   const responseFacebook = async (response) => {
     console.log('Facebook Response:', response);
     if (!response.accessToken) {
@@ -339,7 +353,6 @@ const Sidebar = () => {
     console.log('Processing Facebook login for:', loginType);
 
     try {
-      console.log('Exchanging for long-lived token');
       const longLivedToken = await exchangeForLongLivedFacebookToken(response.accessToken);
       if (!longLivedToken) {
         console.error('Failed to obtain long-lived token');
@@ -351,13 +364,18 @@ const Sidebar = () => {
       }
 
       console.log('Long-lived token obtained:', longLivedToken);
-      localStorage.set(loginType === 'instagram' ? 'facebookAccessToken' : 'facebookPageAccessToken', longLivedToken);
+      localStorage.set(
+        loginType === 'instagram'
+          ? 'facebookAccessToken'
+          : loginType === 'messenger'
+          ? 'messengerAccessToken'
+          : loginType === 'instagramChat'
+          ? 'instagramChatAccessToken'
+          : 'facebookPageAccessToken',
+        longLivedToken
+      );
 
-      console.log('Validating token');
-      const isValid = loginType === 'instagram'
-        ? await validateFacebookToken(longLivedToken)
-        : await validateFacebookPageToken(longLivedToken);
-
+      const isValid = await validateFacebookToken(longLivedToken);
       if (!isValid) {
         console.error('Token validation failed');
         setError('Token doğrulama başarısız. Lütfen izinleri kontrol edin.');
@@ -367,7 +385,6 @@ const Sidebar = () => {
         return;
       }
 
-      console.log('Token is valid, updating account');
       const updateSuccess = await updateAccountToken(selectedAccount.companyId, longLivedToken);
       if (!updateSuccess) {
         console.error('Account update failed');
@@ -377,12 +394,16 @@ const Sidebar = () => {
         return;
       }
 
-      console.log('Fetching data for:', loginType);
-      loginType === 'instagram'
-        ? fetchInstagramData(longLivedToken)
-        : fetchFacebookPageData(longLivedToken);
+      if (loginType === 'instagram') {
+        fetchInstagramData(longLivedToken);
+      } else if (loginType === 'facebook') {
+        fetchFacebookPageData(longLivedToken);
+      } else if (loginType === 'messenger') {
+        fetchMessengerData(longLivedToken);
+      } else if (loginType === 'instagramChat') {
+        fetchInstagramChatData(longLivedToken);
+      }
 
-      console.log('Closing modal after successful login');
       handleCloseModal();
     } catch (error) {
       console.error('Error in responseFacebook:', error);
@@ -395,7 +416,6 @@ const Sidebar = () => {
     }
   };
 
-  // Handle modal confirm
   const handleModalConfirm = async () => {
     if (!selectedAccount) {
       setModalError('Lütfen bir hesap seçin.');
@@ -405,7 +425,10 @@ const Sidebar = () => {
 
     console.log('Confirming account:', selectedAccount);
 
-    const token = selectedAccount.facebookLongLiveAccessToken;
+    const token =
+      loginType === 'messenger' || loginType === 'instagramChat'
+        ? selectedAccount.accessToken
+        : selectedAccount.facebookLongLiveAccessToken;
     const tokenCreatedAt = selectedAccount.longLiveAccessTokenCreatedAt;
 
     if (!token || isTokenExpired(tokenCreatedAt)) {
@@ -416,22 +439,32 @@ const Sidebar = () => {
 
     setModalLoading(true);
     try {
-      console.log('Validating token for selected account');
-      const isValid = loginType === 'instagram'
-        ? await validateFacebookToken(token)
-        : await validateFacebookPageToken(token);
-
+      const isValid = await validateFacebookToken(token);
       if (!isValid) {
         console.log('Token is invalid.');
         setShowTokenExpiredNotice(true);
         return;
       }
 
-      console.log('Token is valid. Using existing token.');
-      localStorage.set(loginType === 'instagram' ? 'facebookAccessToken' : 'facebookPageAccessToken', token);
-      loginType === 'instagram'
-        ? fetchInstagramData(token)
-        : fetchFacebookPageData(token);
+      localStorage.set(
+        loginType === 'instagram'
+          ? 'facebookAccessToken'
+          : loginType === 'messenger'
+          ? 'messengerAccessToken'
+          : loginType === 'instagramChat'
+          ? 'instagramChatAccessToken'
+          : 'facebookPageAccessToken',
+        token
+      );
+      if (loginType === 'instagram') {
+        fetchInstagramData(token);
+      } else if (loginType === 'facebook') {
+        fetchFacebookPageData(token);
+      } else if (loginType === 'messenger') {
+        fetchMessengerData(token);
+      } else if (loginType === 'instagramChat') {
+        fetchInstagramChatData(token);
+      }
       handleCloseModal();
     } catch (error) {
       console.error('Error validating token in handleModalConfirm:', error);
@@ -441,7 +474,121 @@ const Sidebar = () => {
     }
   };
 
-  // Fetch Instagram data
+  const fetchInstagramChatData = async (accessToken) => {
+    setLoading(true);
+    setError(null);
+    try {
+      console.log('Fetching Instagram Chat data with token');
+      const isValid = await validateFacebookToken(accessToken);
+      if (!isValid) {
+        throw new Error('Geçersiz veya süresi dolmuş token');
+      }
+
+      const pagesResponse = await fetch(
+        `https://graph.facebook.com/v20.0/me/accounts?access_token=${accessToken}&app_id=${
+          selectedAccount.appId || selectedAccount.facebookAppId
+        }`
+      );
+      const pagesData = await pagesResponse.json();
+      console.log('Pages response:', pagesData);
+      if (pagesData.data && pagesData.data.length > 0) {
+        const pageId = pagesData.data[0].id;
+        const pageAccessToken = pagesData.data[0].access_token;
+        localStorage.set('instagramChatPageId', pageId);
+        localStorage.set('instagramChatAccessToken', pageAccessToken);
+
+        const igResponse = await fetch(
+          `https://graph.facebook.com/v20.0/${pageId}?fields=instagram_business_account&access_token=${accessToken}&app_id=${
+            selectedAccount.appId || selectedAccount.facebookAppId
+          }`
+        );
+        const igData = await igResponse.json();
+        console.log('Instagram business account response:', igData);
+        if (igData.instagram_business_account) {
+          const instagramBusinessId = igData.instagram_business_account.id;
+          localStorage.set('instagramBusinessId', instagramBusinessId);
+
+          await apiFetch('/api/InstagramMessengerAccount', {
+            method: 'POST',
+            body: JSON.stringify({
+              accountId: instagramBusinessId,
+              accessToken: pageAccessToken,
+              appId: selectedAccount.appId,
+              appSecret: selectedAccount.appSecret,
+              graphApiVersion: 'v20.0',
+              companyId: selectedAccount.companyId,
+              longLiveAccessTokenCreatedAt: format(new Date(), 'yyyy-MM-dd'),
+            }),
+          });
+          navigate('/instagram-chat');
+        } else {
+          throw new Error('Bu sayfaya bağlı Instagram İşletme Hesabı bulunamadı.');
+        }
+      } else {
+        throw new Error('Bu kullanıcı için Facebook sayfası bulunamadı.');
+      }
+    } catch (error) {
+      console.error('Error fetching Instagram Chat data:', error);
+      setError('Instagram Chat bağlantısı başarısız. Lütfen tekrar giriş yapın.');
+      localStorage.remove('instagramChatAccessToken');
+      localStorage.remove('instagramChatPageId');
+      localStorage.remove('instagramBusinessId');
+      navigate('/instagram-chat-accounts');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchMessengerData = async (accessToken) => {
+    setLoading(true);
+    setError(null);
+    try {
+      console.log('Fetching Messenger data with token');
+      const isValid = await validateFacebookToken(accessToken);
+      if (!isValid) {
+        throw new Error('Geçersiz veya süresi dolmuş token');
+      }
+
+      const pagesResponse = await fetch(
+        `https://graph.facebook.com/v20.0/me/accounts?access_token=${accessToken}&app_id=${
+          selectedAccount.appId || selectedAccount.facebookAppId
+        }`
+      );
+      const pagesData = await pagesResponse.json();
+      console.log('Pages response:', pagesData);
+      if (pagesData.data && pagesData.data.length > 0) {
+        const pageId = pagesData.data[0].id;
+        const pageAccessToken = pagesData.data[0].access_token;
+        localStorage.set('messengerPageId', pageId);
+        localStorage.set('messengerAccessToken', pageAccessToken);
+
+        await apiFetch('/api/MessengerAccount', {
+          method: 'POST',
+          body: JSON.stringify({
+            accountId: pageId,
+            accessToken: pageAccessToken,
+            appId: selectedAccount.appId,
+            appSecret: selectedAccount.appSecret,
+            graphApiVersion: 'v20.0',
+            companyId: selectedAccount.companyId,
+            longLiveAccessTokenCreatedAt: format(new Date(), 'yyyy-MM-dd'),
+          }),
+        });
+        navigate('/messenger');
+      } else {
+        throw new Error('Bu kullanıcı için Facebook sayfası bulunamadı.');
+      }
+    } catch (error) {
+      console.error('Error fetching Messenger data:', error);
+      setError('Messenger bağlantısı başarısız. Lütfen tekrar giriş yapın.');
+      localStorage.remove('messengerAccessToken');
+      localStorage.remove('messengerPageId');
+      navigate('/MessengerAccount');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const fetchInstagramData = async (accessToken) => {
     setLoading(true);
     setError(null);
@@ -486,7 +633,6 @@ const Sidebar = () => {
     }
   };
 
-  // Fetch Instagram user
   const fetchInstagramUser = async (instagramBusinessId, accessToken) => {
     try {
       console.log('Fetching Instagram user data for ID:', instagramBusinessId);
@@ -511,13 +657,12 @@ const Sidebar = () => {
     }
   };
 
-  // Fetch Facebook Page data
   const fetchFacebookPageData = async (accessToken) => {
     setLoading(true);
     setError(null);
     try {
       console.log('Fetching Facebook page data with token');
-      const isValid = await validateFacebookPageToken(accessToken);
+      const isValid = await validateFacebookToken(accessToken);
       if (!isValid) {
         throw new Error('Geçersiz veya süresi dolmuş token');
       }
@@ -578,10 +723,15 @@ const Sidebar = () => {
   const effectiveWidth = sidebarOpen || isHovered ? 240 : 60;
 
   const handleItemClick = (item) => {
+    console.log('Handling item click:', item);
     if (item.action === 'facebookLoginInstagram') {
       handleOpenModal('instagram');
     } else if (item.action === 'facebookLoginPage') {
       handleOpenModal('facebook');
+    } else if (item.action === 'facebookLoginMessenger') {
+      handleOpenModal('messenger');
+    } else if (item.action === 'facebookLoginInstagramChat') {
+      handleOpenModal('instagramChat');
     } else if (item.action === 'googleLogin') {
       handleGoogleLogin();
     } else if (item.action) {
@@ -638,7 +788,17 @@ const Sidebar = () => {
                     >
                       <ListItemIcon>{subItem.icon}</ListItemIcon>
                       {(sidebarOpen || isHovered) && (
-                        <ListItemText primary={item.text === 'Youtube' ? 'Google ile Giriş' : 'Facebook ile Giriş'} />
+                        <ListItemText
+                          primary={
+                            item.text === 'Youtube'
+                              ? 'Google ile Giriş'
+                              : item.text === 'Instagram Chat'
+                              ? 'Facebook ile Giriş (Instagram Chat)'
+                              : item.text === 'Messenger'
+                              ? 'Facebook ile Giriş (Messenger)'
+                              : 'Facebook ile Giriş'
+                          }
+                        />
                       )}
                     </ListItem>
                   );
@@ -729,7 +889,6 @@ const Sidebar = () => {
         <List sx={{ m: '2%' }}>{menuItems.map(renderMenuItem)}</List>
       </Drawer>
 
-      {/* Account Selection Modal */}
       <Dialog
         open={modalOpen}
         onClose={handleCloseModal}
@@ -754,22 +913,32 @@ const Sidebar = () => {
             <Table sx={{ mt: 2 }}>
               <TableHead>
                 <TableRow>
-                  <TableCell sx={{ fontWeight: 'bold' }}>Ad</TableCell>
-                  <TableCell sx={{ fontWeight: 'bold' }}>Id</TableCell>
+                  <TableCell sx={{ fontWeight: 'bold' }}>
+                    {loginType === 'messenger' || loginType === 'instagramChat' ? 'Hesap ID' : 'Ad'}
+                  </TableCell>
+                  <TableCell sx={{ fontWeight: 'bold' }}>App ID</TableCell>
                   <TableCell sx={{ fontWeight: 'bold' }}>İşlem</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
                 {accounts.map((account) => (
                   <TableRow
-                    key={account.id} // Use unique account.id
+                    key={account.id}
                     sx={{
                       bgcolor: selectedAccount?.id === account.id ? '#e3f2fd' : 'inherit',
                       '&:hover': { bgcolor: '#f5f5f5' },
                     }}
                   >
-                    <TableCell>{account.facebookAppName}</TableCell>
-                    <TableCell>{account.facebookAppId}</TableCell>
+                    <TableCell>
+                      {loginType === 'messenger' || loginType === 'instagramChat'
+                        ? account.accountId
+                        : account.facebookAppName}
+                    </TableCell>
+                    <TableCell>
+                      {loginType === 'messenger' || loginType === 'instagramChat'
+                        ? account.appId
+                        : account.facebookAppId}
+                    </TableCell>
                     <TableCell>
                       <Button
                         variant={selectedAccount?.id === account.id ? 'contained' : 'outlined'}
@@ -804,7 +973,6 @@ const Sidebar = () => {
               </Button>
             </Box>
           )}
-          {/* Hidden FacebookLogin for Instagram */}
           {triggerLogin && loginType === 'instagram' && (
             <FacebookLogin
               appId={selectedAccount?.facebookAppId || '1936737430086867'}
@@ -817,13 +985,36 @@ const Sidebar = () => {
               disabled={loading}
             />
           )}
-          {/* Hidden FacebookLogin for Facebook */}
           {triggerLogin && loginType === 'facebook' && (
             <FacebookLogin
               appId={selectedAccount?.facebookAppId}
               autoLoad={true}
               fields="name,email,picture"
               scope="pages_show_list,pages_manage_posts,pages_read_user_content,pages_manage_engagement,pages_manage_metadata,pages_read_engagement,read_insights,publish_video,pages_manage_posts"
+              callback={responseFacebook}
+              cssClass="hidden"
+              textButton=""
+              disabled={loading}
+            />
+          )}
+          {triggerLogin && loginType === 'messenger' && (
+            <FacebookLogin
+              appId={selectedAccount?.appId || selectedAccount?.facebookAppId}
+              autoLoad={true}
+              fields="name,email,picture"
+              scope="pages_show_list,pages_messaging,pages_manage_metadata,pages_read_engagement"
+              callback={responseFacebook}
+              cssClass="hidden"
+              textButton=""
+              disabled={loading}
+            />
+          )}
+          {triggerLogin && loginType === 'instagramChat' && (
+            <FacebookLogin
+              appId={selectedAccount?.appId || selectedAccount?.facebookAppId}
+              autoLoad={true}
+              fields="name,email,picture"
+              scope="pages_show_list,instagram_basic,instagram_manage_messages,pages_messaging,pages_manage_metadata,pages_read_engagement"
               callback={responseFacebook}
               cssClass="hidden"
               textButton=""
