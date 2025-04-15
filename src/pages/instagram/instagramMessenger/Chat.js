@@ -12,6 +12,12 @@ import {
   Menu,
   MenuItem,
   CircularProgress,
+  Drawer,
+  ListItemText,
+  Tabs,
+  Tab,
+  Switch,
+  Popover,
 } from '@mui/material';
 import {
   Search,
@@ -22,13 +28,15 @@ import {
   Stop,
   Favorite,
   MoreVert,
+  Mood,
 } from '@mui/icons-material';
+import EmojiPicker from 'emoji-picker-react';
 import connectToSignalR from '../../../utils/signalR/signalR';
-import { apiFetch } from '../../../api/instagram/chat/api'; // Adjusted path based on your snippet
-import { cookies } from '../../../utils/cookie'; // Ensure this path is correct
+import { apiFetch } from '../../../api/instagram/chat/api';
+import { cookies } from '../../../utils/cookie';
 
 const InstagramMessengerPage = () => {
-  // State management
+  // Existing state
   const [conversations, setConversations] = useState([]);
   const [selectedConversationId, setSelectedConversationId] = useState(null);
   const [messages, setMessages] = useState([]);
@@ -47,38 +55,57 @@ const InstagramMessengerPage = () => {
   const messagesEndRef = useRef(null);
   const mediaRecorderRef = useRef(null);
 
-  // Selected conversation
+  // Sidebar and search state
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [messageSearchQuery, setMessageSearchQuery] = useState('');
+  const [searchedMessages, setSearchedMessages] = useState([]);
+  const [tabValue, setTabValue] = useState(0);
+  const [subTabValue, setSubTabValue] = useState(0);
+  const [playNotificationSound, setPlayNotificationSound] = useState(true);
+
+  // Emoji picker state
+  const [emojiAnchorEl, setEmojiAnchorEl] = useState(null);
+
   const selectedConversation = conversations.find(
     (c) => c.id === selectedConversationId
   );
 
-  // Scroll to bottom of messages
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
-  // SignalR setup
+  // SignalR with notification sound
   useEffect(() => {
     const handleMessageReceived = (message) => {
+      console.log('Received message signalR:', message);
       if (message.conversationId === selectedConversationId) {
-        setMessages((prev) => [...prev, {
+        const urls = message.urls && Array.isArray(message.urls) ? message.urls : message.url ? [message.url] : [];
+        const messageType = message.messageType?.toLowerCase() || 'text';
+        const newMessage = {
           id: message.mid,
           conversationId: message.conversationId,
           senderId: message.senderId,
           text: message.text,
-          media: message.urls ? message.urls.map((url) => ({
-            type: url.includes('video') ? 'video' : 'image',
-            url,
-            name: url.split('/').pop(),
-          })) : null,
-          audioUrl: message.messageType === 'Audio' ? message.urls?.[0] : null,
+          media: urls.length > 0
+            ? urls.map((url) => ({
+                type: messageType,
+                url,
+                name: url.split('/').pop() || 'media',
+              }))
+            : null,
+          audioUrl: messageType === 'audio' ? urls[0] : null,
           timestamp: message.timestamp,
           direction: message.direction.toLowerCase(),
-          type: message.messageType.toLowerCase(),
+          type: messageType,
           reactions: [],
           status: message.status.toLowerCase(),
-        }]);
+        };
+        setMessages((prev) => [...prev, newMessage]);
         scrollToBottom();
+        if (message.direction.toLowerCase() === 'inbound' && playNotificationSound) {
+          const audio = new Audio('/audio/messenger-short-ringtone.mp3');
+          audio.play().catch((err) => console.error('Error playing notification sound:', err));
+        }
       }
     };
 
@@ -87,7 +114,7 @@ const InstagramMessengerPage = () => {
     return () => {
       connection.stop();
     };
-  }, [selectedConversationId]);
+  }, [selectedConversationId, playNotificationSound]);
 
   // Fetch conversations
   useEffect(() => {
@@ -98,14 +125,20 @@ const InstagramMessengerPage = () => {
           `/api/InstagramMessenger/conversations?page=1&pageSize=20&search=${encodeURIComponent(conversationSearchQuery)}`,
           { method: 'GET' }
         );
-        setConversations(response.data.map((conv) => ({
-          id: conv.id,
-          name: conv.name,
-          profilePicture: conv.profilePicture || 'https://via.placeholder.com/40',
-          lastMessage: { text: conv.lastMessage?.text || '', timestamp: conv.lastMessage?.timestamp || new Date().toISOString() },
-          unviewedCount: conv.unviewedCount,
-          senderId: conv.senderId, // Added for OTN and messaging
-        })));
+        console.log('Fetched conversations:', response.data);
+        setConversations(
+          response.data.map((conv) => ({
+            id: conv.id,
+            name: conv.name,
+            profilePicture: conv.profilePicture || 'https://via.placeholder.com/40',
+            lastMessage: {
+              text: conv.lastMessage?.text || '',
+              timestamp: conv.lastMessage?.timestamp || new Date().toISOString(),
+            },
+            unviewedCount: conv.unviewedCount,
+            senderId: conv.senderId,
+          }))
+        );
       } catch (err) {
         setError('Failed to fetch conversations: ' + err.message);
         setErrorModalOpen(true);
@@ -126,23 +159,30 @@ const InstagramMessengerPage = () => {
             `/api/InstagramMessenger/conversation-messages/${selectedConversationId}?page=1&pageSize=20`,
             { method: 'GET' }
           );
-          setMessages(response.messages.map((msg) => ({
-            id: msg.id,
-            conversationId: selectedConversationId,
-            senderId: msg.senderId,
-            text: msg.text,
-            media: msg.url ? [{
-              type: msg.messageType.toLowerCase() === 'image' ? 'image' : 'video',
-              url: msg.url,
-              name: msg.url.split('/').pop(),
-            }] : null,
-            audioUrl: msg.messageType.toLowerCase() === 'audio' ? msg.url : null,
-            timestamp: msg.timestamp,
-            direction: msg.direction.toLowerCase(),
-            type: msg.messageType.toLowerCase(),
-            reactions: msg.reactions || [],
-            status: msg.status.toLowerCase(),
-          })));
+          console.log('Fetched messages:', response.messages);
+          setMessages(
+            response.messages.map((msg) => ({
+              id: msg.id,
+              conversationId: selectedConversationId,
+              senderId: msg.senderId,
+              text: msg.text,
+              media: msg.url
+                ? [
+                    {
+                      type: msg.messageType.toLowerCase(),
+                      url: msg.url,
+                      name: msg.url.split('/').pop() || 'media',
+                    },
+                  ]
+                : null,
+              audioUrl: msg.messageType.toLowerCase() === 'audio' ? msg.url : null,
+              timestamp: msg.timestamp,
+              direction: msg.direction.toLowerCase(),
+              type: msg.messageType.toLowerCase(),
+              reactions: msg.reactions || [],
+              status: msg.status.toLowerCase(),
+            }))
+          );
           scrollToBottom();
         } catch (err) {
           setError('Failed to fetch messages: ' + err.message);
@@ -155,21 +195,97 @@ const InstagramMessengerPage = () => {
     }
   }, [selectedConversationId]);
 
-  // Handle conversation click
+  // Search messages
+  const handleMessageSearch = async () => {
+    if (!messageSearchQuery.trim()) {
+      setSearchedMessages([]);
+      return;
+    }
+    try {
+      const response = await apiFetch(
+        `/api/InstagramMessenger/search-messages/${selectedConversationId}?query=${encodeURIComponent(messageSearchQuery)}`,
+        { method: 'GET' }
+      );
+      setSearchedMessages(
+        response.messages.map((msg) => ({
+          id: msg.id,
+          conversationId: selectedConversationId,
+          senderId: msg.senderId,
+          text: msg.text,
+          media: msg.url
+            ? [
+                {
+                  type: msg.messageType.toLowerCase(),
+                  url: msg.url,
+                  name: msg.url.split('/').pop() || 'media',
+                },
+              ]
+            : null,
+          audioUrl: msg.messageType.toLowerCase() === 'audio' ? msg.url : null,
+          timestamp: msg.timestamp,
+          direction: msg.direction.toLowerCase(),
+          type: msg.messageType.toLowerCase(),
+          reactions: msg.reactions || [],
+          status: msg.status.toLowerCase(),
+        }))
+      );
+    } catch (err) {
+      setError('Failed to search messages: ' + err.message);
+      setErrorModalOpen(true);
+    }
+  };
+
+  // Filter media, files, and links
+  const getMediaFiles = () =>
+    messages
+      .filter((msg) => msg.media && (msg.type === 'image' || msg.type === 'video'))
+      .flatMap((msg) => msg.media);
+  const getAudioFiles = () =>
+    messages.filter((msg) => msg.type === 'audio').map((msg) => ({
+      type: 'audio',
+      url: msg.audioUrl,
+      name: msg.audioUrl.split('/').pop() || 'audio',
+    }));
+  const getLinks = () =>
+    messages
+      .filter((msg) => msg.text && msg.text.includes('http'))
+      .map((msg) => ({
+        type: 'link',
+        url: msg.text.match(/(https?:\/\/[^\s]+)/g)?.[0] || '',
+        name: msg.text,
+      }));
+
+  // Handlers
   const handleConversationClick = (id) => {
     setSelectedConversationId(id);
     setNewMessage('');
     setFiles([]);
     setFilePreviews([]);
     setAudioBlob(null);
+    setSearchedMessages([]);
+    setMessageSearchQuery('');
+    setTabValue(0);
+    setSubTabValue(0);
+    setEmojiAnchorEl(null);
   };
 
-  // Handle file upload
   const handleFileChange = (event) => {
     const selectedFiles = Array.from(event.target.files);
-    const validFiles = selectedFiles.filter((file) =>
-      file.type.startsWith('image/') || file.type.startsWith('video/')
-    );
+    const maxSizeMB = 20; // 20MB limit to account for encoding overhead
+    const validFiles = selectedFiles.filter((file) => {
+      const isValidType = file.type.startsWith('image/') || file.type.startsWith('video/');
+      const isValidSize = file.size / 1024 / 1024 <= maxSizeMB;
+      return isValidType && isValidSize;
+    });
+    if (validFiles.length !== selectedFiles.length) {
+      setError(
+        validFiles.length === 0
+          ? 'Only images and videos up to 20MB are supported. Please choose smaller files.'
+          : 'Some files were rejected. Only images and videos up to 20MB are supported.'
+      );
+      setErrorModalOpen(true);
+      return;
+    }
     if (validFiles.length > 0) {
       setFiles(validFiles);
       setFilePreviews(
@@ -179,13 +295,9 @@ const InstagramMessengerPage = () => {
           name: file.name,
         }))
       );
-    } else {
-      setError('Only images and videos are supported.');
-      setErrorModalOpen(true);
     }
   };
 
-  // Handle voice recording
   const startRecording = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -212,16 +324,23 @@ const InstagramMessengerPage = () => {
     }
   };
 
-  // Send message
   const sendMessage = async () => {
     if (!newMessage.trim() && files.length === 0 && !audioBlob) return;
     if (!selectedConversation) return;
 
     const tempId = Date.now().toString();
-    const messageType = audioBlob ? 'Audio' : files.length > 0 ? 'Image' : 'Text';
+    let messageType;
+    if (audioBlob) {
+      messageType = 'Audio';
+    } else if (files.length > 0) {
+      const hasVideo = files.some((file) => file.type.startsWith('video/'));
+      messageType = hasVideo ? 'Video' : 'Image';
+    } else {
+      messageType = 'Text';
+    }
+
     let urls = [];
 
-    // Upload files if any
     if (files.length > 0) {
       try {
         const formData = new FormData();
@@ -232,13 +351,13 @@ const InstagramMessengerPage = () => {
         });
         urls = uploadResponse.urls;
       } catch (err) {
-        setError('Failed to upload files: ' + err.message);
+        const errorMessage = err.response?.data?.Error || err.message || 'Unknown error during file upload';
+        setError(`Failed to upload files: ${errorMessage}`);
         setErrorModalOpen(true);
         return;
       }
     }
 
-    // Upload audio if present
     if (audioBlob) {
       try {
         const formData = new FormData();
@@ -249,26 +368,28 @@ const InstagramMessengerPage = () => {
         });
         urls = uploadResponse.urls;
       } catch (err) {
-        setError('Failed to upload audio: ' + err.message);
+        const errorMessage = err.response?.data?.Error || err.message || 'Unknown error during audio upload';
+        setError(`Failed to upload audio: ${errorMessage}`);
         setErrorModalOpen(true);
         return;
       }
     }
 
-    // Optimistic UI update
     setMessages((prev) => [
       ...prev,
       {
         id: null,
         tempId,
         conversationId: selectedConversationId,
-        senderId: cookies.get('userId') || 'user1', // Use userId from cookies or fallback
+        senderId: cookies.get('userId') || 'user1',
         text: newMessage,
-        media: urls.length > 0 ? urls.map((url) => ({
-          type: messageType.toLowerCase() === 'image' ? 'image' : 'video',
-          url,
-          name: url.split('/').pop(),
-        })) : null,
+        media: urls.length > 0
+          ? urls.map((url) => ({
+              type: messageType.toLowerCase(),
+              url,
+              name: url.split('/').pop() || 'media',
+            }))
+          : null,
         audioUrl: messageType === 'Audio' ? urls[0] : null,
         timestamp: new Date().toISOString(),
         status: 'sending',
@@ -283,7 +404,7 @@ const InstagramMessengerPage = () => {
         method: 'POST',
         body: JSON.stringify({
           conversationId: selectedConversationId,
-          senderId: cookies.get('userId') || 'user1', // Use userId from cookies or fallback
+          senderId: cookies.get('userId') || 'user1',
           recipientId: selectedConversation.senderId,
           text: newMessage,
           urls: urls,
@@ -306,12 +427,16 @@ const InstagramMessengerPage = () => {
           msg.tempId === tempId ? { ...msg, status: 'failed' } : msg
         )
       );
-      setError('Failed to send message: ' + err.message);
+      const errorMessage = err.response?.data?.Error || err.message || 'Unknown error';
+      if (errorMessage.includes('Attachment size exceeds allowable limit')) {
+        setError('The video file is too large. Please upload a video smaller than 20MB.');
+      } else {
+        setError(`Failed to send message: ${errorMessage}`);
+      }
       setErrorModalOpen(true);
     }
   };
 
-  // Handle reaction
   const handleReact = async (messageId, reaction) => {
     try {
       await apiFetch('/api/InstagramMessenger/react', {
@@ -335,19 +460,16 @@ const InstagramMessengerPage = () => {
     }
   };
 
-  // Open message menu
   const handleMessageMenuOpen = (event, messageId) => {
     setMenuAnchorEl(event.currentTarget);
     setSelectedMessageId(messageId);
   };
 
-  // Close message menu
   const handleMessageMenuClose = () => {
     setMenuAnchorEl(null);
     setSelectedMessageId(null);
   };
 
-  // Handle OTN request
   const handleOtnRequest = async () => {
     try {
       await apiFetch('/api/InstagramMessenger/request-otn', {
@@ -363,21 +485,52 @@ const InstagramMessengerPage = () => {
     }
   };
 
-  // Search conversations
   const handleSearch = (query) => {
     setConversationSearchQuery(query);
   };
 
+  // Sidebar handlers
+  const handleSidebarOpen = () => {
+    setIsSidebarOpen(true);
+  };
+
+  const handleSidebarClose = () => {
+    setIsSidebarOpen(false);
+    setMessageSearchQuery('');
+    setSearchedMessages([]);
+    setTabValue(0);
+    setSubTabValue(0);
+  };
+
+  const handleTabChange = (event, newValue) => {
+    setTabValue(newValue);
+    if (newValue !== 1) setSubTabValue(0);
+  };
+
+  const handleSubTabChange = (event, newValue) => {
+    setSubTabValue(newValue);
+  };
+
+  const handleNotificationSoundToggle = () => {
+    setPlayNotificationSound((prev) => !prev);
+  };
+
+  // Emoji handlers
+  const handleEmojiClick = (event) => {
+    setNewMessage((prev) => prev + event.emoji);
+    setEmojiAnchorEl(null);
+  };
+
+  const handleEmojiOpen = (event) => {
+    setEmojiAnchorEl(event.currentTarget);
+  };
+
+  const handleEmojiClose = () => {
+    setEmojiAnchorEl(null);
+  };
+
   return (
-    <Box
-      sx={{
-        display: 'flex',
-        height: '100vh',
-        flexDirection: { xs: 'column', sm: 'row' },
-        bgcolor: '#fafafa',
-        fontFamily: '"Instagram Sans", -apple-system, BlinkMacSystemFont, sans-serif',
-      }}
-    >
+    <Box sx={{ display: 'flex', height: '100vh', bgcolor: '#fafafa' }}>
       {/* Conversation List */}
       <Box
         sx={{
@@ -389,10 +542,7 @@ const InstagramMessengerPage = () => {
           p: 2,
         }}
       >
-        <Typography
-          variant="h5"
-          sx={{ fontWeight: 700, color: '#262626', mb: 2, pl: 1 }}
-        >
+        <Typography variant="h5" sx={{ fontWeight: 700, color: '#262626', mb: 2, pl: 1 }}>
           Messages
         </Typography>
         <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
@@ -534,9 +684,16 @@ const InstagramMessengerPage = () => {
           </Avatar>
           <Typography
             variant="h6"
-            sx={{ fontWeight: 700, color: '#262626', flexGrow: 1 }}
+            sx={{
+              fontWeight: 700,
+              color: '#262626',
+              flexGrow: 1,
+              cursor: 'pointer',
+              '&:hover': { color: '#0095f6' },
+            }}
+            onClick={handleSidebarOpen}
           >
-            {selectedConversation?.name || 'Select a conversation'}
+            {selectedConversation?.name || ''}
           </Typography>
         </Box>
 
@@ -547,9 +704,7 @@ const InstagramMessengerPage = () => {
               <CircularProgress size={24} sx={{ color: '#0095f6' }} />
             </Box>
           ) : messages.length === 0 ? (
-            <Typography
-              sx={{ textAlign: 'center', color: '#8e8e8e', mt: 4 }}
-            >
+            <Typography sx={{ textAlign: 'center', color: '#8e8e8e', mt: 4 }}>
               No messages yet.
             </Typography>
           ) : (
@@ -583,9 +738,8 @@ const InstagramMessengerPage = () => {
                       wordBreak: 'break-word',
                     }}
                   >
-                    {msg.type === 'text' && msg.text}
-                    {msg.type === 'media' &&
-                      msg.media?.map((media, index) => (
+                    {msg.media &&
+                      msg.media.map((media, index) => (
                         <Box key={index} sx={{ mt: 1 }}>
                           {media.type === 'image' ? (
                             <img
@@ -595,8 +749,13 @@ const InstagramMessengerPage = () => {
                                 maxWidth: '100%',
                                 borderRadius: '10px',
                               }}
+                              onError={(e) => {
+                                console.error('Failed to load image:', media.url);
+                                e.target.style.display = 'none';
+                                e.target.nextSibling.style.display = 'block';
+                              }}
                             />
-                          ) : (
+                          ) : media.type === 'video' ? (
                             <video
                               src={media.url}
                               controls
@@ -604,16 +763,34 @@ const InstagramMessengerPage = () => {
                                 maxWidth: '100%',
                                 borderRadius: '10px',
                               }}
+                              onError={(e) => {
+                                console.error('Failed to load video:', media.url);
+                              }}
                             />
+                          ) : (
+                            <Typography sx={{ color: 'red' }}>
+                              Failed to load media
+                            </Typography>
                           )}
+                          <Typography
+                            sx={{ display: 'none', color: 'red', mt: 1 }}
+                          >
+                            Failed to load image
+                          </Typography>
                         </Box>
                       ))}
-                    {msg.type === 'audio' && (
+                    {msg.type === 'audio' && msg.audioUrl && (
                       <audio
                         src={msg.audioUrl}
                         controls
                         style={{ maxWidth: '100%' }}
+                        onError={(e) => {
+                          console.error('Failed to load audio:', msg.audioUrl);
+                        }}
                       />
+                    )}
+                    {msg.type === 'text' && msg.text && (
+                      <Typography>{msg.text}</Typography>
                     )}
                   </Box>
                   {msg.reactions?.length > 0 && (
@@ -721,10 +898,7 @@ const InstagramMessengerPage = () => {
                 p: 1,
               }}
             >
-              <IconButton
-                component="label"
-                sx={{ color: '#0095f6', mr: 1 }}
-              >
+              <IconButton component="label" sx={{ color: '#0095f6', mr: 1 }}>
                 <PhotoCamera />
                 <input
                   type="file"
@@ -756,6 +930,12 @@ const InstagramMessengerPage = () => {
                 }}
               />
               <IconButton
+                onClick={handleEmojiOpen}
+                sx={{ color: '#0095f6', mr: 1 }}
+              >
+                <Mood />
+              </IconButton>
+              <IconButton
                 onClick={sendMessage}
                 sx={{ color: '#0095f6' }}
                 disabled={!newMessage.trim() && files.length === 0 && !audioBlob}
@@ -763,9 +943,256 @@ const InstagramMessengerPage = () => {
                 <Send />
               </IconButton>
             </Box>
+            <Popover
+              open={Boolean(emojiAnchorEl)}
+              anchorEl={emojiAnchorEl}
+              onClose={handleEmojiClose}
+              anchorOrigin={{
+                vertical: 'top',
+                horizontal: 'right',
+              }}
+              transformOrigin={{
+                vertical: 'bottom',
+                horizontal: 'right',
+              }}
+            >
+              <EmojiPicker onEmojiClick={handleEmojiClick} />
+            </Popover>
           </Box>
         )}
       </Box>
+
+      {/* Right Sidebar */}
+      <Drawer
+        anchor="right"
+        open={isSidebarOpen}
+        onClose={handleSidebarClose}
+        sx={{
+          '& .MuiDrawer-paper': {
+            width: { xs: '100%', sm: '400px' },
+            bgcolor: '#fff',
+            p: 2,
+          },
+        }}
+      >
+        <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+          <IconButton onClick={handleSidebarClose} sx={{ mr: 1 }}>
+            <ArrowBack />
+          </IconButton>
+          <Typography variant="h6" sx={{ fontWeight: 700, color: '#262626' }}>
+            Conversation Options
+          </Typography>
+        </Box>
+        <List>
+          <ListItem
+            button
+            onClick={() => setTabValue(0)}
+            sx={{
+              bgcolor: tabValue === 0 ? '#efefef' : 'transparent',
+              borderRadius: '10px',
+            }}
+          >
+            <ListItemText primary="Search Messages" />
+          </ListItem>
+          <ListItem
+            button
+            onClick={() => setTabValue(1)}
+            sx={{
+              bgcolor: tabValue === 1 ? '#efefef' : 'transparent',
+              borderRadius: '10px',
+            }}
+          >
+            <ListItemText primary="View Media, Files, and Links" />
+          </ListItem>
+          <ListItem
+            button
+            onClick={() => setTabValue(2)}
+            sx={{
+              bgcolor: tabValue === 2 ? '#efefef' : 'transparent',
+              borderRadius: '10px',
+            }}
+          >
+            <ListItemText primary="Notification & Sound" />
+          </ListItem>
+        </List>
+        <Box sx={{ mt: 2 }}>
+          {tabValue === 0 && (
+            <Box>
+              <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+                <InputBase
+                  placeholder="Search in conversation..."
+                  value={messageSearchQuery}
+                  onChange={(e) => setMessageSearchQuery(e.target.value)}
+                  onKeyPress={(e) => {
+                    if (e.key === 'Enter') {
+                      handleMessageSearch();
+                    }
+                  }}
+                  sx={{
+                    flexGrow: 1,
+                    bgcolor: '#efefef',
+                    p: 1,
+                    borderRadius: '10px',
+                    fontSize: '15px',
+                  }}
+                />
+                <IconButton
+                  onClick={handleMessageSearch}
+                  sx={{ ml: 1, color: '#0095f6' }}
+                >
+                  <Search />
+                </IconButton>
+              </Box>
+              <List>
+                {searchedMessages.length === 0 ? (
+                  <Typography sx={{ color: '#8e8e8e', textAlign: 'center' }}>
+                    No results found.
+                  </Typography>
+                ) : (
+                  searchedMessages.map((msg) => (
+                    <ListItem
+                      key={msg.id}
+                      sx={{
+                        bgcolor: '#f5f5f5',
+                        borderRadius: '10px',
+                        mb: 1,
+                        p: 2,
+                      }}
+                    >
+                      <Box>
+                        <Typography sx={{ fontSize: '14px', color: '#262626' }}>
+                          {msg.text}
+                        </Typography>
+                        <Typography sx={{ fontSize: '12px', color: '#8e8e8e' }}>
+                          {new Date(msg.timestamp).toLocaleString()}
+                        </Typography>
+                      </Box>
+                    </ListItem>
+                  ))
+                )}
+              </List>
+            </Box>
+          )}
+          {tabValue === 1 && (
+            <Box>
+              <Tabs
+                value={subTabValue}
+                onChange={handleSubTabChange}
+                sx={{ mb: 2 }}
+              >
+                <Tab label="Media" />
+                <Tab label="Files" />
+                <Tab label="Links" />
+              </Tabs>
+              {subTabValue === 0 && (
+                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                  {getMediaFiles().length === 0 ? (
+                    <Typography sx={{ color: '#8e8e8e' }}>
+                      No media found.
+                    </Typography>
+                  ) : (
+                    getMediaFiles().map((media, index) => (
+                      <Box key={index} sx={{ width: '100px' }}>
+                        {media.type === 'image' ? (
+                          <img
+                            src={media.url}
+                            alt={media.name}
+                            style={{
+                              width: '100%',
+                              borderRadius: '10px',
+                              objectFit: 'cover',
+                            }}
+                            onError={(e) => {
+                              console.error('Failed to load sidebar image:', media.url);
+                            }}
+                          />
+                        ) : media.type === 'video' ? (
+                          <video
+                            src={media.url}
+                            controls
+                            style={{
+                              width: '100%',
+                              borderRadius: '10px',
+                            }}
+                            onError={(e) => {
+                              console.error('Failed to load sidebar video:', media.url);
+                            }}
+                          />
+                        ) : null}
+                      </Box>
+                    ))
+                  )}
+                </Box>
+              )}
+              {subTabValue === 1 && (
+                <Box>
+                  {getAudioFiles().length === 0 ? (
+                    <Typography sx={{ color: '#8e8e8e' }}>
+                      No files found.
+                    </Typography>
+                  ) : (
+                    getAudioFiles().map((file, index) => (
+                      <Box
+                        key={index}
+                        sx={{
+                          bgcolor: '#f5f5f5',
+                          borderRadius: '10px',
+                          p: 2,
+                          mb: 1,
+                        }}
+                      >
+                        <audio src={file.url} controls style={{ width: '100%' }} />
+                      </Box>
+                    ))
+                  )}
+                </Box>
+              )}
+              {subTabValue === 2 && (
+                <Box>
+                  {getLinks().length === 0 ? (
+                    <Typography sx={{ color: '#8e8e8e' }}>
+                      No links found.
+                    </Typography>
+                  ) : (
+                    getLinks().map((link, index) => (
+                      <Box
+                        key={index}
+                        sx={{
+                          bgcolor: '#f5f5f5',
+                          borderRadius: '10px',
+                          p: 2,
+                          mb: 1,
+                        }}
+                      >
+                        <Typography
+                          sx={{ color: '#0095f6', cursor: 'pointer' }}
+                          onClick={() => window.open(link.url, '_blank')}
+                        >
+                          {link.name}
+                        </Typography>
+                      </Box>
+                    ))
+                  )}
+                </Box>
+              )}
+            </Box>
+          )}
+          {tabValue === 2 && (
+            <Box sx={{ p: 2 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                <Typography sx={{ flexGrow: 1, color: '#262626' }}>
+                  Notification Sound
+                </Typography>
+                <Switch
+                  checked={playNotificationSound}
+                  onChange={handleNotificationSoundToggle}
+                  color="primary"
+                />
+              </Box>
+            </Box>
+          )}
+        </Box>
+      </Drawer>
 
       {/* Message Menu */}
       <Menu

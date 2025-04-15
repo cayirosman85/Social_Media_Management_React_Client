@@ -137,8 +137,8 @@ function AppRoutes() {
       <Route path="/login" element={<Login />} />
       <Route path="/forgot-password" element={<ForgotPassword />} />
       <Route path="/register" element={<Register />} />
-      <Route path="/auth-callback" element={<AuthCallback />} />
-
+      {/* <Route path="/auth-callback" element={<AuthCallback />} /> */}
+      <Route path="/auth/callback" element={<Sidebar />} />
       {/* Protected Routes with Layout */}
       <Route
         path="/"

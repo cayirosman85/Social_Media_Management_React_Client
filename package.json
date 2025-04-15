@@ -8,6 +8,7 @@
     "@ffmpeg/ffmpeg": "^0.12.15",
     "@microsoft/signalr": "^8.0.7",
     "@mui/icons-material": "^5.17.1",
+    "@mui/lab": "^7.0.0-beta.11",
     "@mui/material": "^5.17.1",
     "@mui/styles": "^5.16.0",
     "@mui/x-date-pickers": "^7.10.0",
