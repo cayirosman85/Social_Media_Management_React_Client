@@ -62,6 +62,7 @@ const InstagramMessengerPage = () => {
   const [filePreviews, setFilePreviews] = useState([]);
   const [audioBlob, setAudioBlob] = useState(null);
   const [isRecording, setIsRecording] = useState(false);
+  const [recordingDuration, setRecordingDuration] = useState(0); // New state for recording duration
   const [error, setError] = useState('');
   const [errorModalOpen, setErrorModalOpen] = useState(false);
   const [otnModalOpen, setOtnModalOpen] = useState(false);
@@ -78,30 +79,38 @@ const InstagramMessengerPage = () => {
   const [imageBlobs, setImageBlobs] = useState({});
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [gifs, setGifs] = useState([]);
-  const [gifOffset, setGifOffset] = useState(0); // New state for pagination offset
-  const [hasMoreGifs, setHasMoreGifs] = useState(true); // New state to track if more GIFs are available
-  const [isLoadingMoreGifs, setIsLoadingMoreGifs] = useState(false); // New state for loading more GIFs
+  const [gifOffset, setGifOffset] = useState(0);
+  const [hasMoreGifs, setHasMoreGifs] = useState(true);
+  const [isLoadingMoreGifs, setIsLoadingMoreGifs] = useState(false);
 
   const messagesEndRef = useRef(null);
   const mediaRecorderRef = useRef(null);
   const blobCache = useRef({});
+  const timerRef = useRef(null); // Ref to store the timer interval
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  // Format recording duration as MM:SS
+  const formatDuration = (seconds) => {
+    const minutes = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
   // Fetch GIFs
   const loadGifs = async (offset = 0, append = false) => {
     try {
       setIsLoadingMoreGifs(true);
-      const limit = 30; // Number of GIFs to fetch per request
+      const limit = 30;
       const result = await giphy.trending({ limit, offset });
       if (!result.data || !Array.isArray(result.data)) {
         throw new Error('Invalid Giphy API response');
       }
       const newGifs = result.data;
       setGifs((prev) => (append ? [...prev, ...newGifs] : newGifs));
-      setHasMoreGifs(newGifs.length === limit); // If fewer GIFs than limit, no more to load
+      setHasMoreGifs(newGifs.length === limit);
       setGifOffset(offset + limit);
     } catch (err) {
       console.error('Failed to load GIFs:', err);
@@ -116,9 +125,9 @@ const InstagramMessengerPage = () => {
   // Fetch GIFs when modal opens
   useEffect(() => {
     if (gifAnchorEl) {
-      setGifOffset(0); // Reset offset when opening modal
+      setGifOffset(0);
       setHasMoreGifs(true);
-      loadGifs(0, false); // Fetch initial GIFs
+      loadGifs(0, false);
     } else {
       setGifs([]);
     }
@@ -127,7 +136,7 @@ const InstagramMessengerPage = () => {
   // Load more GIFs
   const loadMoreGifs = () => {
     if (hasMoreGifs && !isLoadingMoreGifs) {
-      loadGifs(gifOffset, true); // Fetch more GIFs and append
+      loadGifs(gifOffset, true);
     }
   };
 
@@ -524,6 +533,11 @@ const InstagramMessengerPage = () => {
       };
       mediaRecorderRef.current.start();
       setIsRecording(true);
+      setRecordingDuration(0); // Reset duration
+      // Start timer
+      timerRef.current = setInterval(() => {
+        setRecordingDuration((prev) => prev + 1);
+      }, 1000);
     } catch (err) {
       setError('Failed to start recording: ' + err.message);
       setErrorModalOpen(true);
@@ -534,6 +548,11 @@ const InstagramMessengerPage = () => {
     if (mediaRecorderRef.current) {
       mediaRecorderRef.current.stop();
       setIsRecording(false);
+      // Clear timer
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
     }
   };
 
@@ -1194,9 +1213,7 @@ const InstagramMessengerPage = () => {
                   </Typography>
                 </Box>
                 <IconButton
-                  onClick={(e
-
-) => handleMessageMenuOpen(e, msg.id)}
+                  onClick={(e) => handleMessageMenuOpen(e, msg.id)}
                   sx={{ ml: 1 }}
                 >
                   <MoreVert sx={{ fontSize: '16px', color: '#8e8e8e' }} />
@@ -1282,12 +1299,19 @@ const InstagramMessengerPage = () => {
                   onChange={handleFileChange}
                 />
               </IconButton>
-              <IconButton
-                onClick={isRecording ? stopRecording : startRecording}
-                sx={{ color: '#0095f6', mr: 1 }}
-              >
-                {isRecording ? <Stop /> : <Mic />}
-              </IconButton>
+              <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                <IconButton
+                  onClick={isRecording ? stopRecording : startRecording}
+                  sx={{ color: '#0095f6', mr: 1 }}
+                >
+                  {isRecording ? <Stop /> : <Mic />}
+                </IconButton>
+                {isRecording && (
+                  <Typography sx={{ color: '#0095f6', fontSize: '14px', mr: 1 }}>
+                    {formatDuration(recordingDuration)}
+                  </Typography>
+                )}
+              </Box>
               <TextField
                 placeholder="Mesaj..."
                 value={newMessage}
