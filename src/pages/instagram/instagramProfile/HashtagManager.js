@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from "react";
-import SearchForm from "../../../components/instagram/HashtagSearchForm";
-import HashtagInfo from "../../../components/instagram/HashtagInfo";
-import Tabs from "../../../components/instagram/HashtagTabs";
-import MediaCard from "../../../components/instagram/HashtagMediaCard";
-import MediaModal from "../../../components/instagram/HashtagMediaModal";
-import RecentSearchesSection from "../../../components/instagram/HashtagRecentSearches";
+import SearchForm from "../../../components/instagram/profile/HashtagSearchForm";
+import HashtagInfo from "../../../components/instagram/profile/HashtagInfo";
+import Tabs from "../../../components/instagram/profile/HashtagTabs";
+import MediaCard from "../../../components/instagram/profile/HashtagMediaCard";
+import MediaModal from "../../../components/instagram/profile/HashtagMediaModal";
+import RecentSearchesSection from "../../../components/instagram/profile/HashtagRecentSearches";
 import {
   searchHashtag,
   getRecentMedia,

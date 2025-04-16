@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { apiFetch } from '../../../api/facebook/api';
-import FacebookAccountForm from '../../../components/Facebook/FacebookAccountForm';
+
+import InstagramAccountForm from '../../../components/instagram/accountForm/instagramProfileAcountForm';
 
 const InstagramMessengerAccountCreate = () => {
   const [loading, setLoading] = useState(false);
@@ -32,7 +33,7 @@ const InstagramMessengerAccountCreate = () => {
 
   const initialData = {};
 
-  return <FacebookAccountForm onSubmit={handleSubmit} loading={loading} initialData={initialData} />;
+  return <InstagramAccountForm onSubmit={handleSubmit} loading={loading} initialData={initialData} />;
 };
 
 export default InstagramMessengerAccountCreate;

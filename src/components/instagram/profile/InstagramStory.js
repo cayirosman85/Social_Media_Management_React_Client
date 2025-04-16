@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
-import { fetchStoryInsights } from "../../services/instagram/instagramService";
-import InsightsModal from "../../components/instagram/InsightsModal";
+import { fetchStoryInsights } from "../../../services/instagram/instagramService";
+import InsightsModal from "../../instagram/profile/InsightsModal";
 import { FaChartBar, FaPlay, FaPause } from "react-icons/fa";
 import "./InstagramStory.css";
 import ls from "local-storage";

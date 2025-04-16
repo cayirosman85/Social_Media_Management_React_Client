@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { publishPost } from "../../services/instagram/instagramService";
+import { publishPost } from "../../../services/instagram/instagramService";
 import "./NewPostModal.css";
 import ls from "local-storage";
 

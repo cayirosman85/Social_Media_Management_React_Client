@@ -17,7 +17,7 @@ import StoriesManager from "./pages/instagram/instagramProfile/StoriesManager.js
 import HashtagManager from "./pages/instagram/instagramProfile/HashtagManager.js";
 import FacebookLogin from "./pages/instagram/instagramProfile/FacebookLogin.js";
 import AdsManager from "./pages/instagram/instagramProfile/AdsManager.js";
-import ErrorModal from "./components/instagram/ErrorModal";
+import ErrorModal from "./components/instagram/profile/ErrorModal";
 import Login from "./pages/loginPage/loginPage.js";
 import ForgotPassword from "./pages/forgotPassword/forgotPassword.js";
 import Register from "./pages/registerPage/register.js";

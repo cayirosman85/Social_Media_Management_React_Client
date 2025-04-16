@@ -1,8 +1,8 @@
 // PostsManager.js
 import React, { useState, useEffect, useRef } from "react";
-import NewPostModal from "../../../components/instagram/NewPostModal";
-import InsightsModal from "../../../components/instagram/InsightsModal";
-import PostItem from "../../../components/instagram/PostItem"; // New component
+import NewPostModal from "../../../components/instagram/profile/NewPostModal";
+import InsightsModal from "../../../components/instagram/profile/InsightsModal";
+import PostItem from "../../../components/instagram/profile/PostItem";
 import {
   publishPost,
   toggleCommentVisibility,

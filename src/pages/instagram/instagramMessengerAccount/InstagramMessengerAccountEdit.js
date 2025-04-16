@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useNavigate, useOutletContext } from 'react-router-dom';
 import { apiFetch } from '../../../api/facebook/api';
-import FacebookAccountForm from '../../../components/Facebook/FacebookAccountForm';
+import InstagramAccountForm from '../../../components/instagram/accountForm/instagramProfileAcountForm';
 import { Typography, Box, CircularProgress } from '@mui/material';
 
 const InstagramMessengerAccountEdit = () => {
@@ -50,7 +50,7 @@ const InstagramMessengerAccountEdit = () => {
   const handleSubmit = async (formData) => {
     setSubmitLoading(true);
     try {
-      await apiFetch(`/api/FacebookAccount/${companyId}`, {
+      await apiFetch(`/api/InstagramMessengerAccount/${companyId}`, {
         method: 'PUT',
         body: JSON.stringify({ ...formData, companyId: parseInt(companyId) }),
       });
@@ -93,7 +93,7 @@ const InstagramMessengerAccountEdit = () => {
   }
 
   return (
-    <FacebookAccountForm
+    <InstagramAccountForm
       initialData={initialData}
       onSubmit={handleSubmit}
       isEdit={true}

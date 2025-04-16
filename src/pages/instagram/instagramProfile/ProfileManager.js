@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useRef } from "react";
-import ProfileHeader from "../../../components/instagram/ProfileHeader.js";
-import TabNavigation from "../../../components/instagram/TabNavigation.js";
-import InstagramPost from "../../../components/instagram/InstagramPost.js";
-import NewPostModal from "../../../components/instagram/NewPostModal.js";
-import InstagramStory from "../../../components/instagram/InstagramStory.js";
-import NewStoryModal from "../../../components/instagram/NewStoryModal.js";
-import InsightsModal from "../../../components/instagram/InsightsModal.js";
-import InstagramPostDetails from "../../../components/instagram/InstagramPostDetails.js";
+import ProfileHeader from "../../../components/instagram/profile/ProfileHeader.js";
+import TabNavigation from "../../../components/instagram/profile/TabNavigation.js";
+import InstagramPost from "../../../components/instagram/profile/InstagramPost.js";
+import NewPostModal from "../../../components/instagram/profile/NewPostModal.js";
+import InstagramStory from "../../../components/instagram/profile/InstagramStory.js";
+import NewStoryModal from "../../../components/instagram/profile/NewStoryModal.js";
+import InsightsModal from "../../../components/instagram/profile/InsightsModal.js";
+import InstagramPostDetails from "../../../components/instagram/profile/InstagramPostDetails.js";
 import {
   fetchInstagramData,
   toggleCommentVisibility,
