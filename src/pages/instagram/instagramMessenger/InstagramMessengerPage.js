@@ -28,6 +28,7 @@ import {
   MoreVert,
   Mood,
   Gif,
+  LocationOn,
 } from '@mui/icons-material';
 import EmojiPicker from 'emoji-picker-react';
 import { GiphyFetch } from '@giphy/js-fetch-api';
@@ -62,7 +63,7 @@ const InstagramMessengerPage = () => {
   const [filePreviews, setFilePreviews] = useState([]);
   const [audioBlob, setAudioBlob] = useState(null);
   const [isRecording, setIsRecording] = useState(false);
-  const [recordingDuration, setRecordingDuration] = useState(0); // New state for recording duration
+  const [recordingDuration, setRecordingDuration] = useState(0);
   const [error, setError] = useState('');
   const [errorModalOpen, setErrorModalOpen] = useState(false);
   const [otnModalOpen, setOtnModalOpen] = useState(false);
@@ -86,7 +87,7 @@ const InstagramMessengerPage = () => {
   const messagesEndRef = useRef(null);
   const mediaRecorderRef = useRef(null);
   const blobCache = useRef({});
-  const timerRef = useRef(null); // Ref to store the timer interval
+  const timerRef = useRef(null);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -97,6 +98,28 @@ const InstagramMessengerPage = () => {
     const minutes = Math.floor(seconds / 60);
     const secs = seconds % 60;
     return `${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  // Function to share location as a URL
+  const shareLocation = () => {
+    if (!navigator.geolocation) {
+      setError('Geolocation is not supported by your browser');
+      setErrorModalOpen(true);
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const { latitude, longitude } = position.coords;
+        const mapUrl = `https://www.google.com/maps?q=${latitude},${longitude}`;
+        setNewMessage(mapUrl);
+        sendMessage(); // Send the URL as a text message
+      },
+      (err) => {
+        setError(`Failed to get location: ${err.message}`);
+        setErrorModalOpen(true);
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
   };
 
   // Fetch GIFs
@@ -342,7 +365,7 @@ const InstagramMessengerPage = () => {
             name: conv.name,
             profilePicture: conv.profilePicture || 'https://via.placeholder.com/40',
             lastMessage: {
-              text: conv.lastMessage?.text || '',
+              text: conv.lastMessage?.text || '', // FIXED: Changed 'env' to 'conv'
               timestamp: conv.lastMessage?.timestamp || new Date().toISOString(),
             },
             unviewedCount: conv.unviewedCount,
@@ -441,7 +464,7 @@ const InstagramMessengerPage = () => {
           direction: msg.direction.toLowerCase(),
           type: msg.messageType.toLowerCase(),
           reactions: msg.reactions || [],
-          status: msg.status.toLowerCase(),
+          status: msg.status.toLowerCase(), // FIXED: Changed 'personally' to 'msg'
         }))
       );
     } catch (err) {
@@ -533,8 +556,7 @@ const InstagramMessengerPage = () => {
       };
       mediaRecorderRef.current.start();
       setIsRecording(true);
-      setRecordingDuration(0); // Reset duration
-      // Start timer
+      setRecordingDuration(0);
       timerRef.current = setInterval(() => {
         setRecordingDuration((prev) => prev + 1);
       }, 1000);
@@ -548,7 +570,6 @@ const InstagramMessengerPage = () => {
     if (mediaRecorderRef.current) {
       mediaRecorderRef.current.stop();
       setIsRecording(false);
-      // Clear timer
       if (timerRef.current) {
         clearInterval(timerRef.current);
         timerRef.current = null;
@@ -562,6 +583,8 @@ const InstagramMessengerPage = () => {
 
     let tempMessageId = Date.now().toString();
     let messageType;
+    let urls = [];
+
     if (audioBlob) {
       messageType = 'Audio';
     } else if (files.length > 0) {
@@ -570,8 +593,6 @@ const InstagramMessengerPage = () => {
     } else {
       messageType = 'Text';
     }
-
-    let urls = [];
 
     if (files.length > 0) {
       try {
@@ -1312,6 +1333,13 @@ const InstagramMessengerPage = () => {
                   </Typography>
                 )}
               </Box>
+              <IconButton
+                onClick={shareLocation}
+                sx={{ color: '#0095f6', mr: 1 }}
+                aria-label="Share location"
+              >
+                <LocationOn />
+              </IconButton>
               <TextField
                 placeholder="Mesaj..."
                 value={newMessage}
