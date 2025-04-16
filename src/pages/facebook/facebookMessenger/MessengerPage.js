@@ -43,7 +43,7 @@ import localStorage from 'local-storage';
 import Picker from 'emoji-picker-react';
 import { FFmpeg } from '@ffmpeg/ffmpeg';
 import { useLocation } from 'react-router-dom';
-import { apiFetch } from '../../api/messenger/api';
+import { apiFetch } from '../../../api/messenger/api';
 import debounce from 'lodash/debounce';
 const MessengerPage = () => {
   const [conversations, setConversations] = useState([]);

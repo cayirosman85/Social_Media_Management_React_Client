@@ -12,7 +12,7 @@ import {
   Paper
 } from '@mui/material';
 import Swal from 'sweetalert2';
-import { upsertMessengerAccount, getMessengerAccount } from '../../api/messenger/api.js';
+import { upsertMessengerAccount, getMessengerAccount } from '../../../api/messenger/api.js';
 
 const MessengerAccount = () => {
   const navigate = useNavigate();

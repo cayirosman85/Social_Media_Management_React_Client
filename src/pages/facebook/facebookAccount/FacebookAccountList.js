@@ -22,7 +22,7 @@ import {
 } from '@mui/material';
 import { Edit, Delete, Refresh, Search, Clear, DeleteSweep } from '@mui/icons-material';
 import { useNavigate, useOutletContext } from 'react-router-dom';
-import { apiFetch } from '../../api/facebook/api';
+import { apiFetch } from '../../../api/facebook/api';
 import { format } from 'date-fns'; // For date formatting
 
 const FacebookAccountList = () => {

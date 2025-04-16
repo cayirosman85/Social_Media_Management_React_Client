@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useNavigate, useOutletContext } from 'react-router-dom';
-import { apiFetch } from '../../api/facebook/api';
-import FacebookAccountForm from '../../components/Facebook/FacebookAccountForm';
+import { apiFetch } from '../../../api/facebook/api';
+import FacebookAccountForm from '../../../components/Facebook/FacebookAccountForm';
 import { Typography, Box, CircularProgress } from '@mui/material';
 
 const FacebookAccountEdit = () => {

@@ -107,6 +107,33 @@ const InstagramMessengerPage = () => {
           audio.play().catch((err) => console.error('Error playing notification sound:', err));
         }
       }
+      const fetchConversations = async () => {
+        try {
+          const response = await apiFetch(
+            `/api/InstagramMessenger/conversations?page=1&pageSize=20&search=${encodeURIComponent(conversationSearchQuery)}`,
+            { method: 'GET' }
+          );
+          setConversations(
+            response.data.map((conv) => ({
+              id: conv.id,
+              name: conv.name,
+              profilePicture: conv.profilePicture || 'https://via.placeholder.com/40',
+              lastMessage: {
+                text: conv.lastMessage?.text || '',
+                timestamp: conv.lastMessage?.timestamp || new Date().toISOString(),
+              },
+              unviewedCount: conv.unviewedCount,
+              senderId: conv.senderId,
+            }))
+          );
+        } catch (err) {
+          setError('Failed to fetch conversations: ' + err.message);
+          setErrorModalOpen(true);
+        } finally {
+          setIsLoading(false);
+        }
+      };
+      fetchConversations();
     };
 
     const connection = connectToSignalR(handleMessageReceived);

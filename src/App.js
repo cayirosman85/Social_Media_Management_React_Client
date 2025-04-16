@@ -27,7 +27,7 @@ import ProfilePage from "./pages/profilePage/userProfile.js";
 import AdminPage from "./pages/adminPage/adminPage.js";
 import AdminUsers from "./pages/adminPage/adminUsers.js";
 import AdminSettings from "./pages/adminPage/adminProfilePage.js";
-import FacebookProfile from './pages/facebook/FacebookProfile.js';
+import FacebookProfile from './pages/facebook/facebookProfile/FacebookProfile.js';
 import AuthCallback from './pages/youtube/authCallback.js';
 import YoutubeProfile from './pages/youtube/profile.js';
 import "./App.css";
@@ -37,12 +37,12 @@ import Sidebar from "./components/sidebars/clientSideBar.js";
 import AdminSidebar from "./components/sidebars/adminSideBar.js";
 import { SidebarProvider } from "./context/SidebarContext";
 import { useSidebar } from "./context/SidebarContext";
-import MessengerPage from './pages/Messenger/MessengerPage';
-import MessengerAccount from './pages/Messenger/MessengerAccount.js';
+import MessengerPage from './pages/facebook/facebookMessenger/MessengerPage.js';
+import MessengerAccount from './pages/facebook/facebookMessenger/MessengerAccount.js';
 // New imports for Facebook Account pages
-import FacebookAccountList from './pages/facebook/FacebookAccountList.js';
-import FacebookAccountCreate from './pages/facebook/FacebookAccountCreate.js';
-import FacebookAccountEdit from './pages/facebook/FacebookAccountEdit.js';
+import FacebookAccountList from './pages/facebook/facebookAccount/FacebookAccountList.js';
+import FacebookAccountCreate from './pages/facebook/facebookAccount/FacebookAccountCreate.js';
+import FacebookAccountEdit from './pages/facebook/facebookAccount/FacebookAccountEdit.js';
 
 
 // New imports for Facebook Account pages For instagram

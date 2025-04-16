@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
-import { apiFetch } from '../../api/facebook/api';
-import FacebookAccountForm from '../../components/Facebook/FacebookAccountForm';
+import { apiFetch } from '../../../api/facebook/api';
+import FacebookAccountForm from '../../../components/Facebook/FacebookAccountForm';
 
 const FacebookAccountCreate = () => {
   const [loading, setLoading] = useState(false);
