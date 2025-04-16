@@ -27,16 +27,27 @@ import {
   Stop,
   MoreVert,
   Mood,
+  Gif,
 } from '@mui/icons-material';
-import EmojiPicker from 'emoji-picker-react'; // Verify this import
+import EmojiPicker from 'emoji-picker-react';
+import { GiphyFetch } from '@giphy/js-fetch-api';
 import connectToSignalR from '../../../utils/signalR/signalR';
 import { apiFetch } from '../../../api/instagram/chat/api';
 import { cookies } from '../../../utils/cookie';
 
-// Fallback if EmojiPicker fails
+// Initialize Giphy with API key
+const giphy = new GiphyFetch(process.env.REACT_APP_GIPHY_API_KEY || 'oB1EVOJbfDDYYo40epom83LAzoC3jALn');
+
+// Fallbacks
 const EmojiPickerFallback = () => (
   <Box sx={{ p: 2, bgcolor: '#fff', borderRadius: '10px' }}>
     <Typography color="error">Emoji picker failed to load</Typography>
+  </Box>
+);
+
+const GifPickerFallback = () => (
+  <Box sx={{ p: 2, bgcolor: '#fff', borderRadius: '10px' }}>
+    <Typography color="error">GIF picker failed to load</Typography>
   </Box>
 );
 
@@ -63,18 +74,61 @@ const InstagramMessengerPage = () => {
   const [subTabValue, setSubTabValue] = useState(0);
   const [playNotificationSound, setPlayNotificationSound] = useState(true);
   const [emojiAnchorEl, setEmojiAnchorEl] = useState(null);
+  const [gifAnchorEl, setGifAnchorEl] = useState(null);
   const [imageBlobs, setImageBlobs] = useState({});
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [gifs, setGifs] = useState([]);
+  const [gifOffset, setGifOffset] = useState(0); // New state for pagination offset
+  const [hasMoreGifs, setHasMoreGifs] = useState(true); // New state to track if more GIFs are available
+  const [isLoadingMoreGifs, setIsLoadingMoreGifs] = useState(false); // New state for loading more GIFs
 
   const messagesEndRef = useRef(null);
   const mediaRecorderRef = useRef(null);
-  const blobCache = useRef({}); // Persistent cache for blobs
-  const selectedConversation = conversations.find(
-    (c) => c.id === selectedConversationId
-  );
+  const blobCache = useRef({});
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  // Fetch GIFs
+  const loadGifs = async (offset = 0, append = false) => {
+    try {
+      setIsLoadingMoreGifs(true);
+      const limit = 30; // Number of GIFs to fetch per request
+      const result = await giphy.trending({ limit, offset });
+      if (!result.data || !Array.isArray(result.data)) {
+        throw new Error('Invalid Giphy API response');
+      }
+      const newGifs = result.data;
+      setGifs((prev) => (append ? [...prev, ...newGifs] : newGifs));
+      setHasMoreGifs(newGifs.length === limit); // If fewer GIFs than limit, no more to load
+      setGifOffset(offset + limit);
+    } catch (err) {
+      console.error('Failed to load GIFs:', err);
+      setError('Failed to load GIFs: ' + err.message);
+      setErrorModalOpen(true);
+      setGifs(append ? gifs : []);
+    } finally {
+      setIsLoadingMoreGifs(false);
+    }
+  };
+
+  // Fetch GIFs when modal opens
+  useEffect(() => {
+    if (gifAnchorEl) {
+      setGifOffset(0); // Reset offset when opening modal
+      setHasMoreGifs(true);
+      loadGifs(0, false); // Fetch initial GIFs
+    } else {
+      setGifs([]);
+    }
+  }, [gifAnchorEl]);
+
+  // Load more GIFs
+  const loadMoreGifs = () => {
+    if (hasMoreGifs && !isLoadingMoreGifs) {
+      loadGifs(gifOffset, true); // Fetch more GIFs and append
+    }
   };
 
   // Memoized blob fetcher
@@ -320,14 +374,6 @@ const InstagramMessengerPage = () => {
                     url,
                     name: url.split('/').pop() || 'media',
                   }))
-                : msg.url
-                ? [
-                    {
-                      type: msg.messageType.toLowerCase(),
-                      url: msg.url,
-                      name: msg.url.split('/').pop() || 'media',
-                    },
-                  ]
                 : null,
               audioUrl:
                 msg.messageType.toLowerCase() === 'audio'
@@ -432,6 +478,7 @@ const InstagramMessengerPage = () => {
     setTabValue(0);
     setSubTabValue(0);
     setEmojiAnchorEl(null);
+    setGifAnchorEl(null);
     setMenuAnchorEl(null);
   };
 
@@ -494,7 +541,7 @@ const InstagramMessengerPage = () => {
     if (!newMessage.trim() && files.length === 0 && !audioBlob) return;
     if (!selectedConversation) return;
 
-    const tempId = Date.now().toString();
+    let tempMessageId = Date.now().toString();
     let messageType;
     if (audioBlob) {
       messageType = 'Audio';
@@ -543,7 +590,7 @@ const InstagramMessengerPage = () => {
       ...prev,
       {
         id: null,
-        tempId,
+        tempId: tempMessageId,
         conversationId: selectedConversationId,
         senderId: cookies.get('userId') || 'user1',
         text: newMessage,
@@ -574,12 +621,12 @@ const InstagramMessengerPage = () => {
           text: newMessage,
           urls: urls,
           messageType: messageType,
-          tempId: tempId,
+          tempId: tempMessageId,
         }),
       });
       setMessages((prev) =>
         prev.map((msg) =>
-          msg.tempId === tempId ? { ...msg, status: 'sent', id: response.messageId } : msg
+          msg.tempId === tempMessageId ? { ...msg, status: 'sent', id: response.messageId } : msg
         )
       );
       setNewMessage('');
@@ -589,7 +636,7 @@ const InstagramMessengerPage = () => {
     } catch (err) {
       setMessages((prev) =>
         prev.map((msg) =>
-          msg.tempId === tempId ? { ...msg, status: 'failed' } : msg
+          msg.tempId === tempMessageId ? { ...msg, status: 'failed' } : msg
         )
       );
       setError('Failed to send message: ' + err.message);
@@ -610,12 +657,11 @@ const InstagramMessengerPage = () => {
         text: 'love',
       };
 
-      const response = await apiFetch(`/api/InstagramMessenger/${endpoint}`, {
+      await apiFetch(`/api/InstagramMessenger/${endpoint}`, {
         method: 'POST',
         body: JSON.stringify(payload),
       });
 
-      // Optimistic UI update
       if (hasReaction) {
         setMessages((prev) =>
           prev.map((msg) =>
@@ -713,9 +759,80 @@ const InstagramMessengerPage = () => {
     setEmojiAnchorEl(null);
   };
 
+  const handleGifOpen = (event) => {
+    setGifAnchorEl(event.currentTarget);
+  };
+
+  const handleGifClose = () => {
+    setGifAnchorEl(null);
+  };
+
+  const handleGifClick = async (gif, e) => {
+    e.preventDefault();
+    if (!gif || !gif.images || !gif.images.fixed_height) {
+      console.error('Invalid GIF object:', gif);
+      setError('Failed to select GIF: Invalid data');
+      setErrorModalOpen(true);
+      return;
+    }
+    let tempMessageId = Date.now().toString();
+    try {
+      const gifUrl = gif.images.fixed_height.url;
+
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: null,
+          tempId: tempMessageId,
+          conversationId: selectedConversationId,
+          senderId: cookies.get('userId') || 'user1',
+          text: '',
+          media: [{ type: 'image', url: gifUrl, name: 'gif' }],
+          timestamp: new Date().toISOString(),
+          status: 'sending',
+          type: 'image',
+          direction: 'outbound',
+          reactions: [],
+        },
+      ]);
+      scrollToBottom();
+
+      await apiFetch('/api/InstagramMessenger/send-message', {
+        method: 'POST',
+        body: JSON.stringify({
+          conversationId: selectedConversationId,
+          senderId: cookies.get('userId') || 'user1',
+          recipientId: selectedConversation?.senderId,
+          text: '',
+          urls: [gifUrl],
+          messageType: 'Image',
+          tempId: tempMessageId,
+        }),
+      });
+
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg.tempId === tempMessageId ? { ...msg, status: 'sent' } : msg
+        )
+      );
+      setGifAnchorEl(null);
+    } catch (err) {
+      setError('Failed to send GIF: ' + err.message);
+      setErrorModalOpen(true);
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg.tempId === tempMessageId ? { ...msg, status: 'failed' } : msg
+        )
+      );
+    }
+  };
+
+  const selectedConversation = conversations.find(
+    (c) => c.id === selectedConversationId
+  );
+
   return (
     <Box sx={{ display: 'flex', height: '100vh', bgcolor: '#fafafa' }}>
-      {/* Conversation List */}
       <Box
         sx={{
           width: { xs: '100%', sm: '360px' },
@@ -830,7 +947,6 @@ const InstagramMessengerPage = () => {
         )}
       </Box>
 
-      {/* Chat Area */}
       <Box
         sx={{
           flexGrow: 1,
@@ -839,7 +955,6 @@ const InstagramMessengerPage = () => {
           bgcolor: '#fff',
         }}
       >
-        {/* Header */}
         <Box
           sx={{
             p: 2,
@@ -883,7 +998,6 @@ const InstagramMessengerPage = () => {
           </Typography>
         </Box>
 
-        {/* Messages */}
         <Box sx={{ flexGrow: 1, overflowY: 'auto', p: 3, bgcolor: '#fff' }}>
           {isLoading ? (
             <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}>
@@ -1080,7 +1194,9 @@ const InstagramMessengerPage = () => {
                   </Typography>
                 </Box>
                 <IconButton
-                  onClick={(e) => handleMessageMenuOpen(e, msg.id)}
+                  onClick={(e
+
+) => handleMessageMenuOpen(e, msg.id)}
                   sx={{ ml: 1 }}
                 >
                   <MoreVert sx={{ fontSize: '16px', color: '#8e8e8e' }} />
@@ -1091,7 +1207,6 @@ const InstagramMessengerPage = () => {
           <div ref={messagesEndRef} />
         </Box>
 
-        {/* Message Input */}
         {selectedConversationId && (
           <Box sx={{ p: 2, borderTop: '1px solid #dbdbdb' }}>
             {filePreviews.length > 0 && (
@@ -1125,7 +1240,7 @@ const InstagramMessengerPage = () => {
                       sx={{
                         position: 'absolute',
                         top: 0,
-                        right: 0,
+                        right: '0px',
                         bgcolor: '#fff',
                       }}
                       onClick={() => {
@@ -1195,6 +1310,12 @@ const InstagramMessengerPage = () => {
                 <Mood />
               </IconButton>
               <IconButton
+                onClick={handleGifOpen}
+                sx={{ color: '#0095f6', mr: 1 }}
+              >
+                <Gif />
+              </IconButton>
+              <IconButton
                 onClick={sendMessage}
                 sx={{ color: '#0095f6' }}
                 disabled={!newMessage.trim() && files.length === 0 && !audioBlob}
@@ -1219,11 +1340,85 @@ const InstagramMessengerPage = () => {
                 )}
               </Box>
             </Modal>
+            <Modal
+              open={Boolean(gifAnchorEl)}
+              onClose={handleGifClose}
+              sx={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <Box
+                sx={{
+                  outline: 'none',
+                  bgcolor: '#fff',
+                  borderRadius: '10px',
+                  p: 2,
+                  maxHeight: '80vh',
+                  overflowY: 'auto',
+                  maxWidth: '90%',
+                  width: '360px',
+                }}
+              >
+                {gifs.length > 0 ? (
+                  <>
+                    <Box
+                      sx={{
+                        display: 'grid',
+                        gridTemplateColumns: 'repeat(3, 1fr)',
+                        gap: 1,
+                      }}
+                    >
+                      {gifs.map((gif) => (
+                        <img
+                          key={gif.id}
+                          src={gif.images.fixed_height.url}
+                          alt={gif.title || 'GIF'}
+                          style={{
+                            width: '100px',
+                            height: '100px',
+                            borderRadius: '8px',
+                            cursor: 'pointer',
+                            objectFit: 'cover',
+                          }}
+                          onClick={(e) => handleGifClick(gif, e)}
+                        />
+                      ))}
+                    </Box>
+                    {hasMoreGifs && (
+                      <Box sx={{ textAlign: 'center', mt: 2 }}>
+                        <IconButton
+                          onClick={loadMoreGifs}
+                          disabled={isLoadingMoreGifs}
+                          sx={{
+                            bgcolor: '#0095f6',
+                            color: '#fff',
+                            '&:hover': { bgcolor: '#007bb5' },
+                          }}
+                        >
+                          {isLoadingMoreGifs ? (
+                            <CircularProgress size={24} sx={{ color: '#fff' }} />
+                          ) : (
+                            <Typography sx={{ fontSize: '14px' }}>
+                              Load More
+                            </Typography>
+                          )}
+                        </IconButton>
+                      </Box>
+                    )}
+                  </>
+                ) : (
+                  <Box sx={{ p: 2, textAlign: 'center' }}>
+                    <CircularProgress size={24} sx={{ color: '#0095f6' }} />
+                  </Box>
+                )}
+              </Box>
+            </Modal>
           </Box>
         )}
       </Box>
 
-      {/* Right Sidebar */}
       <Drawer
         anchor="right"
         open={isSidebarOpen}
@@ -1244,48 +1439,17 @@ const InstagramMessengerPage = () => {
             Details
           </Typography>
         </Box>
-        <List>
-          <ListItem
-            button
-            onClick={() => setTabValue(0)}
-            sx={{
-              bgcolor: tabValue === 0 ? '#efefef' : 'transparent',
-              borderRadius: '10px',
-            }}
-          >
-            <ListItemText primary="Sohbet ara..." />
-          </ListItem>
-          <ListItem
-            button
-            onClick={() => setTabValue(1)}
-            sx={{
-              bgcolor: tabValue === 1 ? '#efefef' : 'transparent',
-              borderRadius: '10px',
-            }}
-          >
-            <ListItemText primary="View Media, Files, and Links" />
-          </ListItem>
-          <ListItem
-            button
-            onClick={() => setTabValue(2)}
-            sx={{
-              bgcolor: tabValue === 2 ? '#efefef' : 'transparent',
-              borderRadius: '10px',
-            }}
-          >
-            <ListItemText primary="Bildirim & Ses" />
-          </ListItem>
-          <ListItem
-            button
-            onClick={() => setOtnModalOpen(true)}
-            sx={{
-              bgcolor: tabValue === 3 ? '#efefef' : 'transparent',
-              borderRadius: '10px',
-            }}
-          >
-            <ListItemText primary="Request OTN" />
-          </ListItem>
-        </List>
+        <Tabs
+          value={tabValue}
+          onChange={handleTabChange}
+          sx={{ mb: 2 }}
+          variant="fullWidth"
+        >
+          <Tab label="Search" />
+          <Tab label="Media & Files" />
+          <Tab label="Notifications" />
+          <Tab label="OTN" />
+        </Tabs>
         <Box sx={{ mt: 2 }}>
           {tabValue === 0 && (
             <Box>
@@ -1437,7 +1601,7 @@ const InstagramMessengerPage = () => {
               {subTabValue === 1 && (
                 <Box>
                   {getAudioFiles().length === 0 ? (
-                    <Typography sx={{ color: '#8e8e8e' }}>
+                    <Typography sx={{ color: 'red' }}>
                       No files found.
                     </Typography>
                   ) : (
@@ -1515,10 +1679,24 @@ const InstagramMessengerPage = () => {
               </Box>
             </Box>
           )}
+          {tabValue === 3 && (
+            <Box sx={{ p: 2 }}>
+              <ListItem
+                button
+                onClick={() => setOtnModalOpen(true)}
+                sx={{
+                  bgcolor: '#efefef',
+                  borderRadius: '10px',
+                  justifyContent: 'center',
+                }}
+              >
+                <ListItemText primary="Request OTN" />
+              </ListItem>
+            </Box>
+          )}
         </Box>
       </Drawer>
 
-      {/* Message Menu */}
       <Menu
         anchorEl={menuAnchorEl}
         open={Boolean(menuAnchorEl)}
@@ -1537,7 +1715,6 @@ const InstagramMessengerPage = () => {
         </MenuItem>
       </Menu>
 
-      {/* Error Modal */}
       <Modal open={errorModalOpen} onClose={() => setErrorModalOpen(false)}>
         <Box
           sx={{
@@ -1581,7 +1758,6 @@ const InstagramMessengerPage = () => {
         </Box>
       </Modal>
 
-      {/* OTN Modal */}
       <Modal open={otnModalOpen} onClose={() => setOtnModalOpen(false)}>
         <Box
           sx={{
