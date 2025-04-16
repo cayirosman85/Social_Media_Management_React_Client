@@ -17,7 +17,8 @@ import {
   Tabs,
   Tab,
   Switch,
-  Divider, // NEW: Added for separating tabs from content
+  Divider,
+  Popper,
 } from '@mui/material';
 import {
   Search,
@@ -53,7 +54,7 @@ const GifPickerFallback = () => (
   </Box>
 );
 
-// NEW: TabPanel component for cleaner tab content rendering
+// TabPanel component for sidebar tabs
 function TabPanel(props) {
   const { children, value, index, ...other } = props;
   return (
@@ -105,6 +106,10 @@ const InstagramMessengerPage = () => {
   const [hasMoreGifs, setHasMoreGifs] = useState(true);
   const [isLoadingMoreGifs, setIsLoadingMoreGifs] = useState(false);
 
+  // NEW: Refs for pickers
+  const emojiPickerRef = useRef(null);
+  const gifPickerRef = useRef(null);
+
   const messagesEndRef = useRef(null);
   const mediaRecorderRef = useRef(null);
   const blobCache = useRef({});
@@ -120,6 +125,35 @@ const InstagramMessengerPage = () => {
     const secs = seconds % 60;
     return `${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
+
+  // NEW: Handle outside clicks for emoji and GIF pickers
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      // Emoji picker
+      if (
+        emojiAnchorEl &&
+        emojiPickerRef.current &&
+        !emojiPickerRef.current.contains(event.target) &&
+        !emojiAnchorEl.contains(event.target)
+      ) {
+        handleEmojiClose();
+      }
+      // GIF picker
+      if (
+        gifAnchorEl &&
+        gifPickerRef.current &&
+        !gifPickerRef.current.contains(event.target) &&
+        !gifAnchorEl.contains(event.target)
+      ) {
+        handleGifClose();
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [emojiAnchorEl, gifAnchorEl]);
 
   // Function to share location as a URL
   const shareLocation = () => {
@@ -143,11 +177,10 @@ const InstagramMessengerPage = () => {
     );
   };
 
-  // Fetch GIFs
   const loadGifs = async (offset = 0, append = false) => {
     try {
       setIsLoadingMoreGifs(true);
-      const limit = 30;
+      const limit = 40;
       const result = await giphy.trending({ limit, offset });
       if (!result.data || !Array.isArray(result.data)) {
         throw new Error('Invalid Giphy API response');
@@ -166,7 +199,6 @@ const InstagramMessengerPage = () => {
     }
   };
 
-  // Fetch GIFs when modal opens
   useEffect(() => {
     if (gifAnchorEl) {
       setGifOffset(0);
@@ -177,14 +209,12 @@ const InstagramMessengerPage = () => {
     }
   }, [gifAnchorEl]);
 
-  // Load more GIFs
   const loadMoreGifs = () => {
     if (hasMoreGifs && !isLoadingMoreGifs) {
       loadGifs(gifOffset, true);
     }
   };
 
-  // Memoized blob fetcher
   const fetchBlob = useCallback(async (url) => {
     if (blobCache.current[url] || blobCache.current[url] === null) {
       return blobCache.current[url];
@@ -215,7 +245,6 @@ const InstagramMessengerPage = () => {
     }
   }, []);
 
-  // Fetch blobs only for outbound media
   useEffect(() => {
     const fetchImageBlobs = async () => {
       const newBlobs = { ...blobCache.current };
@@ -261,7 +290,6 @@ const InstagramMessengerPage = () => {
     fetchImageBlobs();
   }, [messages, fetchBlob]);
 
-  // SignalR
   useEffect(() => {
     const handleMessageReceived = (message) => {
       console.log('Received message signalR:', message);
@@ -369,7 +397,6 @@ const InstagramMessengerPage = () => {
     };
   }, [selectedConversationId, playNotificationSound, conversationSearchQuery]);
 
-  // Fetch conversations
   useEffect(() => {
     const fetchConversations = async () => {
       setIsLoading(true);
@@ -403,7 +430,6 @@ const InstagramMessengerPage = () => {
     fetchConversations();
   }, [conversationSearchQuery]);
 
-  // Fetch messages
   useEffect(() => {
     if (selectedConversationId) {
       const fetchMessages = async () => {
@@ -452,7 +478,6 @@ const InstagramMessengerPage = () => {
     }
   }, [selectedConversationId]);
 
-  // Search messages
   const handleMessageSearch = async () => {
     if (!messageSearchQuery.trim()) {
       setSearchedMessages([]);
@@ -494,7 +519,6 @@ const InstagramMessengerPage = () => {
     }
   };
 
-  // Filter media, files, and links
   const getMediaFiles = () =>
     messages
       .filter((msg) => msg.media && ['image', 'video', 'sticker'].includes(msg.type))
@@ -519,7 +543,6 @@ const InstagramMessengerPage = () => {
         name: msg.text,
       }));
 
-  // Handlers
   const handleConversationClick = (id) => {
     setSelectedConversationId(id);
     setNewMessage('');
@@ -539,7 +562,7 @@ const InstagramMessengerPage = () => {
     const selectedFiles = Array.from(event.target.files);
     const maxSizeMB = 20;
     const validFiles = selectedFiles.filter((file) => {
-      const isValidType = file.type.startsWith('image/') || file.type.startsWith('videoSIG/');
+      const isValidType = file.type.startsWith('image/') || file.type.startsWith('video/');
       const isValidSize = file.size / 1024 / 1024 <= maxSizeMB;
       return isValidType && isValidSize;
     });
@@ -1396,42 +1419,93 @@ const InstagramMessengerPage = () => {
                 <Send />
               </IconButton>
             </Box>
-            <Modal
+            <Popper
               open={Boolean(emojiAnchorEl)}
-              onClose={handleEmojiClose}
+              anchorEl={emojiAnchorEl}
+              placement="top-end"
+              modifiers={[
+                {
+                  name: 'flip',
+                  enabled: true,
+                  options: {
+                    fallbackPlacements: ['bottom-end'],
+                  },
+                },
+                {
+                  name: 'preventOverflow',
+                  enabled: true,
+                  options: {
+                    boundariesElement: 'viewport',
+                  },
+                },
+              ]}
               sx={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
+                zIndex: 1300,
+                transition: 'opacity 0.2s ease-in-out',
+                opacity: Boolean(emojiAnchorEl) ? 1 : 0,
               }}
             >
-              <Box sx={{ outline: 'none' }}>
+              <Box
+                ref={emojiPickerRef} // NEW: Added ref
+                sx={{
+                  bgcolor: '#fff',
+                  borderRadius: '12px',
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                  p: 1.5,
+                  width: { xs: 280, sm: 320 },
+                  maxHeight: 400,
+                  overflowY: 'auto',
+                  outline: 'none',
+                }}
+              >
                 {EmojiPicker ? (
-                  <EmojiPicker onEmojiClick={handleEmojiClick} emojiStyle="apple" />
+                  <EmojiPicker
+                    onEmojiClick={handleEmojiClick}
+                    emojiStyle="apple"
+                    width="100%"
+                  />
                 ) : (
                   <EmojiPickerFallback />
                 )}
               </Box>
-            </Modal>
-            <Modal
+            </Popper>
+            <Popper
               open={Boolean(gifAnchorEl)}
-              onClose={handleGifClose}
+              anchorEl={gifAnchorEl}
+              placement="top-end"
+              modifiers={[
+                {
+                  name: 'flip',
+                  enabled: true,
+                  options: {
+                    fallbackPlacements: ['bottom-end'],
+                  },
+                },
+                {
+                  name: 'preventOverflow',
+                  enabled: true,
+                  options: {
+                    boundariesElement: 'viewport',
+                  },
+                },
+              ]}
               sx={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
+                zIndex: 1300,
+                transition: 'opacity 0.2s ease-in-out',
+                opacity: Boolean(gifAnchorEl) ? 1 : 0,
               }}
             >
               <Box
+                ref={gifPickerRef} // NEW: Added ref
                 sx={{
-                  outline: 'none',
                   bgcolor: '#fff',
-                  borderRadius: '10px',
-                  p: 2,
-                  maxHeight: '80vh',
+                  borderRadius: '12px',
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                  p: 1.5,
+                  width: { xs: 280, sm: 320 },
+                  maxHeight: 400,
                   overflowY: 'auto',
-                  maxWidth: '90%',
-                  width: '360px',
+                  outline: 'none',
                 }}
               >
                 {gifs.length > 0 ? (
@@ -1439,8 +1513,11 @@ const InstagramMessengerPage = () => {
                     <Box
                       sx={{
                         display: 'grid',
-                        gridTemplateColumns: 'repeat(3, 1fr)',
-                        gap: 1,
+                        gridTemplateColumns: {
+                          xs: 'repeat(3, 1fr)',
+                          sm: 'repeat(4, 1fr)',
+                        },
+                        gap: 0.5,
                       }}
                     >
                       {gifs.map((gif) => (
@@ -1449,8 +1526,8 @@ const InstagramMessengerPage = () => {
                           src={gif.images.fixed_height.url}
                           alt={gif.title || 'GIF'}
                           style={{
-                            width: '100px',
-                            height: '100px',
+                            width: '80px',
+                            height: '80px',
                             borderRadius: '8px',
                             cursor: 'pointer',
                             objectFit: 'cover',
@@ -1460,7 +1537,7 @@ const InstagramMessengerPage = () => {
                       ))}
                     </Box>
                     {hasMoreGifs && (
-                      <Box sx={{ textAlign: 'center', mt: 2 }}>
+                      <Box sx={{ textAlign: 'center', mt: 1 }}>
                         <IconButton
                           onClick={loadMoreGifs}
                           disabled={isLoadingMoreGifs}
@@ -1468,13 +1545,15 @@ const InstagramMessengerPage = () => {
                             bgcolor: '#0095f6',
                             color: '#fff',
                             '&:hover': { bgcolor: '#007bb5' },
+                            padding: '6px',
+                            fontSize: '12px',
                           }}
                         >
                           {isLoadingMoreGifs ? (
-                            <CircularProgress size={24} sx={{ color: '#fff' }} />
+                            <CircularProgress size={20} sx={{ color: '#fff' }} />
                           ) : (
-                            <Typography sx={{ fontSize: '14px' }}>
-                              Load More
+                            <Typography sx={{ fontSize: '12px' }}>
+                              More
                             </Typography>
                           )}
                         </IconButton>
@@ -1483,16 +1562,15 @@ const InstagramMessengerPage = () => {
                   </>
                 ) : (
                   <Box sx={{ p: 2, textAlign: 'center' }}>
-                    <CircularProgress size={24} sx={{ color: '#0095f6' }} />
+                    <CircularProgress size={20} sx={{ color: '#0095f6' }} />
                   </Box>
                 )}
               </Box>
-            </Modal>
+            </Popper>
           </Box>
         )}
       </Box>
 
-      {/* MODIFIED: Improved Sidebar Tabs */}
       <Drawer
         anchor="right"
         open={isSidebarOpen}
