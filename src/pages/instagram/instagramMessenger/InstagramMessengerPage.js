@@ -106,10 +106,8 @@ const InstagramMessengerPage = () => {
   const [hasMoreGifs, setHasMoreGifs] = useState(true);
   const [isLoadingMoreGifs, setIsLoadingMoreGifs] = useState(false);
 
-  // NEW: Refs for pickers
   const emojiPickerRef = useRef(null);
   const gifPickerRef = useRef(null);
-
   const messagesEndRef = useRef(null);
   const mediaRecorderRef = useRef(null);
   const blobCache = useRef({});
@@ -119,33 +117,29 @@ const InstagramMessengerPage = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
-  // Format recording duration as MM:SS
   const formatDuration = (seconds) => {
     const minutes = Math.floor(seconds / 60);
     const secs = seconds % 60;
     return `${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
-  // NEW: Handle outside clicks for emoji and GIF pickers
   useEffect(() => {
     const handleClickOutside = (event) => {
-      // Emoji picker
       if (
         emojiAnchorEl &&
         emojiPickerRef.current &&
         !emojiPickerRef.current.contains(event.target) &&
         !emojiAnchorEl.contains(event.target)
       ) {
-        handleEmojiClose();
+        setEmojiAnchorEl(null);
       }
-      // GIF picker
       if (
         gifAnchorEl &&
         gifPickerRef.current &&
         !gifPickerRef.current.contains(event.target) &&
         !gifAnchorEl.contains(event.target)
       ) {
-        handleGifClose();
+        setGifAnchorEl(null);
       }
     };
 
@@ -155,7 +149,6 @@ const InstagramMessengerPage = () => {
     };
   }, [emojiAnchorEl, gifAnchorEl]);
 
-  // Function to share location as a URL
   const shareLocation = () => {
     if (!navigator.geolocation) {
       setError('Geolocation is not supported by your browser');
@@ -319,6 +312,7 @@ const InstagramMessengerPage = () => {
           reactions: message.reactions || [],
           status: message.status.toLowerCase(),
           repliedMessage: message.repliedMessage || null,
+          agentName: message.agentName,
         };
         setMessages((prev) => [...prev, newMessage]);
         scrollToBottom();
@@ -431,7 +425,7 @@ const InstagramMessengerPage = () => {
   }, [conversationSearchQuery]);
 
   useEffect(() => {
-    if (selectedConversationId) {
+    if( selectedConversationId) {
       const fetchMessages = async () => {
         setIsLoading(true);
         try {
@@ -464,6 +458,7 @@ const InstagramMessengerPage = () => {
               reactions: msg.reactions || [],
               status: msg.status.toLowerCase(),
               repliedMessage: msg.repliedMessage || null,
+              agentName: msg.agentName,
             }))
           );
           scrollToBottom();
@@ -511,6 +506,7 @@ const InstagramMessengerPage = () => {
           type: msg.messageType.toLowerCase(),
           reactions: msg.reactions || [],
           status: msg.status.toLowerCase(),
+          agentName: msg.agentName,
         }))
       );
     } catch (err) {
@@ -525,14 +521,14 @@ const InstagramMessengerPage = () => {
       .flatMap((msg) => msg.media.map((media) => ({ ...media, direction: msg.direction })));
 
   const getAudioFiles = () =>
-    messages
-      .filter((msg) => msg.type === 'audio')
-      .map((msg) => ({
-        type: 'audio',
-        url: msg.audioUrl,
-        name: msg.audioUrl.split('/').pop() || 'audio',
-        direction: msg.direction,
-      }));
+  messages
+    .filter((msg) => msg.type === 'audio')
+    .map((msg) => ({
+      type: 'audio',
+      url: msg.audioUrl,
+      name: msg.audioUrl.split('/').pop() || 'audio',
+      direction: msg.direction,
+    }));
 
   const getLinks = () =>
     messages
@@ -691,6 +687,7 @@ const InstagramMessengerPage = () => {
         type: messageType.toLowerCase(),
         direction: 'outbound',
         reactions: [],
+        agentName: cookies.get('agentName') ||  null,
       },
     ]);
     scrollToBottom();
@@ -706,6 +703,7 @@ const InstagramMessengerPage = () => {
           urls: urls,
           messageType: messageType,
           tempId: tempMessageId,
+          agentName: cookies.get('agentName') || 'Unknown Agent',
         }),
       });
       setMessages((prev) =>
@@ -877,6 +875,7 @@ const InstagramMessengerPage = () => {
           type: 'image',
           direction: 'outbound',
           reactions: [],
+          agentName: cookies.get('agentName') || 'Unknown Agent',
         },
       ]);
       scrollToBottom();
@@ -891,6 +890,7 @@ const InstagramMessengerPage = () => {
           urls: [gifUrl],
           messageType: 'Image',
           tempId: tempMessageId,
+          agentName: cookies.get('agentName') || 'Unknown Agent',
         }),
       });
 
@@ -1260,6 +1260,18 @@ const InstagramMessengerPage = () => {
                       ))}
                     </Box>
                   )}
+                  {msg.direction === 'outbound' && msg.agentName && (
+                    <Typography
+                      sx={{
+                        fontSize: '12px',
+                        color: '#8e8e8e',
+                        mt: 0.5,
+                        textAlign: 'right',
+                      }}
+                    >
+                      {msg.agentName}
+                    </Typography>
+                  )}
                   <Typography
                     sx={{
                       fontSize: '12px',
@@ -1446,7 +1458,7 @@ const InstagramMessengerPage = () => {
               }}
             >
               <Box
-                ref={emojiPickerRef} // NEW: Added ref
+                ref={emojiPickerRef}
                 sx={{
                   bgcolor: '#fff',
                   borderRadius: '12px',
@@ -1496,7 +1508,7 @@ const InstagramMessengerPage = () => {
               }}
             >
               <Box
-                ref={gifPickerRef} // NEW: Added ref
+                ref={gifPickerRef}
                 sx={{
                   bgcolor: '#fff',
                   borderRadius: '12px',
