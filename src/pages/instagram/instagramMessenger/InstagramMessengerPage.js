@@ -17,7 +17,6 @@ import {
   Tabs,
   Tab,
   Switch,
-  Popover,
 } from '@mui/material';
 import {
   Search,
@@ -26,14 +25,20 @@ import {
   PhotoCamera,
   Mic,
   Stop,
-  Favorite,
   MoreVert,
   Mood,
 } from '@mui/icons-material';
-import EmojiPicker from 'emoji-picker-react';
+import EmojiPicker from 'emoji-picker-react'; // Verify this import
 import connectToSignalR from '../../../utils/signalR/signalR';
 import { apiFetch } from '../../../api/instagram/chat/api';
 import { cookies } from '../../../utils/cookie';
+
+// Fallback if EmojiPicker fails
+const EmojiPickerFallback = () => (
+  <Box sx={{ p: 2, bgcolor: '#fff', borderRadius: '10px' }}>
+    <Typography color="error">Emoji picker failed to load</Typography>
+  </Box>
+);
 
 const InstagramMessengerPage = () => {
   // State
@@ -176,7 +181,7 @@ const InstagramMessengerPage = () => {
           timestamp: message.timestamp,
           direction: message.direction.toLowerCase(),
           type: messageType,
-          reactions: [],
+          reactions: message.reactions || [],
           status: message.status.toLowerCase(),
           repliedMessage: message.repliedMessage || null,
         };
@@ -219,6 +224,7 @@ const InstagramMessengerPage = () => {
     };
 
     const handleReactionReceived = (data) => {
+      console.log('Received reaction signalR:', data);
       setMessages((prev) =>
         prev.map((msg) =>
           msg.id === data.messageId
@@ -232,6 +238,7 @@ const InstagramMessengerPage = () => {
     };
 
     const handleUnreactionReceived = (data) => {
+      console.log('Received unreaction signalR:', data);
       setMessages((prev) =>
         prev.map((msg) =>
           msg.id === data.messageId
@@ -425,6 +432,7 @@ const InstagramMessengerPage = () => {
     setTabValue(0);
     setSubTabValue(0);
     setEmojiAnchorEl(null);
+    setMenuAnchorEl(null);
   };
 
   const handleFileChange = (event) => {
@@ -551,6 +559,7 @@ const InstagramMessengerPage = () => {
         status: 'sending',
         type: messageType.toLowerCase(),
         direction: 'outbound',
+        reactions: [],
       },
     ]);
     scrollToBottom();
@@ -588,31 +597,32 @@ const InstagramMessengerPage = () => {
     }
   };
 
-  const handleReact = async (messageId, reaction) => {
+  const handleReact = async (messageId) => {
     try {
       const message = messages.find((msg) => msg.id === messageId);
       if (!message) return;
 
-      const hasReaction = message.reactions?.includes(reaction);
+      const hasReaction = message.reactions?.includes('❤️');
+      const endpoint = hasReaction ? 'unreact' : 'react';
+      const payload = {
+        messageId,
+        visual: '❤️',
+        text: 'love',
+      };
 
-      const response = await apiFetch(
-        `/api/InstagramMessenger/${hasReaction ? 'unreact' : 'react'}`,
-        {
-          method: 'POST',
-          body: JSON.stringify({
-            messageId,
-            reaction,
-          }),
-        }
-      );
+      const response = await apiFetch(`/api/InstagramMessenger/${endpoint}`, {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      });
 
+      // Optimistic UI update
       if (hasReaction) {
         setMessages((prev) =>
           prev.map((msg) =>
             msg.id === messageId
               ? {
                   ...msg,
-                  reactions: msg.reactions.filter((r) => r !== reaction),
+                  reactions: msg.reactions.filter((r) => r !== '❤️'),
                 }
               : msg
           )
@@ -623,7 +633,7 @@ const InstagramMessengerPage = () => {
             msg.id === messageId
               ? {
                   ...msg,
-                  reactions: [...(msg.reactions || []), reaction],
+                  reactions: [...(msg.reactions || []), '❤️'],
                 }
               : msg
           )
@@ -718,7 +728,7 @@ const InstagramMessengerPage = () => {
       >
         <Typography
           variant="h5"
-          sx={{ fontWeight: 700, color: '#262626', mb: 2, pl: 1 ,textAlign:"left"}}
+          sx={{ fontWeight: 700, color: '#262626', mb: 2, pl: 1, textAlign: 'left' }}
         >
           Sohbet
         </Typography>
@@ -864,7 +874,8 @@ const InstagramMessengerPage = () => {
               fontWeight: 700,
               color: '#262626',
               flexGrow: 1,
-              cursor: 'pointer',textAlign:"left"
+              cursor: 'pointer',
+              textAlign: 'left',
             }}
             onClick={handleSidebarOpen}
           >
@@ -1191,21 +1202,23 @@ const InstagramMessengerPage = () => {
                 <Send />
               </IconButton>
             </Box>
-            <Popover
+            <Modal
               open={Boolean(emojiAnchorEl)}
-              anchorEl={emojiAnchorEl}
               onClose={handleEmojiClose}
-              anchorOrigin={{
-                vertical: 'top',
-                horizontal: 'right',
-              }}
-              transformOrigin={{
-                vertical: 'bottom',
-                horizontal: 'right',
+              sx={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
               }}
             >
-              <EmojiPicker onEmojiClick={handleEmojiClick} />
-            </Popover>
+              <Box sx={{ outline: 'none' }}>
+                {EmojiPicker ? (
+                  <EmojiPicker onEmojiClick={handleEmojiClick} emojiStyle="apple" />
+                ) : (
+                  <EmojiPickerFallback />
+                )}
+              </Box>
+            </Modal>
           </Box>
         )}
       </Box>
@@ -1261,6 +1274,16 @@ const InstagramMessengerPage = () => {
             }}
           >
             <ListItemText primary="Bildirim & Ses" />
+          </ListItem>
+          <ListItem
+            button
+            onClick={() => setOtnModalOpen(true)}
+            sx={{
+              bgcolor: tabValue === 3 ? '#efefef' : 'transparent',
+              borderRadius: '10px',
+            }}
+          >
+            <ListItemText primary="Request OTN" />
           </ListItem>
         </List>
         <Box sx={{ mt: 2 }}>
@@ -1504,29 +1527,10 @@ const InstagramMessengerPage = () => {
           sx: { borderRadius: '10px', boxShadow: '0 2px 8px rgba(0,0,0,0.15)' },
         }}
       >
-        <MenuItem
-          onClick={() => handleReact(selectedMessageId, '❤️')}
-          sx={{
-            color: messages
-              .find((msg) => msg.id === selectedMessageId)
-              ?.reactions?.includes('❤️')
-              ? '#0095f6'
-              : 'inherit',
-          }}
-        >
-          Heart
-        </MenuItem>
-        <MenuItem
-          onClick={() => handleReact(selectedMessageId, '😂')}
-          sx={{
-            color: messages
-              .find((msg) => msg.id === selectedMessageId)
-              ?.reactions?.includes('😂')
-              ? '#0095f6'
-              : 'inherit',
-          }}
-        >
-          Laugh
+        <MenuItem onClick={() => handleReact(selectedMessageId)}>
+          {messages.find((msg) => msg.id === selectedMessageId)?.reactions?.includes('❤️')
+            ? 'Unreact'
+            : 'React'}
         </MenuItem>
         <MenuItem onClick={() => setOtnModalOpen(true)}>
           Request OTN
@@ -1626,7 +1630,14 @@ const InstagramMessengerPage = () => {
                 color: '#fff',
               }}
             >
-              <Favorite />
+              <svg
+                width="24"
+                height="24"
+                viewBox="0 0 24 24"
+                fill="currentColor"
+              >
+                <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
+              </svg>
             </IconButton>
           </Box>
         </Box>
