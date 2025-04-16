@@ -147,8 +147,8 @@ const Sidebar = () => {
     if (error) {
       console.error('Error from server:', { error, details });
       setError(details || 'OAuth işlemi başarısız oldu. Lütfen tekrar giriş yapın.');
-      navigate('/instagram-chat-accounts');
-      window.history.replaceState({}, document.title, location.pathname);
+      // navigate('/instagram-chat-accounts');
+      // window.history.replaceState({}, document.title, location.pathname);
       return;
     }
 
@@ -177,7 +177,7 @@ const Sidebar = () => {
           }
         }
       }
-
+      console.log('Effective Account:', effectiveAccount);
       if (!effectiveAccount || !effectiveAccount.facebookAppId) {
         throw new Error('Hesap seçimi eksik veya geçersiz.');
       }
@@ -188,53 +188,23 @@ const Sidebar = () => {
         throw new Error('Geçersiz token. Lütfen tekrar giriş yapın.');
       }
 
-      // Fetch pages
-      const pagesResponse = await fetch(
-        `https://graph.facebook.com/v22.0/me/accounts?access_token=${longLivedToken}&app_id=${effectiveAccount.facebookAppId}`
-      );
-      const pagesData = await pagesResponse.json();
-      console.log('Pages response:', pagesData);
-
-      if (!pagesData.data || pagesData.data.length === 0) {
-        throw new Error('Bu kullanıcı için Facebook sayfası bulunamadı.');
-      }
-
-      const page = pagesData.data.find((p) => p.id === effectiveAccount.facebookPageId) || pagesData.data[0];
-      const pageId = page.id;
-      const pageAccessToken = page.access_token;
-
-      // Fetch Instagram business account
-      const igResponse = await fetch(
-        `https://graph.facebook.com/v22.0/${pageId}?fields=instagram_business_account&access_token=${pageAccessToken}&app_id=${effectiveAccount.facebookAppId}`
-      );
-      const igData = await igResponse.json();
-      console.log('Instagram business account response:', igData);
-
-      if (!igData.instagram_business_account) {
-        throw new Error('Bu sayfaya bağlı Instagram İşletme Hesabı bulunamadı.');
-      }
-
-      const instagramBusinessId = igData.instagram_business_account.id;
-
       // Store tokens
       console.log('Persisting to localStorage:', {
-        instagramChatAccessToken: pageAccessToken.substring(0, 10) + '...',
-        instagramChatPageId: pageId,
-        instagramBusinessId,
+        instagramChatAccessToken: longLivedToken.substring(0, 10) + '...',
+        instagramChatPageId: effectiveAccount.pageId,
         expiresIn,
         tokenCreatedAt: format(new Date(), 'yyyy-MM-dd'),
       });
-      localStorage.set('instagramChatAccessToken', pageAccessToken);
-      localStorage.set('instagramChatPageId', pageId);
-      localStorage.set('instagramBusinessId', instagramBusinessId);
+      localStorage.set('instagramChatAccessToken', longLivedToken);
+      localStorage.set('instagramChatPageId', effectiveAccount.facebookPageId);
       localStorage.set('tokenExpiresIn', expiresIn);
       localStorage.set('tokenCreatedAt', format(new Date(), 'yyyy-MM-dd'));
 
       // Update account token
       const updateSuccess = await updateAccountToken(
         effectiveAccount.companyId,
-        pageAccessToken,
-        pageId,
+        longLivedToken,
+        effectiveAccount.facebookPageId,
         expiresIn
       );
       if (!updateSuccess) {
@@ -253,6 +223,7 @@ const Sidebar = () => {
   };
 
   const fetchAccounts = async (type) => {
+    console.log("typeeee", type);
     setModalLoading(true);
     setModalError('');
     try {
@@ -316,25 +287,60 @@ const Sidebar = () => {
 
   const updateAccountToken = async (companyId, longLivedToken, pageId, expiresIn) => {
     console.log('Updating account with:', { companyId, longLivedToken, pageId, expiresIn });
+ 
+    const today = format(new Date(), 'yyyy-MM-dd');
+    let endpoint ="";
+    let body ={};
+    if (selectedAccount !== null) {
+       endpoint =
+      loginType === 'messenger'
+        ? `/api/MessengerAccount/${selectedAccount.id}`
+        : loginType === 'instagramChat'
+        ? `/api/InstagramMessengerAccount/${selectedAccount.id}`
+        : `/api/FacebookAccount/${selectedAccount.id}`;
+     body = {
+      id: selectedAccount.id,
+      facebookPageId: pageId || selectedAccount.facebookPageId,
+      facebookLongLiveAccessToken: longLivedToken,
+      longLiveAccessTokenCreatedAt: today,
+      expiresIn: expiresIn || 5184000,
+      facebookAppName: selectedAccount.facebookAppName,
+      facebookAppId: selectedAccount.facebookAppId,
+      graphApiVersion: selectedAccount.graphApiVersion || 'v22.0',
+      companyId: selectedAccount.companyId,
+      instagramAppId : selectedAccount.instagramAppId,
+      instagramAppSecret : selectedAccount.instagramAppSecret,
+    };
+    }
+    else  {
+      const storedAccountData1 =JSON.parse(localStorage('selectedAccount'));
+     const loginType1 = localStorage('oauthLoginType');
+     console.log('Stored Account Data:', storedAccountData1);
+     console.log('Login Type:', loginType1);
+      endpoint =
+      loginType1 === 'messenger'
+        ? `/api/MessengerAccount/${storedAccountData1.id}`
+        : loginType1 === 'instagramChat'
+        ? `/api/InstagramMessengerAccount/${storedAccountData1.id}`
+        : `/api/FacebookAccount/${storedAccountData1.id}`;
+     body = {
+      id: storedAccountData1.id,
+      instagramAppId : storedAccountData1.instagramAppId,
+      instagramAppSecret : storedAccountData1.instagramAppSecret,
+      facebookPageId: pageId || storedAccountData1.facebookPageId,
+      facebookLongLiveAccessToken: longLivedToken,
+      longLiveAccessTokenCreatedAt: today,
+      expiresIn: expiresIn || 5184000,
+      facebookAppName: storedAccountData1.facebookAppName,
+      facebookAppId: storedAccountData1.facebookAppId,
+      graphApiVersion: storedAccountData1.graphApiVersion || 'v22.0',
+      companyId: storedAccountData1.companyId,
+    };
+
+    }
+  
     try {
-      const today = format(new Date(), 'yyyy-MM-dd');
-      const endpoint =
-        loginType === 'messenger'
-          ? `/api/MessengerAccount/${selectedAccount.id}`
-          : loginType === 'instagramChat'
-          ? `/api/InstagramMessengerAccount/${selectedAccount.id}`
-          : `/api/FacebookAccount/${selectedAccount.id}`;
-      const body = {
-        id: selectedAccount.id,
-        facebookPageId: pageId || selectedAccount.facebookPageId,
-        facebookLongLiveAccessToken: longLivedToken,
-        longLiveAccessTokenCreatedAt: today,
-        expiresIn: expiresIn || 5184000,
-        facebookAppName: selectedAccount.facebookAppName,
-        facebookAppId: selectedAccount.facebookAppId,
-        graphApiVersion: selectedAccount.graphApiVersion || 'v22.0',
-        companyId: selectedAccount.companyId,
-      };
+
       const response = await apiFetch(endpoint, {
         method: 'PUT',
         body: JSON.stringify(body),
@@ -413,21 +419,53 @@ const Sidebar = () => {
   const validateInstagramToken = async (accessToken) => {
     try {
       console.log('Validating Instagram access token');
-      const response = await fetch(
-        `https://graph.instagram.com/debug_token?input_token=${accessToken}&access_token=${selectedAccount.facebookAppId}|${selectedAccount.facebookAppSecret}`
+  
+      // Step 1: Test basic token validity with a simple call
+      const basicResponse = await fetch(
+        `https://graph.instagram.com/me?fields=id,username&access_token=${accessToken}`
       );
-      const data = await response.json();
-      console.log('Token validation response:', data);
-      if (data.data && data.data.is_valid) {
-        const grantedScopes = data.data.scopes || [];
-        const requiredScopes = ['instagram_business_basic', 'instagram_business_manage_messages'];
-        const missingScopes = requiredScopes.filter((scope) => !grantedScopes.includes(scope));
-        if (missingScopes.length > 0) {
-          throw new Error(`Eksik izinler: ${missingScopes.join(', ')}. Lütfen tekrar yetkilendirin.`);
-        }
-        return true;
+      const basicData = await basicResponse.json();
+      console.log('Basic validation response:', basicData);
+  
+      if (basicResponse.status !== 200 || basicData.error) {
+        throw new Error(
+          basicData.error?.message || 'Invalid token or missing instagram_business_basic permission'
+        );
       }
-      return false;
+  
+      // Step 2: Check required scopes
+      const requiredScopes = ['instagram_business_basic', 'instagram_business_manage_messages'];
+      const missingScopes = [];
+  
+      // Test instagram_business_basic (already partially tested via /me)
+      const mediaResponse = await fetch(
+        `https://graph.instagram.com/me/media?fields=id,caption&access_token=${accessToken}`
+      );
+      const mediaData = await mediaResponse.json();
+      if (mediaResponse.status !== 200 || mediaData.error) {
+        if (mediaResponse.status === 403 && mediaData.error?.code === 190) {
+          missingScopes.push('instagram_business_basic');
+        }
+      }
+  
+      // Test instagram_business_manage_messages
+      const conversationsResponse = await fetch(
+        `https://graph.instagram.com/me/conversations?fields=id&access_token=${accessToken}`
+      );
+      const conversationsData = await conversationsResponse.json();
+      if (conversationsResponse.status !== 200 || conversationsData.error) {
+        if (conversationsResponse.status === 403 && conversationsData.error?.code === 190) {
+          missingScopes.push('instagram_business_manage_messages');
+        }
+      }
+  
+      // Step 3: Check if any scopes are missing
+      if (missingScopes.length > 0) {
+        throw new Error(`Eksik izinler: ${missingScopes.join(', ')}. Lütfen tekrar yetkilendirin.`);
+      }
+  
+      console.log('All required scopes are present');
+      return true;
     } catch (error) {
       console.error('Error validating Instagram token:', error);
       setError(error.message || 'Token doğrulama hatası. Lütfen tekrar deneyin.');
@@ -463,6 +501,8 @@ const Sidebar = () => {
     localStorage.set('oauthLoginType', 'instagramChat');
     localStorage.set('selectedAccount', JSON.stringify({
       id: selectedAccount.id,
+      instagramAppId: selectedAccount.instagramAppId,
+      instagramAppSecret: selectedAccount.instagramAppSecret,
       facebookAppId: selectedAccount.facebookAppId,
       facebookAppName: selectedAccount.facebookAppName,
       facebookPageId: selectedAccount.facebookPageId,
@@ -634,7 +674,7 @@ const Sidebar = () => {
       } else if (loginType === 'messenger') {
         fetchMessengerData(token);
       } else if (loginType === 'instagramChat') {
-        fetchInstagramChatData(token);
+        // fetchInstagramChatData(token);
       }
 
       handleCloseModal();
@@ -646,68 +686,6 @@ const Sidebar = () => {
     }
   };
 
-  const fetchInstagramChatData = async (accessToken) => {
-    setLoading(true);
-    setError(null);
-    try {
-      console.log('Fetching Instagram Chat data with token');
-      const isValid = await validateInstagramToken(accessToken);
-      if (!isValid) {
-        throw new Error('Geçersiz veya süresi dolmuş token');
-      }
-
-      const pagesResponse = await fetch(
-        `https://graph.facebook.com/v22.0/me/accounts?access_token=${accessToken}&app_id=${selectedAccount.facebookAppId}`
-      );
-      const pagesData = await pagesResponse.json();
-      console.log('Pages response:', pagesData);
-      if (pagesData.data && pagesData.data.length > 0) {
-        const page = pagesData.data.find((p) => p.id === selectedAccount.facebookPageId) || pagesData.data[0];
-        const pageId = page.id;
-        const pageAccessToken = page.access_token;
-        localStorage.set('instagramChatPageId', pageId);
-        localStorage.set('instagramChatAccessToken', pageAccessToken);
-
-        const igResponse = await fetch(
-          `https://graph.facebook.com/v22.0/${pageId}?fields=instagram_business_account&access_token=${pageAccessToken}&app_id=${selectedAccount.facebookAppId}`
-        );
-        const igData = await igResponse.json();
-        console.log('Instagram business account response:', igData);
-        if (igData.instagram_business_account) {
-          const instagramBusinessId = igData.instagram_business_account.id;
-          localStorage.set('instagramBusinessId', instagramBusinessId);
-
-          await apiFetch('/api/InstagramMessengerAccount', {
-            method: 'POST',
-            body: JSON.stringify({
-              facebookPageId: pageId,
-              facebookLongLiveAccessToken: pageAccessToken,
-              facebookAppName: selectedAccount.facebookAppName,
-              facebookAppId: selectedAccount.facebookAppId,
-              graphApiVersion: 'v22.0',
-              companyId: selectedAccount.companyId,
-              longLiveAccessTokenCreatedAt: format(new Date(), 'yyyy-MM-dd'),
-              expiresIn: localStorage.get('tokenExpiresIn') || 5184000,
-            }),
-          });
-          navigate('/instagram-chat');
-        } else {
-          throw new Error('Bu sayfaya bağlı Instagram İşletme Hesabı bulunamadı.');
-        }
-      } else {
-        throw new Error('Bu kullanıcı için Facebook sayfası bulunamadı.');
-      }
-    } catch (error) {
-      console.error('Error fetching Instagram Chat data:', error);
-      setError('Instagram Chat bağlantısı başarısız. Lütfen tekrar giriş yapın.');
-      localStorage.remove('instagramChatAccessToken');
-      localStorage.remove('instagramChatPageId');
-      localStorage.remove('instagramBusinessId');
-      navigate('/instagram-chat-accounts');
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const fetchMessengerData = async (accessToken) => {
     setLoading(true);

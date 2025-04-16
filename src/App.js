@@ -55,7 +55,7 @@ import FacebookAccountEditForInstagram  from './pages/instagram/facebookProfileA
 import InstagramMessengerAccountListForInstagram from './pages/instagram/instagramMessengerAccount/InstagramMessengerAccountList.js';
 import InstagramMessengerAccountCreateForInstagram from './pages/instagram/instagramMessengerAccount/InstagramMessengerAccountCreate.js'; 
 import InstagramMessengerAccountEditForInstagram  from './pages/instagram/instagramMessengerAccount/InstagramMessengerAccountEdit.js';
-import InstagramChat  from './pages/instagram/instagramMessenger/Chat.js';
+import InstagramChat  from './pages/instagram/instagramMessenger/InstagramMessengerPage.js';
 
 
 

@@ -88,7 +88,7 @@ const AccountForm = ({ initialData = {}, onSubmit, isEdit = false, loading = fal
         longLiveAccessTokenCreatedAt: formData.longLiveAccessTokenCreatedAt || null,
       });
       if (success) {
-        navigate('/facebook-accounts');
+        navigate('/instagram-chat-accounts');
       }
     } catch (error) {
       setErrors({ submit: error.message || 'Bir hata oluştu' });
