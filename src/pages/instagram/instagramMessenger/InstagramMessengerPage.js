@@ -17,6 +17,7 @@ import {
   Tabs,
   Tab,
   Switch,
+  Divider, // NEW: Added for separating tabs from content
 } from '@mui/material';
 import {
   Search,
@@ -51,6 +52,26 @@ const GifPickerFallback = () => (
     <Typography color="error">GIF picker failed to load</Typography>
   </Box>
 );
+
+// NEW: TabPanel component for cleaner tab content rendering
+function TabPanel(props) {
+  const { children, value, index, ...other } = props;
+  return (
+    <div
+      role="tabpanel"
+      hidden={value !== index}
+      id={`sidebar-tabpanel-${index}`}
+      aria-labelledby={`sidebar-tab-${index}`}
+      {...other}
+    >
+      {value === index && (
+        <Box sx={{ p: 2 }}>
+          {children}
+        </Box>
+      )}
+    </div>
+  );
+}
 
 const InstagramMessengerPage = () => {
   // State
@@ -112,7 +133,7 @@ const InstagramMessengerPage = () => {
         const { latitude, longitude } = position.coords;
         const mapUrl = `https://www.google.com/maps?q=${latitude},${longitude}`;
         setNewMessage(mapUrl);
-        sendMessage(); // Send the URL as a text message
+        sendMessage();
       },
       (err) => {
         setError(`Failed to get location: ${err.message}`);
@@ -365,7 +386,7 @@ const InstagramMessengerPage = () => {
             name: conv.name,
             profilePicture: conv.profilePicture || 'https://via.placeholder.com/40',
             lastMessage: {
-              text: conv.lastMessage?.text || '', // FIXED: Changed 'env' to 'conv'
+              text: conv.lastMessage?.text || '',
               timestamp: conv.lastMessage?.timestamp || new Date().toISOString(),
             },
             unviewedCount: conv.unviewedCount,
@@ -464,7 +485,7 @@ const InstagramMessengerPage = () => {
           direction: msg.direction.toLowerCase(),
           type: msg.messageType.toLowerCase(),
           reactions: msg.reactions || [],
-          status: msg.status.toLowerCase(), // FIXED: Changed 'personally' to 'msg'
+          status: msg.status.toLowerCase(),
         }))
       );
     } catch (err) {
@@ -518,7 +539,7 @@ const InstagramMessengerPage = () => {
     const selectedFiles = Array.from(event.target.files);
     const maxSizeMB = 20;
     const validFiles = selectedFiles.filter((file) => {
-      const isValidType = file.type.startsWith('image/') || file.type.startsWith('video/');
+      const isValidType = file.type.startsWith('image/') || file.type.startsWith('videoSIG/');
       const isValidSize = file.size / 1024 / 1024 <= maxSizeMB;
       return isValidType && isValidSize;
     });
@@ -1471,6 +1492,7 @@ const InstagramMessengerPage = () => {
         )}
       </Box>
 
+      {/* MODIFIED: Improved Sidebar Tabs */}
       <Drawer
         anchor="right"
         open={isSidebarOpen}
@@ -1480,6 +1502,7 @@ const InstagramMessengerPage = () => {
             width: { xs: '100%', sm: '400px' },
             bgcolor: '#fff',
             p: 2,
+            boxSizing: 'border-box',
           },
         }}
       >
@@ -1494,258 +1517,393 @@ const InstagramMessengerPage = () => {
         <Tabs
           value={tabValue}
           onChange={handleTabChange}
-          sx={{ mb: 2 }}
-          variant="fullWidth"
+          variant="scrollable"
+          scrollButtons="auto"
+          sx={{
+            mb: 1,
+            bgcolor: '#fafafa',
+            borderRadius: '10px',
+            '.MuiTabs-indicator': {
+              backgroundColor: '#0095f6',
+              height: 3,
+            },
+          }}
+          aria-label="Sidebar navigation tabs"
         >
-          <Tab label="Search" />
-          <Tab label="Media & Files" />
-          <Tab label="Notifications" />
-          <Tab label="OTN" />
+          <Tab
+            label="Search"
+            sx={{
+              textTransform: 'none',
+              fontSize: '14px',
+              fontWeight: 500,
+              color: '#262626',
+              '&.Mui-selected': {
+                color: '#0095f6',
+                fontWeight: 700,
+              },
+              '&:hover': {
+                bgcolor: '#f0f0f0',
+                borderRadius: '10px',
+              },
+              minHeight: '40px',
+              px: 2,
+            }}
+          />
+          <Tab
+            label="Media & Files"
+            sx={{
+              textTransform: 'none',
+              fontSize: '14px',
+              fontWeight: 500,
+              color: '#262626',
+              '&.Mui-selected': {
+                color: '#0095f6',
+                fontWeight: 700,
+              },
+              '&:hover': {
+                bgcolor: '#f0f0f0',
+                borderRadius: '10px',
+              },
+              minHeight: '40px',
+              px: 2,
+            }}
+          />
+          <Tab
+            label="Notifications"
+            sx={{
+              textTransform: 'none',
+              fontSize: '14px',
+              fontWeight: 500,
+              color: '#262626',
+              '&.Mui-selected': {
+                color: '#0095f6',
+                fontWeight: 700,
+              },
+              '&:hover': {
+                bgcolor: '#f0f0f0',
+                borderRadius: '10px',
+              },
+              minHeight: '40px',
+              px: 2,
+            }}
+          />
+          <Tab
+            label="OTN"
+            sx={{
+              textTransform: 'none',
+              fontSize: '14px',
+              fontWeight: 500,
+              color: '#262626',
+              '&.Mui-selected': {
+                color: '#0095f6',
+                fontWeight: 700,
+              },
+              '&:hover': {
+                bgcolor: '#f0f0f0',
+                borderRadius: '10px',
+              },
+              minHeight: '40px',
+              px: 2,
+            }}
+          />
         </Tabs>
-        <Box sx={{ mt: 2 }}>
-          {tabValue === 0 && (
-            <Box>
-              <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-                <InputBase
-                  placeholder="Search in conversation..."
-                  value={messageSearchQuery}
-                  onChange={(e) => setMessageSearchQuery(e.target.value)}
-                  onKeyPress={(e) => {
-                    if (e.key === 'Enter') {
-                      handleMessageSearch();
-                    }
-                  }}
-                  sx={{
-                    flexGrow: 1,
-                    bgcolor: '#efefef',
-                    p: 1,
-                    borderRadius: '10px',
-                    fontSize: '15px',
-                  }}
-                />
-                <IconButton
-                  onClick={handleMessageSearch}
-                  sx={{ ml: 1, color: '#0095f6' }}
-                >
-                  <Search />
-                </IconButton>
-              </Box>
-              <List>
-                {searchedMessages.length === 0 ? (
-                  <Typography sx={{ color: '#8e8e8e', textAlign: 'center' }}>
-                    Sonuç bulunamadı.
+        <Divider sx={{ mb: 2, bgcolor: '#dbdbdb' }} />
+        <Box>
+          <TabPanel value={tabValue} index={0}>
+            <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+              <InputBase
+                placeholder="Search in conversation..."
+                value={messageSearchQuery}
+                onChange={(e) => setMessageSearchQuery(e.target.value)}
+                onKeyPress={(e) => {
+                  if (e.key === 'Enter') {
+                    handleMessageSearch();
+                  }
+                }}
+                sx={{
+                  flexGrow: 1,
+                  bgcolor: '#efefef',
+                  p: 1,
+                  borderRadius: '10px',
+                  fontSize: '15px',
+                }}
+              />
+              <IconButton
+                onClick={handleMessageSearch}
+                sx={{ ml: 1, color: '#0095f6' }}
+              >
+                <Search />
+              </IconButton>
+            </Box>
+            <List>
+              {searchedMessages.length === 0 ? (
+                <Typography sx={{ color: '#8e8e8e', textAlign: 'center' }}>
+                  Sonuç bulunamadı.
+                </Typography>
+              ) : (
+                searchedMessages.map((msg) => (
+                  <ListItem
+                    key={msg.id}
+                    sx={{
+                      bgcolor: '#f5f5f5',
+                      borderRadius: '10px',
+                      mb: 1,
+                      p: 2,
+                    }}
+                  >
+                    <Box>
+                      <Typography sx={{ fontSize: '14px', color: '#262626' }}>
+                        {msg.text}
+                      </Typography>
+                      <Typography sx={{ fontSize: '12px', color: '#8e8e8e' }}>
+                        {new Date(msg.timestamp).toLocaleString()}
+                      </Typography>
+                    </Box>
+                  </ListItem>
+                ))
+              )}
+            </List>
+          </TabPanel>
+          <TabPanel value={tabValue} index={1}>
+            <Tabs
+              value={subTabValue}
+              onChange={handleSubTabChange}
+              variant="scrollable"
+              scrollButtons="auto"
+              sx={{
+                mb: 2,
+                '.MuiTabs-indicator': {
+                  backgroundColor: '#0095f6',
+                  height: 2,
+                },
+              }}
+              aria-label="Media and files sub-tabs"
+            >
+              <Tab
+                label="Media"
+                sx={{
+                  textTransform: 'none',
+                  fontSize: '13px',
+                  fontWeight: 500,
+                  color: '#262626',
+                  '&.Mui-selected': {
+                    color: '#0095f6',
+                  },
+                  '&:hover': {
+                    bgcolor: '#f0f0f0',
+                    borderRadius: '8px',
+                  },
+                  minHeight: '36px',
+                  px: 1.5,
+                }}
+              />
+              <Tab
+                label="Files"
+                sx={{
+                  textTransform: 'none',
+                  fontSize: '13px',
+                  fontWeight: 500,
+                  color: '#262626',
+                  '&.Mui-selected': {
+                    color: '#0095f6',
+                  },
+                  '&:hover': {
+                    bgcolor: '#f0f0f0',
+                    borderRadius: '8px',
+                  },
+                  minHeight: '36px',
+                  px: 1.5,
+                }}
+              />
+              <Tab
+                label="Links"
+                sx={{
+                  textTransform: 'none',
+                  fontSize: '13px',
+                  fontWeight: 500,
+                  color: '#262626',
+                  '&.Mui-selected': {
+                    color: '#0095f6',
+                  },
+                  '&:hover': {
+                    bgcolor: '#f0f0f0',
+                    borderRadius: '8px',
+                  },
+                  minHeight: '36px',
+                  px: 1.5,
+                }}
+              />
+            </Tabs>
+            {subTabValue === 0 && (
+              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                {getMediaFiles().length === 0 ? (
+                  <Typography sx={{ color: '#8e8e8e' }}>
+                    No media found.
                   </Typography>
                 ) : (
-                  searchedMessages.map((msg) => (
-                    <ListItem
-                      key={msg.id}
+                  getMediaFiles().map((media, index) => (
+                    <Box key={index} sx={{ width: '100px' }}>
+                      {['image', 'sticker'].includes(media.type) ? (
+                        <>
+                          <img
+                            src={
+                              media.direction === 'outbound'
+                                ? imageBlobs[media.url] || media.url
+                                : media.url
+                            }
+                            alt={media.name}
+                            style={{
+                              width: '100px',
+                              height: '100px',
+                              borderRadius: '12px',
+                              objectFit: 'cover',
+                              boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                              border: '1px solid #dbdbdb',
+                            }}
+                            onError={(e) => {
+                              console.error(
+                                'Failed to load sidebar image:',
+                                media.url
+                              );
+                              e.target.style.display = 'none';
+                              e.target.nextSibling.style.display = 'block';
+                            }}
+                          />
+                          <Typography
+                            sx={{ display: 'none', color: 'red', mt: 1 }}
+                          >
+                            Medya yüklenemedi
+                          </Typography>
+                        </>
+                      ) : media.type === 'video' ? (
+                        <>
+                          <video
+                            src={
+                              media.direction === 'outbound'
+                                ? imageBlobs[media.url] || media.url
+                                : media.url
+                            }
+                            controls
+                            style={{
+                              width: '100px',
+                              height: '100px',
+                              borderRadius: '12px',
+                              objectFit: 'cover',
+                              boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                              border: '1px solid #dbdbdb',
+                            }}
+                            onError={(e) => {
+                              console.error(
+                                'Failed to load sidebar video:',
+                                media.url
+                              );
+                              e.target.style.display = 'none';
+                              e.target.nextSibling.style.display = 'block';
+                            }}
+                          />
+                          <Typography
+                            sx={{ display: 'none', color: 'red', mt: 1 }}
+                          >
+                            Medya yüklenemedi
+                          </Typography>
+                        </>
+                      ) : null}
+                    </Box>
+                  ))
+                )}
+              </Box>
+            )}
+            {subTabValue === 1 && (
+              <Box>
+                {getAudioFiles().length === 0 ? (
+                  <Typography sx={{ color: 'red' }}>
+                    No files found.
+                  </Typography>
+                ) : (
+                  getAudioFiles().map((file, index) => (
+                    <Box
+                      key={index}
                       sx={{
                         bgcolor: '#f5f5f5',
                         borderRadius: '10px',
-                        mb: 1,
                         p: 2,
+                        mb: 1,
                       }}
                     >
-                      <Box>
-                        <Typography sx={{ fontSize: '14px', color: '#262626' }}>
-                          {msg.text}
-                        </Typography>
-                        <Typography sx={{ fontSize: '12px', color: '#8e8e8e' }}>
-                          {new Date(msg.timestamp).toLocaleString()}
-                        </Typography>
-                      </Box>
-                    </ListItem>
+                      <audio
+                        src={
+                          file.direction === 'outbound'
+                            ? imageBlobs[file.url] || file.url
+                            : file.url
+                        }
+                        controls
+                        style={{ width: '100%' }}
+                        onError={(e) => {
+                          console.error(
+                            'Failed to load sidebar audio:',
+                            file.url
+                          );
+                        }}
+                      />
+                    </Box>
                   ))
                 )}
-              </List>
-            </Box>
-          )}
-          {tabValue === 1 && (
-            <Box>
-              <Tabs
-                value={subTabValue}
-                onChange={handleSubTabChange}
-                sx={{ mb: 2 }}
-              >
-                <Tab label="Media" />
-                <Tab label="Files" />
-                <Tab label="Links" />
-              </Tabs>
-              {subTabValue === 0 && (
-                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-                  {getMediaFiles().length === 0 ? (
-                    <Typography sx={{ color: '#8e8e8e' }}>
-                      No media found.
-                    </Typography>
-                  ) : (
-                    getMediaFiles().map((media, index) => (
-                      <Box key={index} sx={{ width: '100px' }}>
-                        {['image', 'sticker'].includes(media.type) ? (
-                          <>
-                            <img
-                              src={
-                                media.direction === 'outbound'
-                                  ? imageBlobs[media.url] || media.url
-                                  : media.url
-                              }
-                              alt={media.name}
-                              style={{
-                                width: '100px',
-                                height: '100px',
-                                borderRadius: '12px',
-                                objectFit: 'cover',
-                                boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-                                border: '1px solid #dbdbdb',
-                              }}
-                              onError={(e) => {
-                                console.error(
-                                  'Failed to load sidebar image:',
-                                  media.url
-                                );
-                                e.target.style.display = 'none';
-                                e.target.nextSibling.style.display = 'block';
-                              }}
-                            />
-                            <Typography
-                              sx={{ display: 'none', color: 'red', mt: 1 }}
-                            >
-                              Medya yüklenemedi
-                            </Typography>
-                          </>
-                        ) : media.type === 'video' ? (
-                          <>
-                            <video
-                              src={
-                                media.direction === 'outbound'
-                                  ? imageBlobs[media.url] || media.url
-                                  : media.url
-                              }
-                              controls
-                              style={{
-                                width: '100px',
-                                height: '100px',
-                                borderRadius: '12px',
-                                objectFit: 'cover',
-                                boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-                                border: '1px solid #dbdbdb',
-                              }}
-                              onError={(e) => {
-                                console.error(
-                                  'Failed to load sidebar video:',
-                                  media.url
-                                );
-                                e.target.style.display = 'none';
-                                e.target.nextSibling.style.display = 'block';
-                              }}
-                            />
-                            <Typography
-                              sx={{ display: 'none', color: 'red', mt: 1 }}
-                            >
-                              Medya yüklenemedi
-                            </Typography>
-                          </>
-                        ) : null}
-                      </Box>
-                    ))
-                  )}
-                </Box>
-              )}
-              {subTabValue === 1 && (
-                <Box>
-                  {getAudioFiles().length === 0 ? (
-                    <Typography sx={{ color: 'red' }}>
-                      No files found.
-                    </Typography>
-                  ) : (
-                    getAudioFiles().map((file, index) => (
-                      <Box
-                        key={index}
-                        sx={{
-                          bgcolor: '#f5f5f5',
-                          borderRadius: '10px',
-                          p: 2,
-                          mb: 1,
-                        }}
-                      >
-                        <audio
-                          src={
-                            file.direction === 'outbound'
-                              ? imageBlobs[file.url] || file.url
-                              : file.url
-                          }
-                          controls
-                          style={{ width: '100%' }}
-                          onError={(e) => {
-                            console.error(
-                              'Failed to load sidebar audio:',
-                              file.url
-                            );
-                          }}
-                        />
-                      </Box>
-                    ))
-                  )}
-                </Box>
-              )}
-              {subTabValue === 2 && (
-                <Box>
-                  {getLinks().length === 0 ? (
-                    <Typography sx={{ color: '#8e8e8e' }}>
-                      No links found.
-                    </Typography>
-                  ) : (
-                    getLinks().map((link, index) => (
-                      <Box
-                        key={index}
-                        sx={{
-                          bgcolor: '#f5f5f5',
-                          borderRadius: '10px',
-                          p: 2,
-                          mb: 1,
-                        }}
-                      >
-                        <Typography
-                          sx={{ color: '#0095f6', cursor: 'pointer' }}
-                          onClick={() => window.open(link.url, '_blank')}
-                        >
-                          {link.name}
-                        </Typography>
-                      </Box>
-                    ))
-                  )}
-                </Box>
-              )}
-            </Box>
-          )}
-          {tabValue === 2 && (
-            <Box sx={{ p: 2 }}>
-              <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                <Typography sx={{ flexGrow: 1, color: '#262626' }}>
-                  Bildirim ve Ses
-                </Typography>
-                <Switch
-                  checked={playNotificationSound}
-                  onChange={handleNotificationSoundToggle}
-                  color="primary"
-                />
               </Box>
+            )}
+            {subTabValue === 2 && (
+              <Box>
+                {getLinks().length === 0 ? (
+                  <Typography sx={{ color: '#8e8e8e' }}>
+                    No links found.
+                  </Typography>
+                ) : (
+                  getLinks().map((link, index) => (
+                    <Box
+                      key={index}
+                      sx={{
+                        bgcolor: '#f5f5f5',
+                        borderRadius: '10px',
+                        p: 2,
+                        mb: 1,
+                      }}
+                    >
+                      <Typography
+                        sx={{ color: '#0095f6', cursor: 'pointer' }}
+                        onClick={() => window.open(link.url, '_blank')}
+                      >
+                        {link.name}
+                      </Typography>
+                    </Box>
+                  ))
+                )}
+              </Box>
+            )}
+          </TabPanel>
+          <TabPanel value={tabValue} index={2}>
+            <Box sx={{ display: 'flex', alignItems: 'center' }}>
+              <Typography sx={{ flexGrow: 1, color: '#262626' }}>
+                Bildirim ve Ses
+              </Typography>
+              <Switch
+                checked={playNotificationSound}
+                onChange={handleNotificationSoundToggle}
+                color="primary"
+              />
             </Box>
-          )}
-          {tabValue === 3 && (
-            <Box sx={{ p: 2 }}>
-              <ListItem
-                button
-                onClick={() => setOtnModalOpen(true)}
-                sx={{
-                  bgcolor: '#efefef',
-                  borderRadius: '10px',
-                  justifyContent: 'center',
-                }}
-              >
-                <ListItemText primary="Request OTN" />
-              </ListItem>
-            </Box>
-          )}
+          </TabPanel>
+          <TabPanel value={tabValue} index={3}>
+            <ListItem
+              button
+              onClick={() => setOtnModalOpen(true)}
+              sx={{
+                bgcolor: '#efefef',
+                borderRadius: '10px',
+                justifyContent: 'center',
+              }}
+            >
+              <ListItemText primary="Request OTN" />
+            </ListItem>
+          </TabPanel>
         </Box>
       </Drawer>
 
