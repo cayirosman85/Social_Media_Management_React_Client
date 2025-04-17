@@ -39,23 +39,23 @@ import connectToSignalR from '../../../utils/signalR/signalR';
 import { apiFetch } from '../../../api/instagram/chat/api';
 import { cookies } from '../../../utils/cookie';
 
-// Initialize Giphy with API key
+// Giphy API ile başlatma
 const giphy = new GiphyFetch(process.env.REACT_APP_GIPHY_API_KEY || 'oB1EVOJbfDDYYo40epom83LAzoC3jALn');
 
-// Fallbacks
+// Yedek bileşenler
 const EmojiPickerFallback = () => (
   <Box sx={{ p: 2, bgcolor: '#fff', borderRadius: '10px' }}>
-    <Typography color="error">Emoji picker failed to load</Typography>
+    <Typography color="error">Emoji seçici yüklenemedi</Typography>
   </Box>
 );
 
 const GifPickerFallback = () => (
   <Box sx={{ p: 2, bgcolor: '#fff', borderRadius: '10px' }}>
-    <Typography color="error">GIF picker failed to load</Typography>
+    <Typography color="error">GIF seçici yüklenemedi</Typography>
   </Box>
 );
 
-// TabPanel component for sidebar tabs
+// Sekme paneli bileşeni
 function TabPanel(props) {
   const { children, value, index, ...other } = props;
   return (
@@ -72,7 +72,7 @@ function TabPanel(props) {
 }
 
 const InstagramMessengerPage = () => {
-  // State
+  // Durumlar
   const [conversations, setConversations] = useState([]);
   const [selectedConversationId, setSelectedConversationId] = useState(null);
   const [messages, setMessages] = useState([]);
@@ -96,8 +96,6 @@ const InstagramMessengerPage = () => {
   const [playNotificationSound, setPlayNotificationSound] = useState(true);
   const [emojiAnchorEl, setEmojiAnchorEl] = useState(null);
   const [gifAnchorEl, setGifAnchorEl] = useState(null);
-
-
   const [imageBlobs, setImageBlobs] = useState({});
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [gifs, setGifs] = useState([]);
@@ -112,7 +110,7 @@ const InstagramMessengerPage = () => {
   const [hasMoreConversations, setHasMoreConversations] = useState(true);
   const [isLoadingMoreConversations, setIsLoadingMoreConversations] = useState(false);
 
-  // Refs
+  // Referanslar
   const emojiPickerRef = useRef(null);
   const gifPickerRef = useRef(null);
   const mediaRecorderRef = useRef(null);
@@ -123,7 +121,7 @@ const InstagramMessengerPage = () => {
   const blobCache = useRef({});
   const timerRef = useRef(null);
 
-  // Utility Functions
+  // Yardımcı Fonksiyonlar
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
@@ -134,7 +132,7 @@ const InstagramMessengerPage = () => {
     return `${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
-  // IntersectionObserver for infinite scroll
+  // Sonsuz kaydırma için IntersectionObserver
   const lastConversationElementRef = useCallback(
     (node) => {
       if (isLoading || isLoadingMoreConversations) return;
@@ -149,7 +147,7 @@ const InstagramMessengerPage = () => {
     [isLoading, isLoadingMoreConversations, hasMoreConversations]
   );
 
-  // Handle outside clicks for emoji and GIF pickers
+  // Emoji ve GIF seçiciler için dışarıya tıklama işlemi
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (
@@ -176,10 +174,10 @@ const InstagramMessengerPage = () => {
     };
   }, [emojiAnchorEl, gifAnchorEl]);
 
-  // Share Location
+  // Konum Paylaşımı
   const shareLocation = () => {
     if (!navigator.geolocation) {
-      setError('Geolocation is not supported by your browser');
+      setError('Tarayıcınız konum servisini desteklemiyor');
       setErrorModalOpen(true);
       return;
     }
@@ -191,29 +189,29 @@ const InstagramMessengerPage = () => {
         sendMessage();
       },
       (err) => {
-        setError(`Failed to get location: ${err.message}`);
+        setError(`Konum alınamadı: ${err.message}`);
         setErrorModalOpen(true);
       },
       { enableHighAccuracy: true, timeout: 10000 }
     );
   };
 
-  // Load GIFs
+  // GIF Yükleme
   const loadGifs = async (offset = 0, append = false) => {
     try {
       setIsLoadingMoreGifs(true);
       const limit = 40;
       const result = await giphy.trending({ limit, offset });
       if (!result.data || !Array.isArray(result.data)) {
-        throw new Error('Invalid Giphy API response');
+        throw new Error('Geçersiz Giphy API yanıtı');
       }
       const newGifs = result.data;
       setGifs((prev) => (append ? [...prev, ...newGifs] : newGifs));
       setHasMoreGifs(newGifs.length === limit);
       setGifOffset(offset + limit);
     } catch (err) {
-      console.error('Failed to load GIFs:', err);
-      setError('Failed to load GIFs: ' + err.message);
+      console.error('GIF yükleme başarısız:', err);
+      setError('GIF yüklenemedi: ' + err.message);
       setErrorModalOpen(true);
       setGifs(append ? gifs : []);
     } finally {
@@ -237,7 +235,7 @@ const InstagramMessengerPage = () => {
     }
   };
 
-  // Fetch Blob for Media
+  // Medya için Blob Alma
   const fetchBlob = useCallback(async (url) => {
     if (blobCache.current[url] || blobCache.current[url] === null) {
       return blobCache.current[url];
@@ -251,24 +249,24 @@ const InstagramMessengerPage = () => {
       });
       if (!response.ok) {
         if (response.status === 403 || response.status === 404) {
-          console.log(`URL not accessible: ${url}`);
+          console.log(`Erişilemeyen URL: ${url}`);
           blobCache.current[url] = null;
         }
-        throw new Error(`Failed to fetch: ${response.status}`);
+        throw new Error(`Alma başarısız: ${response.status}`);
       }
       const blob = await response.blob();
       const blobUrl = URL.createObjectURL(blob);
       blobCache.current[url] = blobUrl;
-      console.log(`Fetched blob for ${url}: ${blobUrl}`);
+      console.log(`${url} için blob alındı: ${blobUrl}`);
       return blobUrl;
     } catch (error) {
-      console.error(`Error fetching ${url}:`, error);
+      console.error(`${url} alınırken hata:`, error);
       blobCache.current[url] = null;
       return null;
     }
   }, []);
 
-  // Fetch Image Blobs
+  // Resim Blob'larını Alma
   useEffect(() => {
     const fetchImageBlobs = async () => {
       const newBlobs = { ...blobCache.current };
@@ -309,15 +307,15 @@ const InstagramMessengerPage = () => {
       }
       blobCache.current = newBlobs;
       setImageBlobs(newBlobs);
-      console.log('Updated imageBlobs:', newBlobs);
+      console.log('Güncellenen imageBlobs:', newBlobs);
     };
     fetchImageBlobs();
   }, [messages, fetchBlob]);
 
-  // SignalR Connection
+  // SignalR Bağlantısı
   useEffect(() => {
     const handleMessageReceived = (message) => {
-      console.log('Received message signalR:', message);
+      console.log('SignalR mesaj alındı:', message);
       if (message.conversationId === selectedConversationId) {
         const urls = message.urls && Array.isArray(message.urls)
           ? message.urls
@@ -334,7 +332,7 @@ const InstagramMessengerPage = () => {
             ? urls.map((url) => ({
                 type: messageType,
                 url,
-                name: url.split('/').pop() || 'media',
+                name: url.split('/').pop() || 'medya',
               }))
             : null,
           audioUrl: messageType === 'audio' ? urls[0] : null,
@@ -350,7 +348,7 @@ const InstagramMessengerPage = () => {
         scrollToBottom();
         if (message.direction.toLowerCase() === 'inbound' && playNotificationSound) {
           const audio = new Audio('/audio/messenger-short-ringtone.mp3');
-          audio.play().catch((err) => console.error('Error playing notification sound:', err));
+          audio.play().catch((err) => console.error('Bildirim sesi çalma hatası:', err));
         }
       }
       const fetchConversations = async () => {
@@ -377,7 +375,7 @@ const InstagramMessengerPage = () => {
           setTotalConversations(response.totalCount);
           setHasMoreConversations(response.data.length < response.totalCount);
         } catch (err) {
-          setError('Failed to fetch conversations: ' + err.message);
+          setError('Sohbetler alınamadı: ' + err.message);
           setErrorModalOpen(true);
         }
       };
@@ -385,7 +383,7 @@ const InstagramMessengerPage = () => {
     };
 
     const handleReactionReceived = (data) => {
-      console.log('Received reaction signalR:', data);
+      console.log('SignalR tepki alındı:', data);
       setMessages((prev) =>
         prev.map((msg) =>
           msg.id === data.messageId
@@ -399,7 +397,7 @@ const InstagramMessengerPage = () => {
     };
 
     const handleUnreactionReceived = (data) => {
-      console.log('Received unreaction signalR:', data);
+      console.log('SignalR tepki kaldırma alındı:', data);
       setMessages((prev) =>
         prev.map((msg) =>
           msg.id === data.messageId
@@ -423,7 +421,7 @@ const InstagramMessengerPage = () => {
     };
   }, [selectedConversationId, playNotificationSound, conversationSearchQuery]);
 
-  // Fetch Conversations
+  // Sohbetleri Alma
   const fetchConversations = async (pageNum, append = false) => {
     setIsLoading(append ? false : true);
     setIsLoadingMoreConversations(append);
@@ -455,7 +453,7 @@ const InstagramMessengerPage = () => {
       );
       setConversationPage(pageNum);
     } catch (err) {
-      setError('Failed to fetch conversations: ' + err.message);
+      setError('Sohbetler alınamadı: ' + err.message);
       setErrorModalOpen(true);
     } finally {
       setIsLoading(false);
@@ -475,7 +473,7 @@ const InstagramMessengerPage = () => {
     fetchConversations(1, false);
   }, [conversationSearchQuery]);
 
-  // Fetch Messages
+  // Mesajları Alma
   useEffect(() => {
     if (selectedConversationId) {
       setPage(1);
@@ -503,7 +501,7 @@ const InstagramMessengerPage = () => {
           ? msg.urls.map((url) => ({
               type: msg.messageType.toLowerCase(),
               url,
-              name: url.split('/').pop() || 'media',
+              name: url.split('/').pop() || 'medya',
             }))
           : null,
         audioUrl:
@@ -527,7 +525,7 @@ const InstagramMessengerPage = () => {
       }
       setPage(pageNumber);
     } catch (err) {
-      setError('Failed to fetch messages: ' + err.message);
+      setError('Mesajlar alınamadı: ' + err.message);
       setErrorModalOpen(true);
     } finally {
       setIsLoading(false);
@@ -542,7 +540,7 @@ const InstagramMessengerPage = () => {
     }
   };
 
-  // Search Messages
+  // Mesaj Arama
   const handleMessageSearch = async () => {
     if (!messageSearchQuery.trim()) {
       setSearchedMessages([]);
@@ -566,7 +564,7 @@ const InstagramMessengerPage = () => {
                 {
                   type: msg.messageType.toLowerCase(),
                   url: msg.url,
-                  name: msg.url.split('/').pop() || 'media',
+                  name: msg.url.split('/').pop() || 'medya',
                 },
               ]
             : null,
@@ -580,12 +578,12 @@ const InstagramMessengerPage = () => {
         }))
       );
     } catch (err) {
-      setError('Failed to search messages: ' + err.message);
+      setError('Mesajlar aranamadı: ' + err.message);
       setErrorModalOpen(true);
     }
   };
 
-  // Get Media, Audio, and Links
+  // Medya, Ses ve Bağlantıları Alma
   const getMediaFiles = () =>
     messages
       .filter((msg) => msg.media && ['image', 'video', 'sticker'].includes(msg.type))
@@ -597,7 +595,7 @@ const InstagramMessengerPage = () => {
       .map((msg) => ({
         type: 'audio',
         url: msg.audioUrl,
-        name: msg.audioUrl.split('/').pop() || 'audio',
+        name: msg.audioUrl.split('/').pop() || 'ses',
         direction: msg.direction,
       }));
 
@@ -610,7 +608,7 @@ const InstagramMessengerPage = () => {
         name: msg.text,
       }));
 
-  // Handle Conversation Click
+  // Sohbet Tıklama İşlemi
   const handleConversationClick = (id) => {
     setSelectedConversationId(id);
     setNewMessage('');
@@ -626,7 +624,7 @@ const InstagramMessengerPage = () => {
     setMenuAnchorEl(null);
   };
 
-  // Handle File Change
+  // Dosya Değişim İşlemi
   const handleFileChange = (event) => {
     const selectedFiles = Array.from(event.target.files);
     const maxSizeMB = 20;
@@ -638,8 +636,8 @@ const InstagramMessengerPage = () => {
     if (validFiles.length !== selectedFiles.length) {
       setError(
         validFiles.length === 0
-          ? 'Only images and videos up to 20MB are supported.'
-          : 'Some files were rejected. Only images and videos up to 20MB are supported.'
+          ? 'Yalnızca 20MB’a kadar olan resimler ve videolar desteklenir.'
+          : 'Bazı dosyalar reddedildi. Yalnızca 20MB’a kadar olan resimler ve videolar desteklenir.'
       );
       setErrorModalOpen(true);
       return;
@@ -656,7 +654,7 @@ const InstagramMessengerPage = () => {
     }
   };
 
-  // Start/Stop Recording
+  // Kayıt Başlat/Durdur
   const startRecording = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -675,7 +673,7 @@ const InstagramMessengerPage = () => {
         setRecordingDuration((prev) => prev + 1);
       }, 1000);
     } catch (err) {
-      setError('Failed to start recording: ' + err.message);
+      setError('Kayıt başlatılamadı: ' + err.message);
       setErrorModalOpen(true);
     }
   };
@@ -691,7 +689,7 @@ const InstagramMessengerPage = () => {
     }
   };
 
-  // Send Message
+  // Mesaj Gönderme
   const sendMessage = async () => {
     if (!newMessage.trim() && files.length === 0 && !audioBlob) return;
     if (!selectedConversation) return;
@@ -719,7 +717,7 @@ const InstagramMessengerPage = () => {
         });
         urls = uploadResponse.urls;
       } catch (err) {
-        setError('Failed to upload files: ' + err.message);
+        setError('Dosyalar yüklenemedi: ' + err.message);
         setErrorModalOpen(true);
         return;
       }
@@ -735,7 +733,7 @@ const InstagramMessengerPage = () => {
         });
         urls = uploadResponse.urls;
       } catch (err) {
-        setError('Failed to upload audio: ' + err.message);
+        setError('Ses yüklenemedi: ' + err.message);
         setErrorModalOpen(true);
         return;
       }
@@ -753,12 +751,12 @@ const InstagramMessengerPage = () => {
           ? urls.map((url) => ({
               type: messageType.toLowerCase(),
               url,
-              name: url.split('/').pop() || 'media',
+              name: url.split('/').pop() || 'medya',
             }))
           : null,
         audioUrl: messageType === 'Audio' ? urls[0] : null,
         timestamp: new Date().toISOString(),
-        status: 'sending',
+        status: 'gönderiliyor',
         type: messageType.toLowerCase(),
         direction: 'outbound',
         reactions: [],
@@ -778,12 +776,12 @@ const InstagramMessengerPage = () => {
           urls: urls,
           messageType: messageType,
           tempId: tempMessageId,
-          agentName: cookies.get('agentName') || 'Unknown Agent',
+          agentName: cookies.get('agentName') || 'Bilinmeyen Temsilci',
         }),
       });
       setMessages((prev) =>
         prev.map((msg) =>
-          msg.tempId === tempMessageId ? { ...msg, status: 'sent', id: response.messageId } : msg
+          msg.tempId === tempMessageId ? { ...msg, status: 'gönderildi', id: response.messageId } : msg
         )
       );
       setNewMessage('');
@@ -793,15 +791,15 @@ const InstagramMessengerPage = () => {
     } catch (err) {
       setMessages((prev) =>
         prev.map((msg) =>
-          msg.tempId === tempMessageId ? { ...msg, status: 'failed' } : msg
+          msg.tempId === tempMessageId ? { ...msg, status: 'başarısız' } : msg
         )
       );
-      setError('Failed to send message: ' + err.message);
+      setError('Mesaj gönderilemedi: ' + err.message);
       setErrorModalOpen(true);
     }
   };
 
-  // Handle Reaction
+  // Tepki İşlemi
   const handleReact = async (messageId) => {
     try {
       const message = messages.find((msg) => msg.id === messageId);
@@ -845,12 +843,12 @@ const InstagramMessengerPage = () => {
       }
       setMenuAnchorEl(null);
     } catch (err) {
-      setError(`Failed to update reaction: ${err.message || 'Unknown error'}`);
+      setError(`Tepki güncellenemedi: ${err.message || 'Bilinmeyen hata'}`);
       setErrorModalOpen(true);
     }
   };
 
-  // Message Menu
+  // Mesaj Menüsü
   const handleMessageMenuOpen = (event, messageId) => {
     setMenuAnchorEl(event.currentTarget);
     setSelectedMessageId(messageId);
@@ -861,7 +859,7 @@ const InstagramMessengerPage = () => {
     setSelectedMessageId(null);
   };
 
-  // Request OTN
+  // OTN Talebi
   const handleOtnRequest = async () => {
     try {
       await apiFetch('/api/InstagramMessenger/request-otn', {
@@ -872,17 +870,17 @@ const InstagramMessengerPage = () => {
       });
       setOtnModalOpen(false);
     } catch (err) {
-      setError('Failed to request OTN: ' + err.message);
+      setError('OTN talebi başarısız: ' + err.message);
       setErrorModalOpen(true);
     }
   };
 
-  // Search Conversations
+  // Sohbet Arama
   const handleSearch = (query) => {
     setConversationSearchQuery(query);
   };
 
-  // Sidebar Controls
+  // Kenar Çubuğu Kontrolleri
   const handleSidebarOpen = () => {
     setIsSidebarOpen(true);
   };
@@ -908,7 +906,7 @@ const InstagramMessengerPage = () => {
     setPlayNotificationSound((prev) => !prev);
   };
 
-  // Emoji and GIF Handlers
+  // Emoji ve GIF İşleyicileri
   const handleEmojiClick = (event) => {
     setNewMessage((prev) => prev + event.emoji);
     setEmojiAnchorEl(null);
@@ -933,8 +931,8 @@ const InstagramMessengerPage = () => {
   const handleGifClick = async (gif, e) => {
     e.preventDefault();
     if (!gif || !gif.images || !gif.images.fixed_height) {
-      console.error('Invalid GIF object:', gif);
-      setError('Failed to select GIF: Invalid data');
+      console.error('Geçersiz GIF nesnesi:', gif);
+      setError('GIF seçilemedi: Geçersiz veri');
       setErrorModalOpen(true);
       return;
     }
@@ -952,11 +950,11 @@ const InstagramMessengerPage = () => {
           text: '',
           media: [{ type: 'image', url: gifUrl, name: 'gif' }],
           timestamp: new Date().toISOString(),
-          status: 'sending',
+          status: 'gönderiliyor',
           type: 'image',
           direction: 'outbound',
           reactions: [],
-          agentName: cookies.get('agentName') || 'Unknown Agent',
+          agentName: cookies.get('agentName') || 'Bilinmeyen Temsilci',
         },
       ]);
       scrollToBottom();
@@ -971,22 +969,22 @@ const InstagramMessengerPage = () => {
           urls: [gifUrl],
           messageType: 'Image',
           tempId: tempMessageId,
-          agentName: cookies.get('agentName') || 'Unknown Agent',
+          agentName: cookies.get('agentName') || 'Bilinmeyen Temsilci',
         }),
       });
 
       setMessages((prev) =>
         prev.map((msg) =>
-          msg.tempId === tempMessageId ? { ...msg, status: 'sent' } : msg
+          msg.tempId === tempMessageId ? { ...msg, status: 'gönderildi' } : msg
         )
       );
       setGifAnchorEl(null);
     } catch (err) {
-      setError('Failed to send GIF: ' + err.message);
+      setError('GIF gönderilemedi: ' + err.message);
       setErrorModalOpen(true);
       setMessages((prev) =>
         prev.map((msg) =>
-          msg.tempId === tempMessageId ? { ...msg, status: 'failed' } : msg
+          msg.tempId === tempMessageId ? { ...msg, status: 'başarısız' } : msg
         )
       );
     }
@@ -1194,7 +1192,7 @@ const InstagramMessengerPage = () => {
                 {isLoadingMoreMessages ? (
                   <CircularProgress size={20} sx={{ color: '#fff' }} />
                 ) : (
-                  'Load More'
+                  'Daha Fazla Yükle'
                 )}
               </Button>
             </Box>
@@ -1258,7 +1256,7 @@ const InstagramMessengerPage = () => {
                                   border: '1px solid #dbdbdb',
                                 }}
                                 onError={(e) => {
-                                  console.error('Failed to load image:', media.url);
+                                  console.error('Resim yüklenemedi:', media.url);
                                   e.target.style.display = 'none';
                                   e.target.nextSibling.style.display = 'block';
                                 }}
@@ -1285,7 +1283,7 @@ const InstagramMessengerPage = () => {
                                   border: '1px solid #dbdbdb',
                                 }}
                                 onError={(e) => {
-                                  console.error('Failed to load video:', media.url);
+                                  console.error('Video yüklenemedi:', media.url);
                                   e.target.style.display = 'none';
                                   e.target.nextSibling.style.display = 'block';
                                 }}
@@ -1305,7 +1303,7 @@ const InstagramMessengerPage = () => {
                                 controls
                                 style={{ maxWidth: '100%' }}
                                 onError={(e) => {
-                                  console.error('Failed to load audio:', media.url);
+                                  console.error('Ses yüklenemedi:', media.url);
                                   e.target.style.display = 'none';
                                   e.target.nextSibling.style.display = 'block';
                                 }}
@@ -1332,7 +1330,7 @@ const InstagramMessengerPage = () => {
                           controls
                           style={{ maxWidth: '100%' }}
                           onError={(e) => {
-                            console.error('Failed to load audio:', msg.audioUrl);
+                            console.error('Ses yüklenemedi:', msg.audioUrl);
                             e.target.style.display = 'none';
                             e.target.nextSibling.style.display = 'block';
                           }}
@@ -1377,8 +1375,8 @@ const InstagramMessengerPage = () => {
                       hour: '2-digit',
                       minute: '2-digit',
                     })}
-                    {msg.status === 'sending' && ' • Sending...'}
-                    {msg.status === 'failed' && ' • Failed'}
+                    {msg.status === 'gönderiliyor' && ' • Gönderiliyor...'}
+                    {msg.status === 'başarısız' && ' • Başarısız'}
                   </Typography>
                 </Box>
                 <IconButton
@@ -1477,7 +1475,7 @@ const InstagramMessengerPage = () => {
               <IconButton
                 onClick={shareLocation}
                 sx={{ color: '#0095f6', mr: 1 }}
-                aria-label="Share location"
+                aria-label="Konum paylaş"
               >
                 <LocationOn />
               </IconButton>
@@ -1649,7 +1647,7 @@ const InstagramMessengerPage = () => {
                           {isLoadingMoreGifs ? (
                             <CircularProgress size={20} sx={{ color: '#fff' }} />
                           ) : (
-                            <Typography sx={{ fontSize: '12px' }}>More</Typography>
+                            <Typography sx={{ fontSize: '12px' }}>Daha Fazla</Typography>
                           )}
                         </IconButton>
                       </Box>
@@ -1684,7 +1682,7 @@ const InstagramMessengerPage = () => {
             <ArrowBack />
           </IconButton>
           <Typography variant="h6" sx={{ fontWeight: 700, color: '#262626' }}>
-            Details
+            Detaylar
           </Typography>
         </Box>
         <Tabs
@@ -1701,10 +1699,10 @@ const InstagramMessengerPage = () => {
               height: 3,
             },
           }}
-          aria-label="Sidebar navigation tabs"
+          aria-label="Kenar çubuğu navigasyon sekmeleri"
         >
           <Tab
-            label="Search"
+            label="Ara"
             sx={{
               textTransform: 'none',
               fontSize: '14px',
@@ -1723,7 +1721,7 @@ const InstagramMessengerPage = () => {
             }}
           />
           <Tab
-            label="Media & Files"
+            label="Medya ve Dosyalar"
             sx={{
               textTransform: 'none',
               fontSize: '14px',
@@ -1742,7 +1740,7 @@ const InstagramMessengerPage = () => {
             }}
           />
           <Tab
-            label="Notifications"
+            label="Bildirimler"
             sx={{
               textTransform: 'none',
               fontSize: '14px',
@@ -1785,7 +1783,7 @@ const InstagramMessengerPage = () => {
           <TabPanel value={tabValue} index={0}>
             <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
               <InputBase
-                placeholder="Search in conversation..."
+                placeholder="Sohbette ara..."
                 value={messageSearchQuery}
                 onChange={(e) => setMessageSearchQuery(e.target.value)}
                 onKeyPress={(e) => {
@@ -1850,10 +1848,10 @@ const InstagramMessengerPage = () => {
                   height: 2,
                 },
               }}
-              aria-label="Media and files sub-tabs"
+              aria-label="Medya ve dosyalar alt sekmeleri"
             >
               <Tab
-                label="Media"
+                label="Medya"
                 sx={{
                   textTransform: 'none',
                   fontSize: '13px',
@@ -1871,7 +1869,7 @@ const InstagramMessengerPage = () => {
                 }}
               />
               <Tab
-                label="Files"
+                label="Dosyalar"
                 sx={{
                   textTransform: 'none',
                   fontSize: '13px',
@@ -1889,7 +1887,7 @@ const InstagramMessengerPage = () => {
                 }}
               />
               <Tab
-                label="Links"
+                label="Bağlantılar"
                 sx={{
                   textTransform: 'none',
                   fontSize: '13px',
@@ -1910,7 +1908,7 @@ const InstagramMessengerPage = () => {
             {subTabValue === 0 && (
               <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
                 {getMediaFiles().length === 0 ? (
-                  <Typography sx={{ color: '#8e8e8e' }}>No media found.</Typography>
+                  <Typography sx={{ color: '#8e8e8e' }}>Medya bulunamadı.</Typography>
                 ) : (
                   getMediaFiles().map((media, index) => (
                     <Box key={index} sx={{ width: '100px' }}>
@@ -1932,7 +1930,7 @@ const InstagramMessengerPage = () => {
                               border: '1px solid #dbdbdb',
                             }}
                             onError={(e) => {
-                              console.error('Failed to load sidebar image:', media.url);
+                              console.error('Kenar çubuğu resmi yüklenemedi:', media.url);
                               e.target.style.display = 'none';
                               e.target.nextSibling.style.display = 'block';
                             }}
@@ -1959,7 +1957,7 @@ const InstagramMessengerPage = () => {
                               border: '1px solid #dbdbdb',
                             }}
                             onError={(e) => {
-                              console.error('Failed to load sidebar video:', media.url);
+                              console.error('Kenar çubuğu videosu yüklenemedi:', media.url);
                               e.target.style.display = 'none';
                               e.target.nextSibling.style.display = 'block';
                             }}
@@ -1977,7 +1975,7 @@ const InstagramMessengerPage = () => {
             {subTabValue === 1 && (
               <Box>
                 {getAudioFiles().length === 0 ? (
-                  <Typography sx={{ color: 'red' }}>No files found.</Typography>
+                  <Typography sx={{ color: 'red' }}>Dosya bulunamadı.</Typography>
                 ) : (
                   getAudioFiles().map((file, index) => (
                     <Box
@@ -1998,7 +1996,7 @@ const InstagramMessengerPage = () => {
                         controls
                         style={{ width: '100%' }}
                         onError={(e) => {
-                          console.error('Failed to load sidebar audio:', file.url);
+                          console.error('Kenar çubuğu sesi yüklenemedi:', file.url);
                         }}
                       />
                     </Box>
@@ -2009,7 +2007,7 @@ const InstagramMessengerPage = () => {
             {subTabValue === 2 && (
               <Box>
                 {getLinks().length === 0 ? (
-                  <Typography sx={{ color: '#8e8e8e' }}>No links found.</Typography>
+                  <Typography sx={{ color: '#8e8e8e' }}>Bağlantı bulunamadı.</Typography>
                 ) : (
                   getLinks().map((link, index) => (
                     <Box
@@ -2055,7 +2053,7 @@ const InstagramMessengerPage = () => {
                 justifyContent: 'center',
               }}
             >
-              <ListItemText primary="Request OTN" />
+              <ListItemText primary="OTN Talep Et" />
             </ListItem>
           </TabPanel>
         </Box>
@@ -2073,10 +2071,10 @@ const InstagramMessengerPage = () => {
           {messages
             .find((msg) => msg.id === selectedMessageId)
             ?.reactions?.includes('❤️')
-            ? 'Unreact'
-            : 'React'}
+            ? 'Tepkiyi Kaldır'
+            : 'Tepki Ver'}
         </MenuItem>
-        <MenuItem onClick={() => setOtnModalOpen(true)}>Request OTN</MenuItem>
+        <MenuItem onClick={() => setOtnModalOpen(true)}>OTN Talep Et</MenuItem>
       </Menu>
 
       <Modal open={errorModalOpen} onClose={() => setErrorModalOpen(false)}>
@@ -2087,9 +2085,7 @@ const InstagramMessengerPage = () => {
             left: '50%',
             transform: 'translate(-50%, -50%)',
             bgcolor: '#fff',
-            borderRadius:
-
- '15px',
+            borderRadius: '15px',
             p: 3,
             maxWidth: '90%',
             width: '400px',
@@ -2138,10 +2134,10 @@ const InstagramMessengerPage = () => {
             variant="h6"
             sx={{ fontWeight: 600, color: '#0095f6', mb: 2 }}
           >
-            Request Notification Permission
+            Bildirim İzni Talep Et
           </Typography>
           <Typography variant="body2" sx={{ mb: 3, color: '#444' }}>
-            Instagram requires your permission to send a one-time notification.
+            Instagram, tek seferlik bildirim göndermek için izninizi gerektirir.
           </Typography>
           <Box sx={{ display: 'flex', justifyContent: 'center', gap: 2 }}>
             <IconButton
