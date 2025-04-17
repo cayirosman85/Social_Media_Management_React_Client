@@ -19,6 +19,7 @@ import {
   Switch,
   Divider,
   Popper,
+  Button,
 } from '@mui/material';
 import {
   Search,
@@ -65,11 +66,7 @@ function TabPanel(props) {
       aria-labelledby={`sidebar-tab-${index}`}
       {...other}
     >
-      {value === index && (
-        <Box sx={{ p: 2 }}>
-          {children}
-        </Box>
-      )}
+      {value === index && <Box sx={{ p: 2 }}>{children}</Box>}
     </div>
   );
 }
@@ -99,20 +96,34 @@ const InstagramMessengerPage = () => {
   const [playNotificationSound, setPlayNotificationSound] = useState(true);
   const [emojiAnchorEl, setEmojiAnchorEl] = useState(null);
   const [gifAnchorEl, setGifAnchorEl] = useState(null);
+
+
   const [imageBlobs, setImageBlobs] = useState({});
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [gifs, setGifs] = useState([]);
   const [gifOffset, setGifOffset] = useState(0);
   const [hasMoreGifs, setHasMoreGifs] = useState(true);
   const [isLoadingMoreGifs, setIsLoadingMoreGifs] = useState(false);
+  const [page, setPage] = useState(1);
+  const [totalMessages, setTotalMessages] = useState(0);
+  const [isLoadingMoreMessages, setIsLoadingMoreMessages] = useState(false);
+  const [conversationPage, setConversationPage] = useState(1);
+  const [totalConversations, setTotalConversations] = useState(0);
+  const [hasMoreConversations, setHasMoreConversations] = useState(true);
+  const [isLoadingMoreConversations, setIsLoadingMoreConversations] = useState(false);
 
+  // Refs
   const emojiPickerRef = useRef(null);
   const gifPickerRef = useRef(null);
-  const messagesEndRef = useRef(null);
   const mediaRecorderRef = useRef(null);
+  const messagesEndRef = useRef(null);
+  const messagesContainerRef = useRef(null);
+  const conversationListRef = useRef(null);
+  const observerRef = useRef(null);
   const blobCache = useRef({});
   const timerRef = useRef(null);
 
+  // Utility Functions
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
@@ -123,6 +134,22 @@ const InstagramMessengerPage = () => {
     return `${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
+  // IntersectionObserver for infinite scroll
+  const lastConversationElementRef = useCallback(
+    (node) => {
+      if (isLoading || isLoadingMoreConversations) return;
+      if (observerRef.current) observerRef.current.disconnect();
+      observerRef.current = new IntersectionObserver((entries) => {
+        if (entries[0].isIntersecting && hasMoreConversations) {
+          loadMoreConversations();
+        }
+      });
+      if (node) observerRef.current.observe(node);
+    },
+    [isLoading, isLoadingMoreConversations, hasMoreConversations]
+  );
+
+  // Handle outside clicks for emoji and GIF pickers
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (
@@ -149,6 +176,7 @@ const InstagramMessengerPage = () => {
     };
   }, [emojiAnchorEl, gifAnchorEl]);
 
+  // Share Location
   const shareLocation = () => {
     if (!navigator.geolocation) {
       setError('Geolocation is not supported by your browser');
@@ -170,6 +198,7 @@ const InstagramMessengerPage = () => {
     );
   };
 
+  // Load GIFs
   const loadGifs = async (offset = 0, append = false) => {
     try {
       setIsLoadingMoreGifs(true);
@@ -208,6 +237,7 @@ const InstagramMessengerPage = () => {
     }
   };
 
+  // Fetch Blob for Media
   const fetchBlob = useCallback(async (url) => {
     if (blobCache.current[url] || blobCache.current[url] === null) {
       return blobCache.current[url];
@@ -238,6 +268,7 @@ const InstagramMessengerPage = () => {
     }
   }, []);
 
+  // Fetch Image Blobs
   useEffect(() => {
     const fetchImageBlobs = async () => {
       const newBlobs = { ...blobCache.current };
@@ -283,6 +314,7 @@ const InstagramMessengerPage = () => {
     fetchImageBlobs();
   }, [messages, fetchBlob]);
 
+  // SignalR Connection
   useEffect(() => {
     const handleMessageReceived = (message) => {
       console.log('Received message signalR:', message);
@@ -342,11 +374,11 @@ const InstagramMessengerPage = () => {
               senderId: conv.senderId,
             }))
           );
+          setTotalConversations(response.totalCount);
+          setHasMoreConversations(response.data.length < response.totalCount);
         } catch (err) {
           setError('Failed to fetch conversations: ' + err.message);
           setErrorModalOpen(true);
-        } finally {
-          setIsLoading(false);
         }
       };
       fetchConversations();
@@ -391,88 +423,126 @@ const InstagramMessengerPage = () => {
     };
   }, [selectedConversationId, playNotificationSound, conversationSearchQuery]);
 
-  useEffect(() => {
-    const fetchConversations = async () => {
-      setIsLoading(true);
-      try {
-        const response = await apiFetch(
-          `/api/InstagramMessenger/conversations?page=1&pageSize=20&search=${encodeURIComponent(
-            conversationSearchQuery
-          )}`,
-          { method: 'GET' }
-        );
-        setConversations(
-          response.data.map((conv) => ({
-            id: conv.id,
-            name: conv.name,
-            profilePicture: conv.profilePicture || 'https://via.placeholder.com/40',
-            lastMessage: {
-              text: conv.lastMessage?.text || '',
-              timestamp: conv.lastMessage?.timestamp || new Date().toISOString(),
-            },
-            unviewedCount: conv.unviewedCount,
-            senderId: conv.senderId,
-          }))
-        );
-      } catch (err) {
-        setError('Failed to fetch conversations: ' + err.message);
-        setErrorModalOpen(true);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    fetchConversations();
-  }, [conversationSearchQuery]);
+  // Fetch Conversations
+  const fetchConversations = async (pageNum, append = false) => {
+    setIsLoading(append ? false : true);
+    setIsLoadingMoreConversations(append);
+    try {
+      const response = await apiFetch(
+        `/api/InstagramMessenger/conversations?page=${pageNum}&pageSize=20&search=${encodeURIComponent(
+          conversationSearchQuery
+        )}`,
+        { method: 'GET' }
+      );
+      const newConversations = response.data.map((conv) => ({
+        id: conv.id,
+        name: conv.name,
+        profilePicture: conv.profilePicture || 'https://via.placeholder.com/40',
+        lastMessage: {
+          text: conv.lastMessage?.text || '',
+          timestamp: conv.lastMessage?.timestamp || new Date().toISOString(),
+        },
+        unviewedCount: conv.unviewedCount,
+        senderId: conv.senderId,
+      }));
+      setTotalConversations(response.totalCount);
+      setConversations((prev) =>
+        append ? [...prev, ...newConversations] : newConversations
+      );
+      setHasMoreConversations(
+        (append ? conversations.length + newConversations.length : newConversations.length) <
+          response.totalCount
+      );
+      setConversationPage(pageNum);
+    } catch (err) {
+      setError('Failed to fetch conversations: ' + err.message);
+      setErrorModalOpen(true);
+    } finally {
+      setIsLoading(false);
+      setIsLoadingMoreConversations(false);
+    }
+  };
+
+  const loadMoreConversations = () => {
+    if (hasMoreConversations && !isLoadingMoreConversations) {
+      const nextPage = conversationPage + 1;
+      fetchConversations(nextPage, true);
+    }
+  };
 
   useEffect(() => {
-    if( selectedConversationId) {
-      const fetchMessages = async () => {
-        setIsLoading(true);
-        try {
-          const response = await apiFetch(
-            `/api/InstagramMessenger/conversation-messages/${selectedConversationId}?page=1&pageSize=20`,
-            { method: 'GET' }
-          );
-          setMessages(
-            response.messages.map((msg) => ({
-              id: msg.id,
-              conversationId: selectedConversationId,
-              senderId: msg.senderId,
-              text: msg.text,
-              urls: msg.urls || (msg.url ? [msg.url] : []),
-              messageType: msg.messageType,
-              media: msg.urls
-                ? msg.urls.map((url) => ({
-                    type: msg.messageType.toLowerCase(),
-                    url,
-                    name: url.split('/').pop() || 'media',
-                  }))
-                : null,
-              audioUrl:
-                msg.messageType.toLowerCase() === 'audio'
-                  ? msg.url || (msg.urls && msg.urls[0])
-                  : null,
-              timestamp: msg.timestamp,
-              direction: msg.direction.toLowerCase(),
-              type: msg.messageType.toLowerCase(),
-              reactions: msg.reactions || [],
-              status: msg.status.toLowerCase(),
-              repliedMessage: msg.repliedMessage || null,
-              agentName: msg.agentName,
-            }))
-          );
-          scrollToBottom();
-        } catch (err) {
-          setError('Failed to fetch messages: ' + err.message);
-          setErrorModalOpen(true);
-        } finally {
-          setIsLoading(false);
-        }
-      };
-      fetchMessages();
+    setConversationPage(1);
+    fetchConversations(1, false);
+  }, [conversationSearchQuery]);
+
+  // Fetch Messages
+  useEffect(() => {
+    if (selectedConversationId) {
+      setPage(1);
+      setMessages([]);
+      fetchMessages(1, false);
     }
   }, [selectedConversationId]);
 
+  const fetchMessages = async (pageNumber, append = false) => {
+    setIsLoading(append ? false : true);
+    setIsLoadingMoreMessages(append);
+    try {
+      const response = await apiFetch(
+        `/api/InstagramMessenger/conversation-messages/${selectedConversationId}?page=${pageNumber}&pageSize=10`,
+        { method: 'GET' }
+      );
+      const newMessages = response.messages.map((msg) => ({
+        id: msg.id,
+        conversationId: selectedConversationId,
+        senderId: msg.senderId,
+        text: msg.text,
+        urls: msg.urls || (msg.url ? [msg.url] : []),
+        messageType: msg.messageType,
+        media: msg.urls
+          ? msg.urls.map((url) => ({
+              type: msg.messageType.toLowerCase(),
+              url,
+              name: url.split('/').pop() || 'media',
+            }))
+          : null,
+        audioUrl:
+          msg.messageType.toLowerCase() === 'audio'
+            ? msg.url || (msg.urls && msg.urls[0])
+            : null,
+        timestamp: msg.timestamp,
+        direction: msg.direction.toLowerCase(),
+        type: msg.messageType.toLowerCase(),
+        reactions: msg.reactions || [],
+        status: msg.status.toLowerCase(),
+        repliedMessage: msg.repliedMessage || null,
+        agentName: msg.agentName,
+      }));
+      setTotalMessages(response.totalMessages);
+      if (append) {
+        setMessages((prev) => [...newMessages, ...prev]);
+      } else {
+        setMessages(newMessages);
+        scrollToBottom();
+      }
+      setPage(pageNumber);
+    } catch (err) {
+      setError('Failed to fetch messages: ' + err.message);
+      setErrorModalOpen(true);
+    } finally {
+      setIsLoading(false);
+      setIsLoadingMoreMessages(false);
+    }
+  };
+
+  const loadMoreMessages = () => {
+    if (messages.length < totalMessages && !isLoadingMoreMessages) {
+      const nextPage = page + 1;
+      fetchMessages(nextPage, true);
+    }
+  };
+
+  // Search Messages
   const handleMessageSearch = async () => {
     if (!messageSearchQuery.trim()) {
       setSearchedMessages([]);
@@ -515,20 +585,21 @@ const InstagramMessengerPage = () => {
     }
   };
 
+  // Get Media, Audio, and Links
   const getMediaFiles = () =>
     messages
       .filter((msg) => msg.media && ['image', 'video', 'sticker'].includes(msg.type))
       .flatMap((msg) => msg.media.map((media) => ({ ...media, direction: msg.direction })));
 
   const getAudioFiles = () =>
-  messages
-    .filter((msg) => msg.type === 'audio')
-    .map((msg) => ({
-      type: 'audio',
-      url: msg.audioUrl,
-      name: msg.audioUrl.split('/').pop() || 'audio',
-      direction: msg.direction,
-    }));
+    messages
+      .filter((msg) => msg.type === 'audio')
+      .map((msg) => ({
+        type: 'audio',
+        url: msg.audioUrl,
+        name: msg.audioUrl.split('/').pop() || 'audio',
+        direction: msg.direction,
+      }));
 
   const getLinks = () =>
     messages
@@ -539,6 +610,7 @@ const InstagramMessengerPage = () => {
         name: msg.text,
       }));
 
+  // Handle Conversation Click
   const handleConversationClick = (id) => {
     setSelectedConversationId(id);
     setNewMessage('');
@@ -554,6 +626,7 @@ const InstagramMessengerPage = () => {
     setMenuAnchorEl(null);
   };
 
+  // Handle File Change
   const handleFileChange = (event) => {
     const selectedFiles = Array.from(event.target.files);
     const maxSizeMB = 20;
@@ -583,6 +656,7 @@ const InstagramMessengerPage = () => {
     }
   };
 
+  // Start/Stop Recording
   const startRecording = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -617,6 +691,7 @@ const InstagramMessengerPage = () => {
     }
   };
 
+  // Send Message
   const sendMessage = async () => {
     if (!newMessage.trim() && files.length === 0 && !audioBlob) return;
     if (!selectedConversation) return;
@@ -687,7 +762,7 @@ const InstagramMessengerPage = () => {
         type: messageType.toLowerCase(),
         direction: 'outbound',
         reactions: [],
-        agentName: cookies.get('agentName') ||  null,
+        agentName: cookies.get('agentName') || null,
       },
     ]);
     scrollToBottom();
@@ -726,6 +801,7 @@ const InstagramMessengerPage = () => {
     }
   };
 
+  // Handle Reaction
   const handleReact = async (messageId) => {
     try {
       const message = messages.find((msg) => msg.id === messageId);
@@ -774,6 +850,7 @@ const InstagramMessengerPage = () => {
     }
   };
 
+  // Message Menu
   const handleMessageMenuOpen = (event, messageId) => {
     setMenuAnchorEl(event.currentTarget);
     setSelectedMessageId(messageId);
@@ -784,6 +861,7 @@ const InstagramMessengerPage = () => {
     setSelectedMessageId(null);
   };
 
+  // Request OTN
   const handleOtnRequest = async () => {
     try {
       await apiFetch('/api/InstagramMessenger/request-otn', {
@@ -799,10 +877,12 @@ const InstagramMessengerPage = () => {
     }
   };
 
+  // Search Conversations
   const handleSearch = (query) => {
     setConversationSearchQuery(query);
   };
 
+  // Sidebar Controls
   const handleSidebarOpen = () => {
     setIsSidebarOpen(true);
   };
@@ -828,6 +908,7 @@ const InstagramMessengerPage = () => {
     setPlayNotificationSound((prev) => !prev);
   };
 
+  // Emoji and GIF Handlers
   const handleEmojiClick = (event) => {
     setNewMessage((prev) => prev + event.emoji);
     setEmojiAnchorEl(null);
@@ -918,6 +999,7 @@ const InstagramMessengerPage = () => {
   return (
     <Box sx={{ display: 'flex', height: '100vh', bgcolor: '#fafafa' }}>
       <Box
+        ref={conversationListRef}
         sx={{
           width: { xs: '100%', sm: '360px' },
           display: { xs: selectedConversationId ? 'none' : 'block', sm: 'block' },
@@ -956,77 +1038,86 @@ const InstagramMessengerPage = () => {
           </Box>
         ) : (
           <List>
-            {conversations.map((conv) => (
-              <Box
-                key={conv.id}
-                sx={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  borderRadius: '15px',
-                  mb: 0.5,
-                  bgcolor: selectedConversationId === conv.id ? '#efefef' : 'transparent',
-                }}
-              >
-                <ListItem
-                  button
-                  onClick={() => handleConversationClick(conv.id)}
-                  sx={{ py: 1.5, flex: 1 }}
+            {conversations.map((conv, index) => {
+              const isLastElement = conversations.length === index + 1;
+              return (
+                <Box
+                  key={conv.id}
+                  ref={isLastElement ? lastConversationElementRef : null}
+                  sx={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    borderRadius: '15px',
+                    mb: 0.5,
+                    bgcolor: selectedConversationId === conv.id ? '#efefef' : 'transparent',
+                  }}
                 >
-                  <Avatar
-                    sx={{
-                      mr: 2,
-                      bgcolor: '#ddd',
-                      border: '1px solid #fff',
-                      boxShadow: '0 0 0 1px #dbdbdb',
-                    }}
-                    src={conv.profilePicture}
+                  <ListItem
+                    button
+                    onClick={() => handleConversationClick(conv.id)}
+                    sx={{ py: 1.5, flex: 1 }}
                   >
-                    {conv.name[0]}
-                  </Avatar>
-                  <Box sx={{ flex: 1, overflow: 'hidden' }}>
-                    <Typography
+                    <Avatar
                       sx={{
-                        fontSize: '16px',
-                        fontWeight: conv.unviewedCount > 0 ? 700 : 500,
-                        color: '#262626',
+                        mr: 2,
+                        bgcolor: '#ddd',
+                        border: '1px solid #fff',
+                        boxShadow: '0 0 0 1px #dbdbdb',
                       }}
+                      src={conv.profilePicture}
                     >
-                      {conv.name}
-                    </Typography>
-                    <Typography
-                      sx={{
-                        fontSize: '14px',
-                        color: '#8e8e8e',
-                        whiteSpace: 'nowrap',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                      }}
-                    >
-                      {conv.lastMessage?.text || ''}
-                    </Typography>
-                  </Box>
-                  {conv.unviewedCount > 0 && (
-                    <Box
-                      sx={{
-                        bgcolor: '#0095f6',
-                        color: '#fff',
-                        borderRadius: '50%',
-                        width: '20px',
-                        height: '20px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        fontSize: '12px',
-                        fontWeight: 600,
-                        ml: 'auto',
-                      }}
-                    >
-                      {conv.unviewedCount}
+                      {conv.name[0]}
+                    </Avatar>
+                    <Box sx={{ flex: 1, overflow: 'hidden' }}>
+                      <Typography
+                        sx={{
+                          fontSize: '16px',
+                          fontWeight: conv.unviewedCount > 0 ? 700 : 500,
+                          color: '#262626',
+                        }}
+                      >
+                        {conv.name}
+                      </Typography>
+                      <Typography
+                        sx={{
+                          fontSize: '14px',
+                          color: '#8e8e8e',
+                          whiteSpace: 'nowrap',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                        }}
+                      >
+                        {conv.lastMessage?.text || ''}
+                      </Typography>
                     </Box>
-                  )}
-                </ListItem>
+                    {conv.unviewedCount > 0 && (
+                      <Box
+                        sx={{
+                          bgcolor: '#0095f6',
+                          color: '#fff',
+                          borderRadius: '50%',
+                          width: '20px',
+                          height: '20px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontSize: '12px',
+                          fontWeight: 600,
+                          ml: 'auto',
+                        }}
+                      >
+                        {conv.unviewedCount}
+                      </Box>
+                    )}
+                  </ListItem>
+                </Box>
+              );
+            })}
+            {isLoadingMoreConversations && (
+              <Box sx={{ display: 'flex', justifyContent: 'center', mt: 2 }}>
+                <CircularProgress size={20} sx={{ color: '#0095f6' }} />
               </Box>
-            ))}
+            )}
           </List>
         )}
       </Box>
@@ -1082,7 +1173,32 @@ const InstagramMessengerPage = () => {
           </Typography>
         </Box>
 
-        <Box sx={{ flexGrow: 1, overflowY: 'auto', p: 3, bgcolor: '#fff' }}>
+        <Box
+          ref={messagesContainerRef}
+          sx={{ flexGrow: 1, overflowY: 'auto', p: 3, bgcolor: '#fff' }}
+        >
+          {messages.length < totalMessages && (
+            <Box sx={{ display: 'flex', justifyContent: 'center', mb: 2 }}>
+              <Button
+                onClick={loadMoreMessages}
+                disabled={isLoadingMoreMessages}
+                sx={{
+                  bgcolor: '#0095f6',
+                  color: '#fff',
+                  textTransform: 'none',
+                  borderRadius: '10px',
+                  padding: '8px 16px',
+                  '&:hover': { bgcolor: '#007bb5' },
+                }}
+              >
+                {isLoadingMoreMessages ? (
+                  <CircularProgress size={20} sx={{ color: '#fff' }} />
+                ) : (
+                  'Load More'
+                )}
+              </Button>
+            </Box>
+          )}
           {isLoading ? (
             <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}>
               <CircularProgress size={24} sx={{ color: '#0095f6' }} />
@@ -1114,8 +1230,7 @@ const InstagramMessengerPage = () => {
                     sx={{
                       bgcolor:
                         msg.direction === 'outbound' ? '#0095f6' : '#efefef',
-                      color:
-                        msg.direction === 'outbound' ? '#fff' : '#262626',
+                      color: msg.direction === 'outbound' ? '#fff' : '#262626',
                       p: 1.5,
                       borderRadius: '20px',
                       fontSize: '15px',
@@ -1143,17 +1258,12 @@ const InstagramMessengerPage = () => {
                                   border: '1px solid #dbdbdb',
                                 }}
                                 onError={(e) => {
-                                  console.error(
-                                    'Failed to load image:',
-                                    media.url
-                                  );
+                                  console.error('Failed to load image:', media.url);
                                   e.target.style.display = 'none';
                                   e.target.nextSibling.style.display = 'block';
                                 }}
                               />
-                              <Typography
-                                sx={{ display: 'none', color: 'red', mt: 1 }}
-                              >
+                              <Typography sx={{ display: 'none', color: 'red', mt: 1 }}>
                                 Medya yüklenemedi
                               </Typography>
                             </>
@@ -1175,17 +1285,12 @@ const InstagramMessengerPage = () => {
                                   border: '1px solid #dbdbdb',
                                 }}
                                 onError={(e) => {
-                                  console.error(
-                                    'Failed to load video:',
-                                    media.url
-                                  );
+                                  console.error('Failed to load video:', media.url);
                                   e.target.style.display = 'none';
                                   e.target.nextSibling.style.display = 'block';
                                 }}
                               />
-                              <Typography
-                                sx={{ display: 'none', color: 'red', mt: 1 }}
-                              >
+                              <Typography sx={{ display: 'none', color: 'red', mt: 1 }}>
                                 Medya yüklenemedi
                               </Typography>
                             </>
@@ -1200,17 +1305,12 @@ const InstagramMessengerPage = () => {
                                 controls
                                 style={{ maxWidth: '100%' }}
                                 onError={(e) => {
-                                  console.error(
-                                    'Failed to load audio:',
-                                    media.url
-                                  );
+                                  console.error('Failed to load audio:', media.url);
                                   e.target.style.display = 'none';
                                   e.target.nextSibling.style.display = 'block';
                                 }}
                               />
-                              <Typography
-                                sx={{ display: 'none', color: 'red', mt: 1 }}
-                              >
+                              <Typography sx={{ display: 'none', color: 'red', mt: 1 }}>
                                 Medya yüklenemedi
                               </Typography>
                             </>
@@ -1232,24 +1332,17 @@ const InstagramMessengerPage = () => {
                           controls
                           style={{ maxWidth: '100%' }}
                           onError={(e) => {
-                            console.error(
-                              'Failed to load audio:',
-                              msg.audioUrl
-                            );
+                            console.error('Failed to load audio:', msg.audioUrl);
                             e.target.style.display = 'none';
                             e.target.nextSibling.style.display = 'block';
                           }}
                         />
-                        <Typography
-                          sx={{ display: 'none', color: 'red', mt: 1 }}
-                        >
+                        <Typography sx={{ display: 'none', color: 'red', mt: 1 }}>
                           Medya yüklenemedi
                         </Typography>
                       </>
                     )}
-                    {msg.type === 'text' && msg.text && (
-                      <Typography>{msg.text}</Typography>
-                    )}
+                    {msg.type === 'text' && msg.text && <Typography>{msg.text}</Typography>}
                   </Box>
                   {msg.reactions?.length > 0 && (
                     <Box sx={{ mt: 0.5, display: 'flex', gap: 0.5 }}>
@@ -1277,8 +1370,7 @@ const InstagramMessengerPage = () => {
                       fontSize: '12px',
                       color: '#8e8e8e',
                       mt: 0.5,
-                      textAlign:
-                        msg.direction === 'outbound' ? 'right' : 'left',
+                      textAlign: msg.direction === 'outbound' ? 'right' : 'left',
                     }}
                   >
                     {new Date(msg.timestamp).toLocaleTimeString([], {
@@ -1339,17 +1431,10 @@ const InstagramMessengerPage = () => {
                       }}
                       onClick={() => {
                         setFiles((prev) => prev.filter((_, i) => i !== index));
-                        setFilePreviews((prev) =>
-                          prev.filter((_, i) => i !== index)
-                        );
+                        setFilePreviews((prev) => prev.filter((_, i) => i !== index));
                       }}
                     >
-                      <svg
-                        width="16"
-                        height="16"
-                        viewBox="0 0 24 24"
-                        fill="currentColor"
-                      >
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
                         <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
                       </svg>
                     </IconButton>
@@ -1564,9 +1649,7 @@ const InstagramMessengerPage = () => {
                           {isLoadingMoreGifs ? (
                             <CircularProgress size={20} sx={{ color: '#fff' }} />
                           ) : (
-                            <Typography sx={{ fontSize: '12px' }}>
-                              More
-                            </Typography>
+                            <Typography sx={{ fontSize: '12px' }}>More</Typography>
                           )}
                         </IconButton>
                       </Box>
@@ -1827,9 +1910,7 @@ const InstagramMessengerPage = () => {
             {subTabValue === 0 && (
               <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
                 {getMediaFiles().length === 0 ? (
-                  <Typography sx={{ color: '#8e8e8e' }}>
-                    No media found.
-                  </Typography>
+                  <Typography sx={{ color: '#8e8e8e' }}>No media found.</Typography>
                 ) : (
                   getMediaFiles().map((media, index) => (
                     <Box key={index} sx={{ width: '100px' }}>
@@ -1851,17 +1932,12 @@ const InstagramMessengerPage = () => {
                               border: '1px solid #dbdbdb',
                             }}
                             onError={(e) => {
-                              console.error(
-                                'Failed to load sidebar image:',
-                                media.url
-                              );
+                              console.error('Failed to load sidebar image:', media.url);
                               e.target.style.display = 'none';
                               e.target.nextSibling.style.display = 'block';
                             }}
                           />
-                          <Typography
-                            sx={{ display: 'none', color: 'red', mt: 1 }}
-                          >
+                          <Typography sx={{ display: 'none', color: 'red', mt: 1 }}>
                             Medya yüklenemedi
                           </Typography>
                         </>
@@ -1883,17 +1959,12 @@ const InstagramMessengerPage = () => {
                               border: '1px solid #dbdbdb',
                             }}
                             onError={(e) => {
-                              console.error(
-                                'Failed to load sidebar video:',
-                                media.url
-                              );
+                              console.error('Failed to load sidebar video:', media.url);
                               e.target.style.display = 'none';
                               e.target.nextSibling.style.display = 'block';
                             }}
                           />
-                          <Typography
-                            sx={{ display: 'none', color: 'red', mt: 1 }}
-                          >
+                          <Typography sx={{ display: 'none', color: 'red', mt: 1 }}>
                             Medya yüklenemedi
                           </Typography>
                         </>
@@ -1906,9 +1977,7 @@ const InstagramMessengerPage = () => {
             {subTabValue === 1 && (
               <Box>
                 {getAudioFiles().length === 0 ? (
-                  <Typography sx={{ color: 'red' }}>
-                    No files found.
-                  </Typography>
+                  <Typography sx={{ color: 'red' }}>No files found.</Typography>
                 ) : (
                   getAudioFiles().map((file, index) => (
                     <Box
@@ -1929,10 +1998,7 @@ const InstagramMessengerPage = () => {
                         controls
                         style={{ width: '100%' }}
                         onError={(e) => {
-                          console.error(
-                            'Failed to load sidebar audio:',
-                            file.url
-                          );
+                          console.error('Failed to load sidebar audio:', file.url);
                         }}
                       />
                     </Box>
@@ -1943,9 +2009,7 @@ const InstagramMessengerPage = () => {
             {subTabValue === 2 && (
               <Box>
                 {getLinks().length === 0 ? (
-                  <Typography sx={{ color: '#8e8e8e' }}>
-                    No links found.
-                  </Typography>
+                  <Typography sx={{ color: '#8e8e8e' }}>No links found.</Typography>
                 ) : (
                   getLinks().map((link, index) => (
                     <Box
@@ -2006,13 +2070,13 @@ const InstagramMessengerPage = () => {
         }}
       >
         <MenuItem onClick={() => handleReact(selectedMessageId)}>
-          {messages.find((msg) => msg.id === selectedMessageId)?.reactions?.includes('❤️')
+          {messages
+            .find((msg) => msg.id === selectedMessageId)
+            ?.reactions?.includes('❤️')
             ? 'Unreact'
             : 'React'}
         </MenuItem>
-        <MenuItem onClick={() => setOtnModalOpen(true)}>
-          Request OTN
-        </MenuItem>
+        <MenuItem onClick={() => setOtnModalOpen(true)}>Request OTN</MenuItem>
       </Menu>
 
       <Modal open={errorModalOpen} onClose={() => setErrorModalOpen(false)}>
@@ -2023,7 +2087,9 @@ const InstagramMessengerPage = () => {
             left: '50%',
             transform: 'translate(-50%, -50%)',
             bgcolor: '#fff',
-            borderRadius: '15px',
+            borderRadius:
+
+ '15px',
             p: 3,
             maxWidth: '90%',
             width: '400px',
@@ -2045,12 +2111,7 @@ const InstagramMessengerPage = () => {
                 color: '#fff',
               }}
             >
-              <svg
-                width="24"
-                height="24"
-                viewBox="0 0 24 24"
-                fill="currentColor"
-              >
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
               </svg>
             </IconButton>
@@ -2090,12 +2151,7 @@ const InstagramMessengerPage = () => {
                 color: '#262626',
               }}
             >
-              <svg
-                width="24"
-                height="24"
-                viewBox="0 0 24 24"
-                fill="currentColor"
-              >
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
               </svg>
             </IconButton>
@@ -2106,12 +2162,7 @@ const InstagramMessengerPage = () => {
                 color: '#fff',
               }}
             >
-              <svg
-                width="24"
-                height="24"
-                viewBox="0 0 24 24"
-                fill="currentColor"
-              >
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
               </svg>
             </IconButton>
