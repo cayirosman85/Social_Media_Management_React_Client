@@ -27,7 +27,7 @@ import {
   DialogActions,
 } from '@mui/material';
 import { MoreVert, ThumbUp, Comment } from '@mui/icons-material';
-import ProfileSidebar from '../../components/youtube/ProfileSidebar';
+import ProfileSidebar from '../../../components/youtube/ProfileSidebar';
 import { Line } from 'react-chartjs-2';
 import { Chart as ChartJS, LineElement, PointElement, LinearScale, TimeScale, Title, Tooltip, Legend } from 'chart.js';
 

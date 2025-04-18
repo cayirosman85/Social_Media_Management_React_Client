@@ -2,7 +2,7 @@ import React, { useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import localStorage from 'local-storage';
 
-const authCallback = () => {
+const AuthCallback = () => {
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -40,4 +40,4 @@ const authCallback = () => {
   );
 };
 
-export default authCallback;
+export default AuthCallback;

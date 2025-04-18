@@ -28,8 +28,9 @@ import AdminPage from "./pages/adminPage/adminPage.js";
 import AdminUsers from "./pages/adminPage/adminUsers.js";
 import AdminSettings from "./pages/adminPage/adminProfilePage.js";
 import FacebookProfile from './pages/facebook/facebookProfile/FacebookProfile.js';
-import AuthCallback from './pages/youtube/authCallback.js';
-import YoutubeProfile from './pages/youtube/profile.js';
+import YoutubeProfile from './pages/youtube/youtubeProfile/profile.js';
+import AuthCallback from "./pages/youtube/youtubeProfile/authCallback.js";
+
 import "./App.css";
 import { jwtDecode } from "jwt-decode";
 import { cookies } from "./utils/cookie";
@@ -39,25 +40,22 @@ import { SidebarProvider } from "./context/SidebarContext";
 import { useSidebar } from "./context/SidebarContext";
 import MessengerPage from './pages/facebook/facebookMessenger/MessengerPage.js';
 import MessengerAccount from './pages/facebook/facebookMessenger/MessengerAccount.js';
+
 // New imports for Facebook Account pages
 import FacebookAccountList from './pages/facebook/facebookAccount/FacebookAccountList.js';
 import FacebookAccountCreate from './pages/facebook/facebookAccount/FacebookAccountCreate.js';
 import FacebookAccountEdit from './pages/facebook/facebookAccount/FacebookAccountEdit.js';
-
 
 // New imports for Facebook Account pages For instagram
 import FacebookAccountListForInstagram from './pages/instagram/facebookProfileAccount/FacebookAccountList.js';
 import FacebookAccountCreateForInstagram from './pages/instagram/facebookProfileAccount/FacebookAccountCreate.js'; 
 import FacebookAccountEditForInstagram  from './pages/instagram/facebookProfileAccount/FacebookAccountEdit.js';
 
-
 // New imports for Facebook Account pages For instagram
 import InstagramMessengerAccountListForInstagram from './pages/instagram/instagramMessengerAccount/InstagramMessengerAccountList.js';
 import InstagramMessengerAccountCreateForInstagram from './pages/instagram/instagramMessengerAccount/InstagramMessengerAccountCreate.js'; 
 import InstagramMessengerAccountEditForInstagram  from './pages/instagram/instagramMessengerAccount/InstagramMessengerAccountEdit.js';
 import InstagramChat  from './pages/instagram/instagramMessenger/InstagramMessengerPage.js';
-
-
 
 
 const NotFound = () => {
@@ -137,7 +135,7 @@ function AppRoutes() {
       <Route path="/login" element={<Login />} />
       <Route path="/forgot-password" element={<ForgotPassword />} />
       <Route path="/register" element={<Register />} />
-      {/* <Route path="/auth-callback" element={<AuthCallback />} /> */}
+      <Route path="/auth-callback" element={<AuthCallback />} />
       <Route path="/auth/callback" element={<Sidebar />} />
       {/* Protected Routes with Layout */}
       <Route

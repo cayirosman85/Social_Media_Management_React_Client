@@ -85,7 +85,6 @@ const InstagramMessengerPage = () => {
   const [recordingDuration, setRecordingDuration] = useState(0);
   const [error, setError] = useState('');
   const [errorModalOpen, setErrorModalOpen] = useState(false);
-  const [otnModalOpen, setOtnModalOpen] = useState(false);
   const [menuAnchorEl, setMenuAnchorEl] = useState(null);
   const [selectedMessageId, setSelectedMessageId] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -173,6 +172,8 @@ const InstagramMessengerPage = () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
   }, [emojiAnchorEl, gifAnchorEl]);
+
+
 
   // Konum Paylaşımı
   const shareLocation = () => {
@@ -859,21 +860,6 @@ const InstagramMessengerPage = () => {
     setSelectedMessageId(null);
   };
 
-  // OTN Talebi
-  const handleOtnRequest = async () => {
-    try {
-      await apiFetch('/api/InstagramMessenger/request-otn', {
-        method: 'POST',
-        body: JSON.stringify({
-          recipientId: selectedConversation?.senderId,
-        }),
-      });
-      setOtnModalOpen(false);
-    } catch (err) {
-      setError('OTN talebi başarısız: ' + err.message);
-      setErrorModalOpen(true);
-    }
-  };
 
   // Sohbet Arama
   const handleSearch = (query) => {
@@ -1665,400 +1651,367 @@ const InstagramMessengerPage = () => {
       </Box>
 
       <Drawer
-        anchor="right"
-        open={isSidebarOpen}
-        onClose={handleSidebarClose}
+  anchor="right"
+  open={isSidebarOpen}
+  onClose={handleSidebarClose}
+  sx={{
+    '& .MuiDrawer-paper': {
+      width: { xs: '100%', sm: '400px' },
+      bgcolor: '#fff',
+      p: 2,
+      boxSizing: 'border-box',
+    },
+  }}
+>
+  <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+    <IconButton onClick={handleSidebarClose} sx={{ mr: 1 }}>
+      <ArrowBack />
+    </IconButton>
+    <Typography variant="h6" sx={{ fontWeight: 700, color: '#262626' }}>
+      Detaylar
+    </Typography>
+  </Box>
+  <Tabs
+    value={tabValue}
+    onChange={handleTabChange}
+    variant="scrollable"
+    scrollButtons="auto"
+    sx={{
+      mb: 1,
+      bgcolor: '#fafafa',
+      borderRadius: '10px',
+      '.MuiTabs-indicator': {
+        backgroundColor: '#0095f6',
+        height: 3,
+      },
+    }}
+    aria-label="Kenar çubuğu navigasyon sekmeleri"
+  >
+    <Tab
+      label="Ara"
+      sx={{
+        textTransform: 'none',
+        fontSize: '14px',
+        fontWeight: 500,
+        color: '#262626',
+        '&.Mui-selected': {
+          color: '#0095f6',
+          fontWeight: 700,
+        },
+        '&:hover': {
+          bgcolor: '#f0f0f0',
+          borderRadius: '10px',
+        },
+        minHeight: '40px',
+        px: 2,
+      }}
+    />
+    <Tab
+      label="Medya ve Dosyalar"
+      sx={{
+        textTransform: 'none',
+        fontSize: '14px',
+        fontWeight: 500,
+        color: '#262626',
+        '&.Mui-selected': {
+          color: '#0095f6',
+          fontWeight: 700,
+        },
+        '&:hover': {
+          bgcolor: '#f0f0f0',
+          borderRadius: '10px',
+        },
+        minHeight: '40px',
+        px: 2,
+      }}
+    />
+    <Tab
+      label="Bildirimler"
+      sx={{
+        textTransform: 'none',
+        fontSize: '14px',
+        fontWeight: 500,
+        color: '#262626',
+        '&.Mui-selected': {
+          color: '#0095f6',
+          fontWeight: 700,
+        },
+        '&:hover': {
+          bgcolor: '#f0f0f0',
+          borderRadius: '10px',
+        },
+        minHeight: '40px',
+        px: 2,
+      }}
+    />
+  </Tabs>
+  <Divider sx={{ mb: 2, bgcolor: '#dbdbdb' }} />
+  <Box>
+    <TabPanel value={tabValue} index={0}>
+      <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+        <InputBase
+          placeholder="Sohbette ara..."
+          value={messageSearchQuery}
+          onChange={(e) => setMessageSearchQuery(e.target.value)}
+          onKeyPress={(e) => {
+            if (e.key === 'Enter') {
+              handleMessageSearch();
+            }
+          }}
+          sx={{
+            flexGrow: 1,
+            bgcolor: '#efefef',
+            p: 1,
+            borderRadius: '10px',
+            fontSize: '15px',
+          }}
+        />
+        <IconButton
+          onClick={handleMessageSearch}
+          sx={{ ml: 1, color: '#0095f6' }}
+        >
+          <Search />
+        </IconButton>
+      </Box>
+      <List>
+        {searchedMessages.length === 0 ? (
+          <Typography sx={{ color: '#8e8e8e', textAlign: 'center' }}>
+            Sonuç bulunamadı.
+          </Typography>
+        ) : (
+          searchedMessages.map((msg) => (
+            <ListItem
+              key={msg.id}
+              sx={{
+                bgcolor: '#f5f5f5',
+                borderRadius: '10px',
+                mb: 1,
+                p: 2,
+              }}
+            >
+              <Box>
+                <Typography sx={{ fontSize: '14px', color: '#262626' }}>
+                  {msg.text}
+                </Typography>
+                <Typography sx={{ fontSize: '12px', color: '#8e8e8e' }}>
+                  {new Date(msg.timestamp).toLocaleString()}
+                </Typography>
+              </Box>
+            </ListItem>
+          ))
+        )}
+      </List>
+    </TabPanel>
+    <TabPanel value={tabValue} index={1}>
+      <Tabs
+        value={subTabValue}
+        onChange={handleSubTabChange}
+        variant="scrollable"
+        scrollButtons="auto"
         sx={{
-          '& .MuiDrawer-paper': {
-            width: { xs: '100%', sm: '400px' },
-            bgcolor: '#fff',
-            p: 2,
-            boxSizing: 'border-box',
+          mb: 2,
+          '.MuiTabs-indicator': {
+            backgroundColor: '#0095f6',
+            height: 2,
           },
         }}
+        aria-label="Medya ve dosyalar alt sekmeleri"
       >
-        <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-          <IconButton onClick={handleSidebarClose} sx={{ mr: 1 }}>
-            <ArrowBack />
-          </IconButton>
-          <Typography variant="h6" sx={{ fontWeight: 700, color: '#262626' }}>
-            Detaylar
-          </Typography>
-        </Box>
-        <Tabs
-          value={tabValue}
-          onChange={handleTabChange}
-          variant="scrollable"
-          scrollButtons="auto"
+        <Tab
+          label="Medya"
           sx={{
-            mb: 1,
-            bgcolor: '#fafafa',
-            borderRadius: '10px',
-            '.MuiTabs-indicator': {
-              backgroundColor: '#0095f6',
-              height: 3,
+            textTransform: 'none',
+            fontSize: '13px',
+            fontWeight: 500,
+            color: '#262626',
+            '&.Mui-selected': {
+              color: '#0095f6',
             },
+            '&:hover': {
+              bgcolor: '#f0f0f0',
+              borderRadius: '8px',
+            },
+            minHeight: '36px',
+            px: 1.5,
           }}
-          aria-label="Kenar çubuğu navigasyon sekmeleri"
-        >
-          <Tab
-            label="Ara"
-            sx={{
-              textTransform: 'none',
-              fontSize: '14px',
-              fontWeight: 500,
-              color: '#262626',
-              '&.Mui-selected': {
-                color: '#0095f6',
-                fontWeight: 700,
-              },
-              '&:hover': {
-                bgcolor: '#f0f0f0',
-                borderRadius: '10px',
-              },
-              minHeight: '40px',
-              px: 2,
-            }}
-          />
-          <Tab
-            label="Medya ve Dosyalar"
-            sx={{
-              textTransform: 'none',
-              fontSize: '14px',
-              fontWeight: 500,
-              color: '#262626',
-              '&.Mui-selected': {
-                color: '#0095f6',
-                fontWeight: 700,
-              },
-              '&:hover': {
-                bgcolor: '#f0f0f0',
-                borderRadius: '10px',
-              },
-              minHeight: '40px',
-              px: 2,
-            }}
-          />
-          <Tab
-            label="Bildirimler"
-            sx={{
-              textTransform: 'none',
-              fontSize: '14px',
-              fontWeight: 500,
-              color: '#262626',
-              '&.Mui-selected': {
-                color: '#0095f6',
-                fontWeight: 700,
-              },
-              '&:hover': {
-                bgcolor: '#f0f0f0',
-                borderRadius: '10px',
-              },
-              minHeight: '40px',
-              px: 2,
-            }}
-          />
-          <Tab
-            label="OTN"
-            sx={{
-              textTransform: 'none',
-              fontSize: '14px',
-              fontWeight: 500,
-              color: '#262626',
-              '&.Mui-selected': {
-                color: '#0095f6',
-                fontWeight: 700,
-              },
-              '&:hover': {
-                bgcolor: '#f0f0f0',
-                borderRadius: '10px',
-              },
-              minHeight: '40px',
-              px: 2,
-            }}
-          />
-        </Tabs>
-        <Divider sx={{ mb: 2, bgcolor: '#dbdbdb' }} />
-        <Box>
-          <TabPanel value={tabValue} index={0}>
-            <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-              <InputBase
-                placeholder="Sohbette ara..."
-                value={messageSearchQuery}
-                onChange={(e) => setMessageSearchQuery(e.target.value)}
-                onKeyPress={(e) => {
-                  if (e.key === 'Enter') {
-                    handleMessageSearch();
-                  }
-                }}
-                sx={{
-                  flexGrow: 1,
-                  bgcolor: '#efefef',
-                  p: 1,
-                  borderRadius: '10px',
-                  fontSize: '15px',
-                }}
-              />
-              <IconButton
-                onClick={handleMessageSearch}
-                sx={{ ml: 1, color: '#0095f6' }}
-              >
-                <Search />
-              </IconButton>
-            </Box>
-            <List>
-              {searchedMessages.length === 0 ? (
-                <Typography sx={{ color: '#8e8e8e', textAlign: 'center' }}>
-                  Sonuç bulunamadı.
-                </Typography>
-              ) : (
-                searchedMessages.map((msg) => (
-                  <ListItem
-                    key={msg.id}
-                    sx={{
-                      bgcolor: '#f5f5f5',
-                      borderRadius: '10px',
-                      mb: 1,
-                      p: 2,
-                    }}
-                  >
-                    <Box>
-                      <Typography sx={{ fontSize: '14px', color: '#262626' }}>
-                        {msg.text}
-                      </Typography>
-                      <Typography sx={{ fontSize: '12px', color: '#8e8e8e' }}>
-                        {new Date(msg.timestamp).toLocaleString()}
-                      </Typography>
-                    </Box>
-                  </ListItem>
-                ))
-              )}
-            </List>
-          </TabPanel>
-          <TabPanel value={tabValue} index={1}>
-            <Tabs
-              value={subTabValue}
-              onChange={handleSubTabChange}
-              variant="scrollable"
-              scrollButtons="auto"
-              sx={{
-                mb: 2,
-                '.MuiTabs-indicator': {
-                  backgroundColor: '#0095f6',
-                  height: 2,
-                },
-              }}
-              aria-label="Medya ve dosyalar alt sekmeleri"
-            >
-              <Tab
-                label="Medya"
-                sx={{
-                  textTransform: 'none',
-                  fontSize: '13px',
-                  fontWeight: 500,
-                  color: '#262626',
-                  '&.Mui-selected': {
-                    color: '#0095f6',
-                  },
-                  '&:hover': {
-                    bgcolor: '#f0f0f0',
-                    borderRadius: '8px',
-                  },
-                  minHeight: '36px',
-                  px: 1.5,
-                }}
-              />
-              <Tab
-                label="Dosyalar"
-                sx={{
-                  textTransform: 'none',
-                  fontSize: '13px',
-                  fontWeight: 500,
-                  color: '#262626',
-                  '&.Mui-selected': {
-                    color: '#0095f6',
-                  },
-                  '&:hover': {
-                    bgcolor: '#f0f0f0',
-                    borderRadius: '8px',
-                  },
-                  minHeight: '36px',
-                  px: 1.5,
-                }}
-              />
-              <Tab
-                label="Bağlantılar"
-                sx={{
-                  textTransform: 'none',
-                  fontSize: '13px',
-                  fontWeight: 500,
-                  color: '#262626',
-                  '&.Mui-selected': {
-                    color: '#0095f6',
-                  },
-                  '&:hover': {
-                    bgcolor: '#f0f0f0',
-                    borderRadius: '8px',
-                  },
-                  minHeight: '36px',
-                  px: 1.5,
-                }}
-              />
-            </Tabs>
-            {subTabValue === 0 && (
-              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-                {getMediaFiles().length === 0 ? (
-                  <Typography sx={{ color: '#8e8e8e' }}>Medya bulunamadı.</Typography>
-                ) : (
-                  getMediaFiles().map((media, index) => (
-                    <Box key={index} sx={{ width: '100px' }}>
-                      {['image', 'sticker'].includes(media.type) ? (
-                        <>
-                          <img
-                            src={
-                              media.direction === 'outbound'
-                                ? imageBlobs[media.url] || media.url
-                                : media.url
-                            }
-                            alt={media.name}
-                            style={{
-                              width: '100px',
-                              height: '100px',
-                              borderRadius: '12px',
-                              objectFit: 'cover',
-                              boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-                              border: '1px solid #dbdbdb',
-                            }}
-                            onError={(e) => {
-                              console.error('Kenar çubuğu resmi yüklenemedi:', media.url);
-                              e.target.style.display = 'none';
-                              e.target.nextSibling.style.display = 'block';
-                            }}
-                          />
-                          <Typography sx={{ display: 'none', color: 'red', mt: 1 }}>
-                            Medya yüklenemedi
-                          </Typography>
-                        </>
-                      ) : media.type === 'video' ? (
-                        <>
-                          <video
-                            src={
-                              media.direction === 'outbound'
-                                ? imageBlobs[media.url] || media.url
-                                : media.url
-                            }
-                            controls
-                            style={{
-                              width: '100px',
-                              height: '100px',
-                              borderRadius: '12px',
-                              objectFit: 'cover',
-                              boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-                              border: '1px solid #dbdbdb',
-                            }}
-                            onError={(e) => {
-                              console.error('Kenar çubuğu videosu yüklenemedi:', media.url);
-                              e.target.style.display = 'none';
-                              e.target.nextSibling.style.display = 'block';
-                            }}
-                          />
-                          <Typography sx={{ display: 'none', color: 'red', mt: 1 }}>
-                            Medya yüklenemedi
-                          </Typography>
-                        </>
-                      ) : null}
-                    </Box>
-                  ))
-                )}
-              </Box>
-            )}
-            {subTabValue === 1 && (
-              <Box>
-                {getAudioFiles().length === 0 ? (
-                  <Typography sx={{ color: 'red' }}>Dosya bulunamadı.</Typography>
-                ) : (
-                  getAudioFiles().map((file, index) => (
-                    <Box
-                      key={index}
-                      sx={{
-                        bgcolor: '#f5f5f5',
-                        borderRadius: '10px',
-                        p: 2,
-                        mb: 1,
+        />
+        <Tab
+          label="Dosyalar"
+          sx={{
+            textTransform: 'none',
+            fontSize: '13px',
+            fontWeight: 500,
+            color: '#262626',
+            '&.Mui-selected': {
+              color: '#0095f6',
+            },
+            '&:hover': {
+              bgcolor: '#f0f0f0',
+              borderRadius: '8px',
+            },
+            minHeight: '36px',
+            px: 1.5,
+          }}
+        />
+        <Tab
+          label="Bağlantılar"
+          sx={{
+            textTransform: 'none',
+            fontSize: '13px',
+            fontWeight: 500,
+            color: '#262626',
+            '&.Mui-selected': {
+              color: '#0095f6',
+            },
+            '&:hover': {
+              bgcolor: '#f0f0f0',
+              borderRadius: '8px',
+            },
+            minHeight: '36px',
+            px: 1.5,
+          }}
+        />
+      </Tabs>
+      {subTabValue === 0 && (
+        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+          {getMediaFiles().length === 0 ? (
+            <Typography sx={{ color: '#8e8e8e' }}>Medya bulunamadı.</Typography>
+          ) : (
+            getMediaFiles().map((media, index) => (
+              <Box key={index} sx={{ width: '100px' }}>
+                {['image', 'sticker'].includes(media.type) ? (
+                  <>
+                    <img
+                      src={
+                        media.direction === 'outbound'
+                          ? imageBlobs[media.url] || media.url
+                          : media.url
+                      }
+                      alt={media.name}
+                      style={{
+                        width: '100px',
+                        height: '100px',
+                        borderRadius: '12px',
+                        objectFit: 'cover',
+                        boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                        border: '1px solid #dbdbdb',
                       }}
-                    >
-                      <audio
-                        src={
-                          file.direction === 'outbound'
-                            ? imageBlobs[file.url] || file.url
-                            : file.url
-                        }
-                        controls
-                        style={{ width: '100%' }}
-                        onError={(e) => {
-                          console.error('Kenar çubuğu sesi yüklenemedi:', file.url);
-                        }}
-                      />
-                    </Box>
-                  ))
-                )}
-              </Box>
-            )}
-            {subTabValue === 2 && (
-              <Box>
-                {getLinks().length === 0 ? (
-                  <Typography sx={{ color: '#8e8e8e' }}>Bağlantı bulunamadı.</Typography>
-                ) : (
-                  getLinks().map((link, index) => (
-                    <Box
-                      key={index}
-                      sx={{
-                        bgcolor: '#f5f5f5',
-                        borderRadius: '10px',
-                        p: 2,
-                        mb: 1,
+                      onError={(e) => {
+                        console.error('Kenar çubuğu resmi yüklenemedi:', media.url);
+                        e.target.style.display = 'none';
+                        e.target.nextSibling.style.display = 'block';
                       }}
-                    >
-                      <Typography
-                        sx={{ color: '#0095f6', cursor: 'pointer' }}
-                        onClick={() => window.open(link.url, '_blank')}
-                      >
-                        {link.name}
-                      </Typography>
-                    </Box>
-                  ))
-                )}
+                    />
+                    <Typography sx={{ display: 'none', color: 'red', mt: 1 }}>
+                      Medya yüklenemedi
+                    </Typography>
+                  </>
+                ) : media.type === 'video' ? (
+                  <>
+                    <video
+                      src={
+                        media.direction === 'outbound'
+                          ? imageBlobs[media.url] || media.url
+                          : media.url
+                      }
+                      controls
+                      style={{
+                        width: '100px',
+                        height: '100px',
+                        borderRadius: '12px',
+                        objectFit: 'cover',
+                        boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                        border: '1px solid #dbdbdb',
+                      }}
+                      onError={(e) => {
+                        console.error('Kenar çubuğu videosu yüklenemedi:', media.url);
+                        e.target.style.display = 'none';
+                        e.target.nextSibling.style.display = 'block';
+                      }}
+                    />
+                    <Typography sx={{ display: 'none', color: 'red', mt: 1 }}>
+                      Medya yüklenemedi
+                    </Typography>
+                  </>
+                ) : null}
               </Box>
-            )}
-          </TabPanel>
-          <TabPanel value={tabValue} index={2}>
-            <Box sx={{ display: 'flex', alignItems: 'center' }}>
-              <Typography sx={{ flexGrow: 1, color: '#262626' }}>
-                Bildirim ve Ses
-              </Typography>
-              <Switch
-                checked={playNotificationSound}
-                onChange={handleNotificationSoundToggle}
-                color="primary"
-              />
-            </Box>
-          </TabPanel>
-          <TabPanel value={tabValue} index={3}>
-            <ListItem
-              button
-              onClick={() => setOtnModalOpen(true)}
-              sx={{
-                bgcolor: '#efefef',
-                borderRadius: '10px',
-                justifyContent: 'center',
-              }}
-            >
-              <ListItemText primary="OTN Talep Et" />
-            </ListItem>
-          </TabPanel>
+            ))
+          )}
         </Box>
-      </Drawer>
-
+      )}
+      {subTabValue === 1 && (
+        <Box>
+          {getAudioFiles().length === 0 ? (
+            <Typography sx={{ color: 'red' }}>Dosya bulunamadı.</Typography>
+          ) : (
+            getAudioFiles().map((file, index) => (
+              <Box
+                key={index}
+                sx={{
+                  bgcolor: '#f5f5f5',
+                  borderRadius: '10px',
+                  p: 2,
+                  mb: 1,
+                }}
+              >
+                <audio
+                  src={
+                    file.direction === 'outbound'
+                      ? imageBlobs[file.url] || file.url
+                      : file.url
+                  }
+                  controls
+                  style={{ width: '100%' }}
+                  onError={(e) => {
+                    console.error('Kenar çubuğu sesi yüklenemedi:', file.url);
+                  }}
+                />
+              </Box>
+            ))
+          )}
+        </Box>
+      )}
+      {subTabValue === 2 && (
+        <Box>
+          {getLinks().length === 0 ? (
+            <Typography sx={{ color: '#8e8e8e' }}>Bağlantı bulunamadı.</Typography>
+          ) : (
+            getLinks().map((link, index) => (
+              <Box
+                key={index}
+                sx={{
+                  bgcolor: '#f5f5f5',
+                  borderRadius: '10px',
+                  p: 2,
+                  mb: 1,
+                }}
+              >
+                <Typography
+                  sx={{ color: '#0095f6', cursor: 'pointer' }}
+                  onClick={() => window.open(link.url, '_blank')}
+                >
+                  {link.name}
+                </Typography>
+              </Box>
+            ))
+          )}
+        </Box>
+      )}
+    </TabPanel>
+    <TabPanel value={tabValue} index={2}>
+      <Box sx={{ display: 'flex', alignItems: 'center' }}>
+        <Typography sx={{ flexGrow: 1, color: '#262626' }}>
+          Bildirim ve Ses
+        </Typography>
+        <Switch
+          checked={playNotificationSound}
+          onChange={handleNotificationSoundToggle}
+          color="primary"
+        />
+      </Box>
+    </TabPanel>
+  </Box>
+</Drawer>
       <Menu
         anchorEl={menuAnchorEl}
         open={Boolean(menuAnchorEl)}
@@ -2074,7 +2027,6 @@ const InstagramMessengerPage = () => {
             ? 'Tepkiyi Kaldır'
             : 'Tepki Ver'}
         </MenuItem>
-        <MenuItem onClick={() => setOtnModalOpen(true)}>OTN Talep Et</MenuItem>
       </Menu>
 
       <Modal open={errorModalOpen} onClose={() => setErrorModalOpen(false)}>
@@ -2115,56 +2067,7 @@ const InstagramMessengerPage = () => {
         </Box>
       </Modal>
 
-      <Modal open={otnModalOpen} onClose={() => setOtnModalOpen(false)}>
-        <Box
-          sx={{
-            position: 'absolute',
-            top: '50%',
-            left: '50%',
-            transform: 'translate(-50%, -50%)',
-            bgcolor: '#fff',
-            borderRadius: '15px',
-            p: 3,
-            maxWidth: '90%',
-            width: '400px',
-            textAlign: 'center',
-          }}
-        >
-          <Typography
-            variant="h6"
-            sx={{ fontWeight: 600, color: '#0095f6', mb: 2 }}
-          >
-            Bildirim İzni Talep Et
-          </Typography>
-          <Typography variant="body2" sx={{ mb: 3, color: '#444' }}>
-            Instagram, tek seferlik bildirim göndermek için izninizi gerektirir.
-          </Typography>
-          <Box sx={{ display: 'flex', justifyContent: 'center', gap: 2 }}>
-            <IconButton
-              onClick={() => setOtnModalOpen(false)}
-              sx={{
-                bgcolor: '#efefef',
-                color: '#262626',
-              }}
-            >
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
-              </svg>
-            </IconButton>
-            <IconButton
-              onClick={handleOtnRequest}
-              sx={{
-                bgcolor: '#0095f6',
-                color: '#fff',
-              }}
-            >
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
-              </svg>
-            </IconButton>
-          </Box>
-        </Box>
-      </Modal>
+
     </Box>
   );
 };

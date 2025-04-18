@@ -38,16 +38,21 @@ import {
   Terrain,
   YouTube,
   Facebook as FacebookIcon,
+  Chat,
+  Money,
+  AdsClick,
+  PostAdd,
 } from '@mui/icons-material';
 import { useNavigate, useLocation, Link, useOutletContext } from 'react-router-dom';
 import largeLogo from '../../assets/images/linkedin-banner.jpg';
 import smallLogo from '../../assets/images/small-linkedin-logo.jpg';
 import LogoutOutlinedIcon from '@mui/icons-material/LogoutOutlined';
-import { Home, Files, Login, BrandYoutube, Message, Settings } from 'tabler-icons-react';
+import { Home, Files, Login, BrandYoutube, Message, Settings, News, Share } from 'tabler-icons-react';
 import { useSidebar } from '../../context/SidebarContext';
 import FacebookLogin from 'react-facebook-login';
 import { apiFetch } from '../../api/facebook/api';
 import { format, differenceInDays } from 'date-fns';
+import AdsManager from '../../pages/instagram/instagramProfile/AdsManager';
 
 const menuItems = [
   { text: 'Profile', icon: <Home size={22} />, path: '/homepage' },
@@ -57,55 +62,80 @@ const menuItems = [
     text: 'Instagram',
     icon: <Instagram size={22} />,
     subItems: [
-      { text: 'Profile', icon: <Person size={22} />, path: '/Profile' },
-      { text: 'Posts', icon: <InsertChart size={22} />, path: '/posts' },
-      { text: 'Hashtags', icon: <Terrain size={22} />, path: '/hashtags' },
-      { text: 'Stories', icon: <PhotoCamera size={22} />, path: '/stories' },
-      { text: 'Ads', icon: <Tv size={22} />, path: '/ads' },
-      { text: 'Insights', icon: <Visibility size={22} />, path: '/insights' },
-      { text: 'Schedule', icon: <CalendarToday size={22} />, path: '/schedule' },
-      { text: 'Hesap', icon: <Settings size={22} />, path: '/instagram-accounts' },
-      { text: 'Login', icon: <Login size={22} />, action: 'facebookLoginInstagram' },
+      {
+        text: 'Profile',
+        icon: <Instagram size={22} />,
+        subItems: [
+          { text: 'Profile', icon: <Person size={22} />, path: '/Profile' },
+          { text: 'Posts', icon: <InsertChart size={22} />, path: '/posts' },
+          { text: 'Hashtags', icon: <Terrain size={22} />, path: '/hashtags' },
+          { text: 'Stories', icon: <PhotoCamera size={22} />, path: '/stories' },
+          { text: 'Ads', icon: <PostAdd size={22} />, path: '/ads' },
+          { text: 'Insights', icon: <Visibility size={22} />, path: '/insights' },
+          { text: 'Schedule', icon: <CalendarToday size={22} />, path: '/schedule' },
+          { text: 'Hesap', icon: <Settings size={22} />, path: '/instagram-accounts' },
+          { text: 'Login', icon: <Login size={22} />, action: 'facebookLoginInstagram' },
+        ],
+      },
+      {
+        text: 'Messenger',
+        icon: <Chat size={22} />,
+        subItems: [
+          { text: 'Sohbet', icon: <Message size={22} />, path: '/instagram-chat' },
+          { text: 'Hesap', icon: <Settings size={22} />, path: '/instagram-chat-accounts' },
+          { text: 'Login', icon: <Login size={22} />, action: 'facebookLoginInstagramChat' },
+        ],
+      },
+      { text: 'Ads', icon: <PostAdd size={22} />, path: '/ads' },
     ],
   },
   {
     text: 'Facebook',
     icon: <FacebookIcon size={22} />,
     subItems: [
-      { text: 'Profile', icon: <Person size={22} />, path: '/FacebookProfile' },
-      { text: 'Hesap', icon: <Settings size={22} />, path: '/facebook-accounts' },
-      { text: 'Login', icon: <Login size={22} />, action: 'facebookLoginPage' },
+      {
+        text: 'Profile',
+        icon: <FacebookIcon size={22} />,
+        subItems: [
+          { text: 'Profile', icon: <Person size={22} />, path: '/FacebookProfile' },
+          { text: 'Hesap', icon: <Settings size={22} />, path: '/facebook-accounts' },
+          { text: 'Login', icon: <Login size={22} />, action: 'facebookLoginPage' },
+        ],
+      },
+      {
+        text: 'Messenger',
+        icon: <Message size={22} />,
+        subItems: [
+          { text: 'Sohbet', icon: <Message size={22} />, path: '/messenger' },
+          { text: 'Hesap', icon: <Settings size={22} />, path: '/MessengerAccount' },
+          { text: 'Login', icon: <Login size={22} />, action: 'facebookLoginMessenger' },
+        ],
+      },
+      { text: 'Ads', icon: <PostAdd size={22} />, path: '/ads' },
     ],
   },
+
   {
     text: 'Youtube',
     icon: <YouTube size={22} />,
     subItems: [
-      { text: 'Profile', icon: <Person size={22} />, path: '/youtube-profile' },
-      { text: 'Posts', icon: <InsertChart size={22} />, path: '/posts' },
-      { text: 'Shorts', icon: <BrandYoutube size={22} />, path: '/shorts' },
-      { text: 'Ads', icon: <Tv size={22} />, path: '/ads' },
-      { text: 'Insights', icon: <Visibility size={22} />, path: '/insights' },
-      { text: 'Schedule', icon: <CalendarToday size={22} />, path: '/schedule' },
+      {
+        text: 'Profile',
+        icon: <YouTube size={22} />,
+        subItems: [
+          { text: 'Profile', icon: <Person size={22} />, path: '/youtube-profile' },
+        
+        ],
+      },
+      {
+        text: 'Ads',
+        icon: <PostAdd size={22} />,
+        subItems: [
+          { text: 'Ads', icon: <PostAdd size={22} />, path: '/ads' },
+
+        ],
+      },
       { text: 'Login', icon: <Login size={22} />, action: 'googleLogin' },
-    ],
-  },
-  {
-    text: 'Messenger',
-    icon: <Message size={22} />,
-    subItems: [
-      { text: 'Sohbet', icon: <Message size={22} />, path: '/messenger' },
-      { text: 'Hesap', icon: <Settings size={22} />, path: '/MessengerAccount' },
-      { text: 'Login', icon: <Login size={22} />, action: 'facebookLoginMessenger' },
-    ],
-  },
-  {
-    text: 'Instagram Chat',
-    icon: <Instagram size={22} />,
-    subItems: [
-      { text: 'Sohbet', icon: <Message size={22} />, path: '/instagram-chat' },
-      { text: 'Hesap', icon: <Settings size={22} />, path: '/instagram-chat-accounts' },
-      { text: 'Login', icon: <Login size={22} />, action: 'facebookLoginInstagramChat' },
     ],
   },
   { text: 'Çıkış Yap', icon: <LogoutOutlinedIcon size={22} />, action: logout, path: '/login' },
@@ -130,6 +160,35 @@ const Sidebar = () => {
   const context = useOutletContext();
   const setErrorModalMessage = context?.setErrorModalMessage;
 
+  // Function to determine which submenus should be open based on the current path
+  const initializeOpenSubMenus = (pathname) => {
+    const newOpenSubMenu = {};
+
+    const setOpenMenusForPath = (items, parentKey = '') => {
+      items.forEach((item) => {
+        if (item.subItems) {
+          const menuKey = parentKey ? `${parentKey}.${item.text}` : item.text;
+          item.subItems.forEach((subItem) => {
+            if (subItem.path && subItem.path === pathname) {
+              newOpenSubMenu[menuKey] = true;
+            } else if (subItem.subItems) {
+              const subMenuKey = `${menuKey}.${subItem.text}`;
+              subItem.subItems.forEach((nestedItem) => {
+                if (nestedItem.path && nestedItem.path === pathname) {
+                  newOpenSubMenu[menuKey] = true;
+                  newOpenSubMenu[subMenuKey] = true;
+                }
+              });
+            }
+          });
+        }
+      });
+    };
+
+    setOpenMenusForPath(menuItems);
+    return newOpenSubMenu;
+  };
+
   useEffect(() => {
     console.log('Sidebar Context:', context);
     console.log('Checking URL params...', { location: location.pathname, search: location.search });
@@ -147,8 +206,6 @@ const Sidebar = () => {
     if (error) {
       console.error('Error from server:', { error, details });
       setError(details || 'OAuth işlemi başarısız oldu. Lütfen tekrar giriş yapın.');
-      // navigate('/instagram-chat-accounts');
-      // window.history.replaceState({}, document.title, location.pathname);
       return;
     }
 
@@ -157,7 +214,16 @@ const Sidebar = () => {
       handleTokenFromServer(token, parseInt(expiresIn));
       window.history.replaceState({}, document.title, location.pathname);
     }
-  }, [context, setErrorModalMessage, location]);
+  }, [context, setErrorModalMessage, location.search]);
+
+  // Separate useEffect for initializing openSubMenu based on location.pathname
+  useEffect(() => {
+    const openMenus = initializeOpenSubMenus(location.pathname);
+    setOpenSubMenu((prevState) => ({
+      ...prevState,
+      ...openMenus,
+    }));
+  }, [location.pathname]);
 
   const handleTokenFromServer = async (longLivedToken, expiresIn) => {
     setLoading(true);
@@ -182,13 +248,11 @@ const Sidebar = () => {
         throw new Error('Hesap seçimi eksik veya geçersiz.');
       }
 
-      // Validate token
       const isValid = await validateInstagramToken(longLivedToken);
       if (!isValid) {
         throw new Error('Geçersiz token. Lütfen tekrar giriş yapın.');
       }
 
-      // Store tokens
       console.log('Persisting to localStorage:', {
         instagramChatAccessToken: longLivedToken.substring(0, 10) + '...',
         instagramChatPageId: effectiveAccount.pageId,
@@ -200,7 +264,6 @@ const Sidebar = () => {
       localStorage.set('tokenExpiresIn', expiresIn);
       localStorage.set('tokenCreatedAt', format(new Date(), 'yyyy-MM-dd'));
 
-      // Update account token
       const updateSuccess = await updateAccountToken(
         effectiveAccount.companyId,
         longLivedToken,
@@ -287,60 +350,57 @@ const Sidebar = () => {
 
   const updateAccountToken = async (companyId, longLivedToken, pageId, expiresIn) => {
     console.log('Updating account with:', { companyId, longLivedToken, pageId, expiresIn });
- 
+
     const today = format(new Date(), 'yyyy-MM-dd');
-    let endpoint ="";
-    let body ={};
+    let endpoint = "";
+    let body = {};
     if (selectedAccount !== null) {
-       endpoint =
-      loginType === 'messenger'
-        ? `/api/MessengerAccount/${selectedAccount.id}`
-        : loginType === 'instagramChat'
-        ? `/api/InstagramMessengerAccount/${selectedAccount.id}`
-        : `/api/FacebookAccount/${selectedAccount.id}`;
-     body = {
-      id: selectedAccount.id,
-      facebookPageId: pageId || selectedAccount.facebookPageId,
-      facebookLongLiveAccessToken: longLivedToken,
-      longLiveAccessTokenCreatedAt: today,
-      expiresIn: expiresIn || 5184000,
-      facebookAppName: selectedAccount.facebookAppName,
-      facebookAppId: selectedAccount.facebookAppId,
-      graphApiVersion: selectedAccount.graphApiVersion || 'v22.0',
-      companyId: selectedAccount.companyId,
-      instagramAppId : selectedAccount.instagramAppId,
-      instagramAppSecret : selectedAccount.instagramAppSecret,
-    };
-    }
-    else  {
-      const storedAccountData1 =JSON.parse(localStorage('selectedAccount'));
-     const loginType1 = localStorage('oauthLoginType');
-     console.log('Stored Account Data:', storedAccountData1);
-     console.log('Login Type:', loginType1);
       endpoint =
-      loginType1 === 'messenger'
-        ? `/api/MessengerAccount/${storedAccountData1.id}`
-        : loginType1 === 'instagramChat'
-        ? `/api/InstagramMessengerAccount/${storedAccountData1.id}`
-        : `/api/FacebookAccount/${storedAccountData1.id}`;
-     body = {
-      id: storedAccountData1.id,
-      instagramAppId : storedAccountData1.instagramAppId,
-      instagramAppSecret : storedAccountData1.instagramAppSecret,
-      facebookPageId: pageId || storedAccountData1.facebookPageId,
-      facebookLongLiveAccessToken: longLivedToken,
-      longLiveAccessTokenCreatedAt: today,
-      expiresIn: expiresIn || 5184000,
-      facebookAppName: storedAccountData1.facebookAppName,
-      facebookAppId: storedAccountData1.facebookAppId,
-      graphApiVersion: storedAccountData1.graphApiVersion || 'v22.0',
-      companyId: storedAccountData1.companyId,
-    };
-
+        loginType === 'messenger'
+          ? `/api/MessengerAccount/${selectedAccount.id}`
+          : loginType === 'instagramChat'
+          ? `/api/InstagramMessengerAccount/${selectedAccount.id}`
+          : `/api/FacebookAccount/${selectedAccount.id}`;
+      body = {
+        id: selectedAccount.id,
+        facebookPageId: pageId || selectedAccount.facebookPageId,
+        facebookLongLiveAccessToken: longLivedToken,
+        longLiveAccessTokenCreatedAt: today,
+        expiresIn: expiresIn || 5184000,
+        facebookAppName: selectedAccount.facebookAppName,
+        facebookAppId: selectedAccount.facebookAppId,
+        graphApiVersion: selectedAccount.graphApiVersion || 'v22.0',
+        companyId: selectedAccount.companyId,
+        instagramAppId: selectedAccount.instagramAppId,
+        instagramAppSecret: selectedAccount.instagramAppSecret,
+      };
+    } else {
+      const storedAccountData1 = JSON.parse(localStorage.get('selectedAccount'));
+      const loginType1 = localStorage.get('oauthLoginType');
+      console.log('Stored Account Data:', storedAccountData1);
+      console.log('Login Type:', loginType1);
+      endpoint =
+        loginType1 === 'messenger'
+          ? `/api/MessengerAccount/${storedAccountData1.id}`
+          : loginType1 === 'instagramChat'
+          ? `/api/InstagramMessengerAccount/${storedAccountData1.id}`
+          : `/api/FacebookAccount/${storedAccountData1.id}`;
+      body = {
+        id: storedAccountData1.id,
+        instagramAppId: storedAccountData1.instagramAppId,
+        instagramAppSecret: storedAccountData1.instagramAppSecret,
+        facebookPageId: pageId || storedAccountData1.facebookPageId,
+        facebookLongLiveAccessToken: longLivedToken,
+        longLiveAccessTokenCreatedAt: today,
+        expiresIn: expiresIn || 5184000,
+        facebookAppName: storedAccountData1.facebookAppName,
+        facebookAppId: storedAccountData1.facebookAppId,
+        graphApiVersion: storedAccountData1.graphApiVersion || 'v22.0',
+        companyId: storedAccountData1.companyId,
+      };
     }
-  
-    try {
 
+    try {
       const response = await apiFetch(endpoint, {
         method: 'PUT',
         body: JSON.stringify(body),
@@ -419,25 +479,21 @@ const Sidebar = () => {
   const validateInstagramToken = async (accessToken) => {
     try {
       console.log('Validating Instagram access token');
-  
-      // Step 1: Test basic token validity with a simple call
       const basicResponse = await fetch(
         `https://graph.instagram.com/me?fields=id,username&access_token=${accessToken}`
       );
       const basicData = await basicResponse.json();
       console.log('Basic validation response:', basicData);
-  
+
       if (basicResponse.status !== 200 || basicData.error) {
         throw new Error(
           basicData.error?.message || 'Invalid token or missing instagram_business_basic permission'
         );
       }
-  
-      // Step 2: Check required scopes
+
       const requiredScopes = ['instagram_business_basic', 'instagram_business_manage_messages'];
       const missingScopes = [];
-  
-      // Test instagram_business_basic (already partially tested via /me)
+
       const mediaResponse = await fetch(
         `https://graph.instagram.com/me/media?fields=id,caption&access_token=${accessToken}`
       );
@@ -447,8 +503,7 @@ const Sidebar = () => {
           missingScopes.push('instagram_business_basic');
         }
       }
-  
-      // Test instagram_business_manage_messages
+
       const conversationsResponse = await fetch(
         `https://graph.instagram.com/me/conversations?fields=id&access_token=${accessToken}`
       );
@@ -458,12 +513,11 @@ const Sidebar = () => {
           missingScopes.push('instagram_business_manage_messages');
         }
       }
-  
-      // Step 3: Check if any scopes are missing
+
       if (missingScopes.length > 0) {
         throw new Error(`Eksik izinler: ${missingScopes.join(', ')}. Lütfen tekrar yetkilendirin.`);
       }
-  
+
       console.log('All required scopes are present');
       return true;
     } catch (error) {
@@ -686,7 +740,6 @@ const Sidebar = () => {
     }
   };
 
-
   const fetchMessengerData = async (accessToken) => {
     setLoading(true);
     setError(null);
@@ -863,10 +916,10 @@ const Sidebar = () => {
     setIsHovered(false);
   };
 
-  const handleSubMenuToggle = (text) => {
+  const handleSubMenuToggle = (key) => {
     setOpenSubMenu((prevState) => ({
       ...prevState,
-      [text]: !prevState[text],
+      [key]: !prevState[key],
     }));
   };
 
@@ -903,9 +956,10 @@ const Sidebar = () => {
     if (item.path) navigate(item.path);
   };
 
-  const renderMenuItem = (item, index) => {
+  const renderMenuItem = (item, index, parentKey = '') => {
     const isActive = location.pathname === item.path;
     const itemClass = isActive ? 'selected-menu-item' : 'unselected-menu-item';
+    const menuKey = parentKey ? `${parentKey}.${item.text}` : item.text;
 
     if (item.header) {
       return (
@@ -918,14 +972,30 @@ const Sidebar = () => {
     }
 
     if (item.subItems) {
-      const subItemActive = item.subItems.some((subItem) => location.pathname === subItem.path);
+      console.log(`Checking active state for ${menuKey}:`, {
+        currentPath: location.pathname,
+        subItemPaths: item.subItems.map((sub) => ({
+          text: sub.text,
+          path: sub.path,
+          nestedPaths: sub.subItems?.map((n) => n.path) || [],
+        })),
+      });
+
+      const subItemActive = item.subItems.some(
+        (subItem) =>
+          (subItem.path && location.pathname === subItem.path) ||
+          (subItem.subItems &&
+            subItem.subItems.some(
+              (nested) => nested.path && location.pathname === nested.path
+            ))
+      );
       const subItemClass = subItemActive ? 'selected-menu-item' : 'unselected-menu-item';
 
       return (
-        <React.Fragment key={item.text}>
+        <React.Fragment key={menuKey}>
           <ListItem
             button
-            onClick={() => handleSubMenuToggle(item.text)}
+            onClick={() => handleSubMenuToggle(menuKey)}
             className={subItemClass}
             sx={{ mt: 0.3, mb: 0.3 }}
           >
@@ -933,13 +1003,90 @@ const Sidebar = () => {
             {(sidebarOpen || isHovered) && (
               <>
                 <ListItemText primary={item.text} />
-                {openSubMenu[item.text] ? <ExpandLess /> : <ExpandMore />}
+                {openSubMenu[menuKey] ? <ExpandLess /> : <ExpandMore />}
               </>
             )}
           </ListItem>
-          <Collapse in={openSubMenu[item.text]} timeout="auto" unmountOnExit>
+          <Collapse in={openSubMenu[menuKey]} timeout="auto" unmountOnExit>
             <List component="div" disablePadding>
               {item.subItems.map((subItem, subIndex) => {
+                if (subItem.subItems) {
+                  const subMenuKey = `${menuKey}.${subItem.text}`;
+                  const nestedActive = subItem.subItems.some(
+                    (nested) => nested.path && location.pathname === nested.path
+                  );
+                  const nestedClass = nestedActive ? 'selected-menu-item' : 'unselected-menu-item';
+
+                  return (
+                    <React.Fragment key={subMenuKey}>
+                      <ListItem
+                        button
+                        onClick={() => handleSubMenuToggle(subMenuKey)}
+                        className={nestedClass}
+                        sx={{ pl: 4, m: 1, width: '95%' }}
+                      >
+                        <ListItemIcon>{subItem.icon}</ListItemIcon>
+                        {(sidebarOpen || isHovered) && (
+                          <>
+                            <ListItemText primary={subItem.text} />
+                            {openSubMenu[subMenuKey] ? <ExpandLess /> : <ExpandMore />}
+                          </>
+                        )}
+                      </ListItem>
+                      <Collapse in={openSubMenu[subMenuKey]} timeout="auto" unmountOnExit>
+                        <List component="div" disablePadding>
+                          {subItem.subItems.map((nestedItem, nestedIndex) => {
+                            if (nestedItem.text === 'Login') {
+                              return (
+                                <ListItem
+                                  button
+                                  key={nestedItem.text}
+                                  onClick={() => handleItemClick(nestedItem)}
+                                  sx={{ pl: 8, m: 1, width: '90%' }}
+                                >
+                                  <ListItemIcon>{nestedItem.icon}</ListItemIcon>
+                                  {(sidebarOpen || isHovered) && (
+                                    <ListItemText
+                                      primary={
+                                        item.text === 'Youtube'
+                                          ? 'Google ile Giriş'
+                                          : item.text === 'Instagram Chat'
+                                          ? 'Giriş'
+                                          : item.text === 'Messenger'
+                                          ? 'Giriş'
+                                          : 'Giriş'
+                                      }
+                                    />
+                                  )}
+                                </ListItem>
+                              );
+                            }
+                            return (
+                              <ListItem
+                                button
+                                key={nestedItem.text}
+                                component={Link}
+                                to={nestedItem.path}
+                                className={
+                                  nestedItem.path && location.pathname === nestedItem.path
+                                    ? 'selected-menu-item'
+                                    : 'unselected-menu-item'
+                                }
+                                sx={{ pl: 8, m: 1, width: '90%' }}
+                              >
+                                <ListItemIcon>{nestedItem.icon}</ListItemIcon>
+                                {(sidebarOpen || isHovered) && (
+                                  <ListItemText primary={nestedItem.text} />
+                                )}
+                              </ListItem>
+                            );
+                          })}
+                        </List>
+                      </Collapse>
+                    </React.Fragment>
+                  );
+                }
+
                 if (subItem.text === 'Login') {
                   return (
                     <ListItem
@@ -971,7 +1118,11 @@ const Sidebar = () => {
                     key={subItem.text}
                     component={Link}
                     to={subItem.path}
-                    className={location.pathname === subItem.path ? 'selected-menu-item' : 'unselected-menu-item'}
+                    className={
+                      subItem.path && location.pathname === subItem.path
+                        ? 'selected-menu-item'
+                        : 'unselected-menu-item'
+                    }
                     sx={{ pl: 4, m: 1, width: '95%' }}
                   >
                     <ListItemIcon>{subItem.icon}</ListItemIcon>
@@ -1048,7 +1199,7 @@ const Sidebar = () => {
             {error}
           </Typography>
         )}
-        <List sx={{ m: '2%' }}>{menuItems.map(renderMenuItem)}</List>
+        <List sx={{ m: '2%' }}>{menuItems.map((item, index) => renderMenuItem(item, index))}</List>
       </Drawer>
 
       <Dialog
