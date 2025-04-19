@@ -22,7 +22,6 @@ import Login from "./pages/loginPage/loginPage.js";
 import ForgotPassword from "./pages/forgotPassword/forgotPassword.js";
 import Register from "./pages/registerPage/register.js";
 import HomePage from "./pages/homePage/homePage.js";
-import GridPage from "./pages/gridPage/gridPage.js";
 import ProfilePage from "./pages/profilePage/userProfile.js";
 import AdminPage from "./pages/adminPage/adminPage.js";
 import AdminUsers from "./pages/adminPage/adminUsers.js";
@@ -155,14 +154,6 @@ function AppRoutes() {
           element={
             <ProtectedRoute>
               <HomePage />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/user/gridPage"
-          element={
-            <ProtectedRoute>
-              <GridPage />
             </ProtectedRoute>
           }
         />

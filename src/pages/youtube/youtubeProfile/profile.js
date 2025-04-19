@@ -331,7 +331,7 @@ const YoutubeProfile = () => {
         if (cachedVideos) setVideos(JSON.parse(cachedVideos));
 
         if (!cachedProfile || !cachedProfile.snippet) {
-          const profileResponse = await fetch('https://localhost:7099/api/GoogleAuth/youtube/profile', {
+          const profileResponse = await fetch('https://localhost:7099/api/YoutubeProfile/profile', {
             headers: {
               'X-Access-Token': accessToken,
               'X-Refresh-Token': refreshToken,

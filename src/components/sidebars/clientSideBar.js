@@ -70,7 +70,6 @@ const menuItems = [
           { text: 'Posts', icon: <InsertChart size={22} />, path: '/posts' },
           { text: 'Hashtags', icon: <Terrain size={22} />, path: '/hashtags' },
           { text: 'Stories', icon: <PhotoCamera size={22} />, path: '/stories' },
-          { text: 'Ads', icon: <PostAdd size={22} />, path: '/ads' },
           { text: 'Insights', icon: <Visibility size={22} />, path: '/insights' },
           { text: 'Schedule', icon: <CalendarToday size={22} />, path: '/schedule' },
           { text: 'Hesap', icon: <Settings size={22} />, path: '/instagram-accounts' },
